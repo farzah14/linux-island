@@ -107,6 +107,24 @@ class FakeDisplayAdapter {
 
 // 10. GnomeDisplayAdapter contract verification
 {
+    const adapter = new FakeDisplayAdapter(true);
+    const controller = new IslandController({adapter});
+    expect(typeof controller.setFullscreenPolicyEnabled, 'function', 'Live fullscreen preference setter');
+    controller.setFullscreenPolicyEnabled(false);
+    expect(controller.state, 'COMPACT', 'Disable restores compact while fullscreen');
+    controller.dispatch('CLICK');
+    controller.setFullscreenPolicyEnabled(true);
+    expect(controller.state, 'HIDDEN', 'Enable immediately hides expanded during fullscreen');
+    adapter.emit(null);
+    expect(controller.state, 'HIDDEN', 'Unknown fullscreen is conservative');
+    controller.setFullscreenPolicyEnabled(false);
+    expect(controller.state, 'COMPACT', 'Disabled policy ignores unknown display state');
+    controller.destroy();
+    controller.setFullscreenPolicyEnabled(true);
+    expect(controller.state, 'COMPACT', 'Destroyed controller ignores settings');
+}
+
+{
     const fakeDisplay = {
         handlers: {},
         connect(sig, cb) {
@@ -179,4 +197,4 @@ class FakeDisplayAdapter {
     expect(fakeWorkspaceManager.disconnectedWsId, 303, 'Workspace signal disconnected on destroy');
 }
 
-console.log('PASS: 10 island controller and display adapter tests');
+console.log('PASS: island controller, display adapter and live fullscreen preference checks');

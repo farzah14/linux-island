@@ -78,3 +78,28 @@ Stops the service, disables the extension, removes installed files, and reports 
   When a media player exits mid-playback, `PlayerRegistry` clears the active player and emits `mediaStateChanged` with status `Stopped`.
 - **Malformed Settings Injection:**
   Oversized or invalid D-Bus calls to `UpdateSettings` return `org.freedesktop.DBus.Error.InvalidArgument` without corrupting persisted disk storage.
+# Core startup at each desktop login
+
+Core is wanted by and part of `graphical-session.target`. The user manager's
+`default.target` may remain active across logouts, so enabling Core only there
+does not recover it for a subsequent desktop session. Do not add
+`After=graphical-session.target`: the target already orders after its wanted
+services, and the reverse ordering would create a cycle.
+
+For an existing installation, back up the installed service file, copy
+`packaging/systemd-user/linux-island-core.service` into
+`~/.config/systemd/user/linux-island-core.service`, then run:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user reenable linux-island-core.service
+systemctl --user start linux-island-core.service
+```
+
+`reenable` migrates the old `default.target.wants` link to
+`graphical-session.target.wants`. This changes Core startup only and does not
+install or reload the Shell extension. Validate the unit with
+`python3 tests/integration/test_session_service.py` and
+`systemd-analyze --user verify packaging/systemd-user/linux-island-core.service`.
+A successful logout/login cycle still requires manual runtime acceptance; never
+stop `graphical-session.target` inside the user's active desktop as a test.

@@ -32,3 +32,8 @@ add_executable(tst_player_selection
 target_include_directories(tst_player_selection PRIVATE ${CMAKE_SOURCE_DIR}/core)
 target_link_libraries(tst_player_selection PRIVATE Qt6::Core Qt6::DBus Qt6::Test)
 add_test(NAME player-selection COMMAND tst_player_selection)
+
+add_executable(tst_audio_meter tst_audio_meter.cpp ${CMAKE_SOURCE_DIR}/core/media/audio_meter.h ${CMAKE_SOURCE_DIR}/core/media/audio_meter.cpp)
+target_include_directories(tst_audio_meter PRIVATE ${CMAKE_SOURCE_DIR}/core)
+target_link_libraries(tst_audio_meter PRIVATE Qt6::Core Qt6::Test)
+add_test(NAME audio-meter COMMAND tst_audio_meter)

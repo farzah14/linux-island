@@ -70,3 +70,11 @@ void FakeMprisPlayer::setMetadata(const QVariantMap &metadata) {
     sig << QStringLiteral("org.mpris.MediaPlayer2.Player") << changed << QStringList();
     m_bus.send(sig);
 }
+
+void FakeMprisPlayer::seekTo(qint64 position) {
+    m_position = position;
+    auto signal = QDBusMessage::createSignal(QStringLiteral("/org/mpris/MediaPlayer2"),
+        QStringLiteral("org.mpris.MediaPlayer2.Player"), QStringLiteral("Seeked"));
+    signal << position;
+    m_bus.send(signal);
+}

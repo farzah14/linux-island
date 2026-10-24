@@ -4,6 +4,7 @@
 #include <QDBusContext>
 #include <QVariantMap>
 #include <QString>
+#include <cmath>
 #include "events/revision_clock.h"
 #include "settings/settings_store.h"
 #include "media/media_state.h"
@@ -45,19 +46,32 @@ public:
         snap[QStringLiteral("status")] = m_status;
         snap[QStringLiteral("mediaRevision")] = QVariant::fromValue<quint64>(m_clock.mediaRevision());
         snap[QStringLiteral("settingsRevision")] = QVariant::fromValue<quint64>(m_clock.settingsRevision());
-        snap[QStringLiteral("media")] = toMediaVariantMap(m_mediaState);
+        snap[QStringLiteral("media")] = mediaState();
         snap[QStringLiteral("settings")] = m_settingsStore.settings();
         snap[QStringLiteral("capabilities")] = m_capabilities;
         return snap;
     }
 
     QVariantMap mediaState() const {
-        return toMediaVariantMap(m_mediaState);
+        auto media = toMediaVariantMap(m_mediaState);
+        media[QStringLiteral("audioLevels")] = m_audioLevels;
+        return media;
+    }
+
+    void setAudioLevels(const QVariantList &levels) {
+        if (levels.size() != 3 || m_mediaState.playbackStatus != QLatin1String("Playing")) return;
+        for (const auto &value : levels)
+            if (!std::isfinite(value.toDouble()) || value.toDouble() < 0 || value.toDouble() > 1) return;
+        if (levels == m_audioLevels) return;
+        m_audioLevels = levels;
+        m_mediaState.revision = m_clock.mediaChanged();
+        emit mediaChanged(m_mediaState.revision, mediaState());
     }
 
     QVariantMap settings() const {
         return m_settingsStore.settings();
     }
+    void refreshMediaPosition() { m_playerRegistry.refreshPosition(); }
     bool controlMedia(const QString &action) {
         auto result = m_controller.perform(action, m_playerRegistry.activePlayerId(), m_playerRegistry.activeMediaState());
         if (!result.accepted) {
@@ -115,10 +129,12 @@ public:
     }
 
     void setMediaState(const MediaState &media) {
+        if (media.playerId != m_mediaState.playerId || media.playbackStatus != QLatin1String("Playing"))
+            m_audioLevels = {0.0, 0.0, 0.0};
         m_mediaState = media;
         quint64 rev = m_clock.mediaChanged();
         m_mediaState.revision = rev;
-        emit mediaChanged(rev, toMediaVariantMap(m_mediaState));
+        emit mediaChanged(rev, mediaState());
     }
 
     void setSettings(const QVariantMap &settings) {
@@ -142,4 +158,5 @@ private:
     PlayerRegistry m_playerRegistry;
     MprisController m_controller;
     QVariantMap m_capabilities;
+    QVariantList m_audioLevels{0.0, 0.0, 0.0};
 };

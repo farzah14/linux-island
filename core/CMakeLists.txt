@@ -7,6 +7,8 @@ add_executable(linux-island-core
     dbus/variant_codec.h
     dbus/variant_codec.cpp
     media/media_state.h
+    media/audio_meter.h
+    media/audio_meter.cpp
     media/media_normalizer.h
     media/media_normalizer.cpp
     media/player_registry.h

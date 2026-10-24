@@ -2,3 +2,5 @@
 *.user
 *.pyc
 __pycache__/
+git-history.bundle
+RELEASE_MANIFEST_SHA256.txt

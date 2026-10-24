@@ -56,15 +56,18 @@ export function reconcileState(current, action) {
     }
     case 'SNAPSHOT_LOADED': {
         const snap = action.snapshot;
+        const sameInstance = current.instanceId === snap.instanceId;
+        const keepMedia = sameInstance && current.mediaRevision > Number(snap.mediaRevision ?? 0);
+        const keepSettings = sameInstance && current.settingsRevision > Number(snap.settingsRevision ?? 0);
         return {
             ...current,
             connected: true,
             instanceId: snap.instanceId ?? null,
             status: snap.status ?? 'ready',
-            mediaRevision: Number(snap.mediaRevision ?? 0),
-            media: snap.media ?? {},
-            settingsRevision: Number(snap.settingsRevision ?? 0),
-            settings: snap.settings ?? current.settings,
+            mediaRevision: keepMedia ? current.mediaRevision : Number(snap.mediaRevision ?? 0),
+            media: keepMedia ? current.media : snap.media ?? {},
+            settingsRevision: keepSettings ? current.settingsRevision : Number(snap.settingsRevision ?? 0),
+            settings: keepSettings ? current.settings : snap.settings ?? current.settings,
             capabilities: snap.capabilities ?? {},
         };
     }
@@ -205,6 +208,7 @@ export class CoreProxy {
     _fetchSnapshot() {
         if (this._isDestroyed || !this._proxy || !this._proxy.g_name_owner)
             return;
+        const owner = this._proxy.g_name_owner;
 
         this._proxy.call(
             'GetSnapshot',
@@ -213,7 +217,7 @@ export class CoreProxy {
             -1,
             this._cancellable,
             (proxy, res) => {
-                if (this._isDestroyed)
+                if (this._isDestroyed || proxy.g_name_owner !== owner)
                     return;
                 try {
                     const reply = proxy.call_finish(res);
@@ -229,6 +233,10 @@ export class CoreProxy {
                 }
             }
         );
+    }
+
+    refreshMedia() {
+        this._fetchSnapshot();
     }
 
     _onSignal(sigName, params) {

@@ -24,6 +24,7 @@ private slots:
     void testSignalsDelivered();
     void testRestartInstanceIdAndRevisionReset();
     void testSettingsPersistenceAcrossRestart();
+    void testAudioLevelsRespectPlaybackAndRevision();
     void cleanupTestCase();
 
 private:
@@ -299,6 +300,30 @@ void TestCoreDBus::testSettingsPersistenceAcrossRestart() {
     QCOMPARE(restartedService.settingsRevision(), 0ull);
 }
 
+
+void TestCoreDBus::testAudioLevelsRespectPlaybackAndRevision() {
+    CoreService service(m_tempDir.filePath(QStringLiteral("audio-settings.json")));
+    MediaState media;
+    media.playerId = QStringLiteral("org.mpris.MediaPlayer2.TestAudio");
+    media.playbackStatus = QStringLiteral("Playing");
+    service.setMediaState(media);
+    const auto before = service.mediaRevision();
+    QSignalSpy changes(&service, &CoreService::mediaChanged);
+    service.setAudioLevels({0.1, 0.5, 0.9});
+    QCOMPARE(service.mediaState().value(QStringLiteral("audioLevels")).toList(), QVariantList({0.1, 0.5, 0.9}));
+    QVERIFY(service.mediaRevision() > before);
+    QCOMPARE(changes.count(), 1);
+    service.setAudioLevels({0.1, 0.5, 0.9});
+    service.setAudioLevels({-1.0, 0.0, 1.0});
+    service.setAudioLevels({0.0});
+    QCOMPARE(changes.count(), 1);
+    media.playbackStatus = QStringLiteral("Paused");
+    service.setMediaState(media);
+    QCOMPARE(service.mediaState().value(QStringLiteral("audioLevels")).toList(), QVariantList({0.0, 0.0, 0.0}));
+    const auto pausedRevision = service.mediaRevision();
+    service.setAudioLevels({1.0, 1.0, 1.0});
+    QCOMPARE(service.mediaRevision(), pausedRevision);
+}
 
 void TestCoreDBus::cleanupTestCase() {
     if (m_bus.isConnected()) {

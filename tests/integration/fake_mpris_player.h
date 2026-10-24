@@ -17,6 +17,7 @@ public:
 
     void setPlaybackStatus(const QString &status);
     void setMetadata(const QVariantMap &metadata);
+    void seekTo(qint64 position);
 
     QString serviceName() const { return m_serviceName; }
 
@@ -26,6 +27,7 @@ private:
     bool m_registered = false;
     QString m_playbackStatus = QStringLiteral("Playing");
     QVariantMap m_metadata;
+    qint64 m_position = 1000000;
 
     friend class FakeMprisPlayerAdaptor;
 };
@@ -54,7 +56,7 @@ public:
     bool canGoNext() const { return true; }
     bool canGoPrevious() const { return true; }
     bool canSeek() const { return true; }
-    qint64 position() const { return 1000000; }
+    qint64 position() const { return m_player->m_position; }
 
 public slots:
     void Play() { m_player->setPlaybackStatus(QStringLiteral("Playing")); }

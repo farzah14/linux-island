@@ -8,6 +8,7 @@ QVariantMap toMediaVariantMap(const MediaState &state) {
     map[QStringLiteral("albumArtUri")] = state.albumArtUri;
     map[QStringLiteral("playbackStatus")] = state.playbackStatus;
     map[QStringLiteral("positionUs")] = QVariant::fromValue<qint64>(state.positionUs);
+    map[QStringLiteral("positionSampleUs")] = QVariant::fromValue<qint64>(state.positionSampleUs);
     map[QStringLiteral("durationUs")] = QVariant::fromValue<qint64>(state.durationUs);
     map[QStringLiteral("canPlay")] = state.canPlay;
     map[QStringLiteral("canPause")] = state.canPause;

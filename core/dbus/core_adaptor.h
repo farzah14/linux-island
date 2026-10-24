@@ -18,10 +18,12 @@ public:
 
 public slots:
     QVariantMap GetSnapshot() {
+        m_service->refreshMediaPosition();
         return m_service->snapshot();
     }
 
     QVariantMap GetMediaState() {
+        m_service->refreshMediaPosition();
         return m_service->mediaState();
     }
 

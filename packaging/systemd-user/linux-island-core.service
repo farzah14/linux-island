@@ -1,6 +1,6 @@
 [Unit]
 Description=Linux Island Core
-After=graphical-session.target
+PartOf=graphical-session.target
 StartLimitIntervalSec=60
 StartLimitBurst=5
 
@@ -12,4 +12,4 @@ Restart=on-failure
 RestartSec=2
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target

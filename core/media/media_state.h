@@ -10,6 +10,7 @@ struct MediaState {
     QString albumArtUri;
     QString playbackStatus = QStringLiteral("Stopped");
     qint64 positionUs = 0;
+    qint64 positionSampleUs = 0;
     qint64 durationUs = 0;
     bool canPlay = false;
     bool canPause = false;

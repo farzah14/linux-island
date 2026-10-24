@@ -1,12 +1,28 @@
 // Media presentation mapper and GNOME Shell UI view.
 // Pure mapper runs in Node.js and GJS; UI actors constructed when GJS St/Clutter are available.
+import {loadLocalArtwork} from '../lib/localArtwork.js';
+import {BeatBars} from './beatBars.js';
+import {estimateTimeline, formatTime} from '../lib/mediaTimeline.js';
+
+export const CAPSULE_SIZES = Object.freeze({
+    small: {width: 268, artwork: 40, button: 28, play: 36, icon: 12,
+        title: 12, artist: 11, compactFont: 12, padding: '4px 12px', limit: 28},
+    medium: {width: 328, artwork: 48, button: 32, play: 40, icon: 14,
+        title: 13, artist: 12, compactFont: 13, padding: '6px 18px', limit: 36},
+    large: {width: 388, artwork: 56, button: 36, play: 44, icon: 16,
+        title: 14, artist: 13, compactFont: 14, padding: '8px 22px', limit: 44},
+});
 
 let St = null;
 let Clutter = null;
+let Gio = null;
+let GLib = null;
 if (typeof process === 'undefined') {
     try {
         St = (await import('gi://St')).default;
         Clutter = (await import('gi://Clutter')).default;
+        Gio = (await import('gi://Gio')).default;
+        GLib = (await import('gi://GLib')).default;
     } catch (_) {}
 }
 
@@ -63,8 +79,10 @@ export class MediaView {
      * @param {Object} [options]
      * @param {Function} [options.onControlAction] - (action: string) => void
      * @param {Function} [options.onDismiss] - () => void
+     * @param {Function} [options.artworkLoader] - async validated local icon loader
      */
-    constructor({onControlAction, onDismiss} = {}) {
+    constructor({onControlAction, onDismiss, artworkLoader = loadLocalArtwork,
+        clock = () => GLib ? GLib.get_monotonic_time() : 0, scheduler} = {}) {
         this._onControlAction = onControlAction ?? (() => {});
         this._onDismiss = onDismiss ?? (() => {});
         this._actor = null;
@@ -73,9 +91,29 @@ export class MediaView {
         this._playPauseBtn = null;
         this._nextBtn = null;
         this._prevBtn = null;
+        this._connected = true;
+        this._loadArtwork = artworkLoader;
+        this._artIcon = null;
+        this._artKey = null;
+        this._artCancellable = null;
+        this._artGeneration = 0;
+        this._clock = clock;
+        this._progressMedia = null;
+        this._progressTimer = null;
+        this._scheduler = scheduler ?? {
+            repeat: fn => GLib ? GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+                fn(); return GLib.SOURCE_CONTINUE;
+            }) : null,
+            cancel: id => { if (GLib) GLib.source_remove(id); },
+        };
 
         if (St && Clutter) {
             this._buildUi();
+            this._actor.connect('notify::mapped', () => {
+                this._renderProgress();
+                this._syncProgressTimer();
+            });
+            this.setMedia(null);
         }
     }
 
@@ -86,57 +124,31 @@ export class MediaView {
     _buildUi() {
         this._actor = new St.BoxLayout({
             vertical: true,
-            style: 'width: 330px; padding: 12px 14px 14px 14px; spacing: 8px;',
+            style: 'width: 328px; padding: 8px 14px; spacing: 6px;',
             reactive: true,
         });
-
-        // Top mini-bar: "🏝️ Linux Island" + spacer + close button "✕"
-        const topBar = new St.BoxLayout({
-            style: 'spacing: 8px;',
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-
-        const brandLabel = new St.Label({
-            text: '🏝️ Linux Island',
-            style: 'font-size: 11px; font-weight: 600; color: #A69C8F;',
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-
-        const topSpacer = new St.Widget({
-            x_expand: true,
-        });
-
-        const closeBtn = new St.Button({
-            label: '✕',
-            style: 'padding: 2px 8px; border-radius: 8px; background-color: #23211E; color: #A69C8F; font-size: 11px;',
-            reactive: true,
-            can_focus: true,
-        });
-        closeBtn.connect('clicked', () => this._onDismiss());
-
-        topBar.add_child(brandLabel);
-        topBar.add_child(topSpacer);
-        topBar.add_child(closeBtn);
-        this._actor.add_child(topBar);
 
         // Track info row: Album art box on left, Title + Artist on right
         const trackRow = new St.BoxLayout({
-            style: 'spacing: 12px; padding: 4px 0;',
+            style: 'spacing: 10px;',
             y_align: Clutter.ActorAlign.CENTER,
         });
 
         const artBox = new St.BoxLayout({
-            style: 'width: 44px; height: 44px; border-radius: 10px; background-color: #23211E; border: 1px solid #403B34;',
+            style: 'width: 48px; height: 48px; border-radius: 12px;',
+            style_class: 'linux-island__artwork',
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
         });
-        const artIcon = new St.Label({
-            text: '🎵',
-            style: 'font-size: 18px;',
+        this._artBox = artBox;
+        this._artIcon = new St.Icon({
+            icon_name: 'audio-x-generic-symbolic',
+            fallback_icon_name: 'audio-x-generic-symbolic',
+            icon_size: 48,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
         });
-        artBox.add_child(artIcon);
+        artBox.add_child(this._artIcon);
         trackRow.add_child(artBox);
 
         const textCol = new St.BoxLayout({
@@ -148,7 +160,9 @@ export class MediaView {
 
         this._titleLabel = new St.Label({
             text: 'No Media Playing',
-            style: 'font-size: 14px; font-weight: bold; color: #F4F0E9;',
+            x_expand: true,
+            style: 'font-size: 13px; font-weight: bold;',
+            style_class: 'linux-island__media-title',
         });
         if (this._titleLabel.clutter_text) {
             this._titleLabel.clutter_text.set_ellipsize(3);
@@ -156,75 +170,197 @@ export class MediaView {
 
         this._artistLabel = new St.Label({
             text: '',
-            style: 'font-size: 12px; color: #D8B77F;',
+            x_expand: true,
+            style: 'font-size: 12px;',
+            style_class: 'linux-island__media-artist',
         });
         if (this._artistLabel.clutter_text) {
             this._artistLabel.clutter_text.set_ellipsize(3);
         }
 
-        textCol.add_child(this._titleLabel);
+        const titleRow = new St.BoxLayout({style: 'spacing: 8px;', x_expand: true});
+        titleRow.add_child(this._titleLabel);
+        this._beatBars = new BeatBars();
+        titleRow.add_child(this._beatBars.actor);
+        textCol.add_child(titleRow);
         textCol.add_child(this._artistLabel);
         trackRow.add_child(textCol);
         this._actor.add_child(trackRow);
 
+        this._progressTrack = new St.Bin({
+            style: 'height: 4px; border-radius: 2px;',
+            style_class: 'linux-island__progress-track', x_expand: true,
+        });
+        this._progressFill = new St.Widget({
+            style: 'height: 4px; border-radius: 2px;',
+            style_class: 'linux-island__progress-fill',
+            x_align: Clutter.ActorAlign.START, y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._progressTrack.set_child(this._progressFill);
+        this._progressTrack.connect('notify::allocation', () => this._renderProgress());
+        this._actor.add_child(this._progressTrack);
+
         // Playback controls row: [  ⏮  ]   [   ▶   ]   [  ⏭  ]
         const controlsBox = new St.BoxLayout({
-            style: 'spacing: 16px; padding-top: 8px;',
+            style: 'spacing: 8px;',
             x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
         });
+        this._elapsedLabel = new St.Label({text: '0:00', x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER, style: 'font-size: 10px; max-width: 64px;',
+            style_class: 'linux-island__progress-time'});
+        this._durationLabel = new St.Label({text: '--:--', x_expand: true,
+            x_align: Clutter.ActorAlign.END, y_align: Clutter.ActorAlign.CENTER,
+            style: 'font-size: 10px; max-width: 64px;', style_class: 'linux-island__progress-time'});
+        this._elapsedLabel.clutter_text?.set_ellipsize(3);
+        this._durationLabel.clutter_text?.set_ellipsize(3);
 
         this._prevBtn = new St.Button({
-            label: '⏮',
-            style: 'padding: 6px 18px; border-radius: 12px; background-color: #23211E; color: #F4F0E9; font-size: 15px;',
+            style: 'width: 32px; height: 32px; padding: 0; border-radius: 12px; font-size: 15px;',
+            style_class: 'linux-island__media-button',
+            accessible_name: 'Previous track',
             reactive: true,
             can_focus: true,
         });
+        this._prevBtn.set_child(new St.Icon({icon_name: 'media-skip-backward-symbolic', icon_size: 14}));
         this._prevBtn.connect('clicked', () => this._onControlAction('Previous'));
 
         this._playPauseBtn = new St.Button({
-            label: '▶',
-            style: 'padding: 8px 26px; border-radius: 14px; background-color: #D8B77F; color: #191816; font-size: 17px; font-weight: bold;',
+            style: 'width: 40px; height: 32px; padding: 0; border-radius: 14px;',
+            style_class: 'linux-island__media-button linux-island__media-button-primary',
+            accessible_name: 'Play',
             reactive: true,
             can_focus: true,
         });
+        this._playIcon = new St.Icon({icon_name: 'media-playback-start-symbolic', icon_size: 16});
+        this._playPauseBtn.set_child(this._playIcon);
         this._playPauseBtn.connect('clicked', () => this._onControlAction('PlayPause'));
 
         this._nextBtn = new St.Button({
-            label: '⏭',
-            style: 'padding: 6px 18px; border-radius: 12px; background-color: #23211E; color: #F4F0E9; font-size: 15px;',
+            style: 'width: 32px; height: 32px; padding: 0; border-radius: 12px; font-size: 15px;',
+            style_class: 'linux-island__media-button',
+            accessible_name: 'Next track',
             reactive: true,
             can_focus: true,
         });
+        this._nextBtn.set_child(new St.Icon({icon_name: 'media-skip-forward-symbolic', icon_size: 14}));
         this._nextBtn.connect('clicked', () => this._onControlAction('Next'));
 
+        controlsBox.add_child(this._elapsedLabel);
         controlsBox.add_child(this._prevBtn);
         controlsBox.add_child(this._playPauseBtn);
         controlsBox.add_child(this._nextBtn);
+        controlsBox.add_child(this._durationLabel);
         this._actor.add_child(controlsBox);
     }
 
+    setCapsuleSize(size) {
+        if (!Object.hasOwn(CAPSULE_SIZES, size) || !this._actor) return;
+        const preset = CAPSULE_SIZES[size];
+        this._actor.style = `width: ${preset.width}px; padding: 8px 14px; spacing: 6px;`;
+        this._artBox.style = `width: ${preset.artwork}px; height: ${preset.artwork}px; border-radius: 12px;`;
+        this._artIcon.icon_size = preset.artwork;
+        this._titleLabel.style = `font-size: ${preset.title}px; font-weight: bold;`;
+        this._artistLabel.style = `font-size: ${preset.artist}px;`;
+        for (const button of [this._prevBtn, this._nextBtn]) {
+            button.style = `width: ${preset.button}px; height: ${preset.button}px; padding: 0; border-radius: 12px;`;
+            button.get_child().icon_size = preset.icon;
+        }
+        this._playPauseBtn.style = `width: ${preset.play}px; height: ${preset.button}px; padding: 0; border-radius: 14px;`;
+        this._playIcon.icon_size = preset.icon + 2;
+    }
+
+    setConnected(connected) {
+        this._connected = Boolean(connected);
+        if (!this._connected)
+            this.setMedia(null);
+    }
+
+    setAnimationEnabled(enabled) {
+        this._beatBars?.setAnimationEnabled(enabled);
+    }
+
     setMedia(media) {
-        const pres = formatMediaPresentation(media);
+        this._progressMedia = this._connected ? media : null;
+        this._renderProgress();
+        this._syncProgressTimer();
+        this._setArtwork(this._connected && media?.playerId ? media : null);
+        const pres = formatMediaPresentation(this._connected ? media : null);
+        this._beatBars?.setPlayback(pres.isPlaying, pres.hasPlayer, media?.audioLevels);
         if (this._titleLabel) {
-            this._titleLabel.text = pres.title;
+            this._titleLabel.text = this._connected ? pres.title : 'Core offline';
         }
         if (this._artistLabel) {
             this._artistLabel.text = pres.artist;
             this._artistLabel.visible = pres.hasPlayer;
         }
         if (this._playPauseBtn) {
-            this._playPauseBtn.label = pres.isPlaying ? '⏸' : '▶';
+            this._playIcon.icon_name = pres.isPlaying ? 'media-playback-pause-symbolic' : 'media-playback-start-symbolic';
+            this._playPauseBtn.accessible_name = pres.isPlaying ? 'Pause' : 'Play';
             this._playPauseBtn.reactive = pres.canPlayPause;
+            this._playPauseBtn.can_focus = pres.canPlayPause;
+            this._playPauseBtn.opacity = pres.canPlayPause ? 255 : 102;
         }
         if (this._nextBtn) {
             this._nextBtn.reactive = pres.canNext;
+            this._nextBtn.can_focus = pres.canNext;
+            this._nextBtn.opacity = pres.canNext ? 255 : 102;
         }
         if (this._prevBtn) {
             this._prevBtn.reactive = pres.canPrevious;
+            this._prevBtn.can_focus = pres.canPrevious;
+            this._prevBtn.opacity = pres.canPrevious ? 255 : 102;
         }
     }
 
+    _renderProgress() {
+        if (!this._actor || !this._progressTrack) return;
+        const timeline = estimateTimeline(this._progressMedia, this._clock());
+        this._elapsedLabel.text = formatTime(timeline.positionUs);
+        this._durationLabel.text = timeline.durationUs > 0 ? formatTime(timeline.durationUs) : '--:--';
+        this._progressTrack.visible = timeline.durationUs > 0;
+        this._progressFill.visible = timeline.progress > 0;
+        this._progressFill.width = Math.round(Math.max(0, Number(this._progressTrack.width) || 0) * timeline.progress);
+    }
+
+    _syncProgressTimer() {
+        const running = this._actor?.mapped && this._progressMedia?.playbackStatus === 'Playing' &&
+            Number(this._progressMedia.durationUs) > 0;
+        if (running && this._progressTimer === null)
+            this._progressTimer = this._scheduler.repeat(() => this._renderProgress());
+        else if (!running && this._progressTimer !== null) {
+            this._scheduler.cancel(this._progressTimer);
+            this._progressTimer = null;
+        }
+    }
+
+    _setArtwork(media) {
+        const uri = media?.albumArtUri ?? '';
+        const key = JSON.stringify([media?.playerId, media?.title, uri]);
+        if (key === this._artKey || !this._artIcon) return;
+        this._artKey = key;
+        const generation = ++this._artGeneration;
+        this._artCancellable?.cancel();
+        this._artCancellable = null;
+        this._artIcon.gicon = null;
+        this._artIcon.icon_name = 'audio-x-generic-symbolic';
+        if (!uri || !Gio) return;
+        this._artCancellable = new Gio.Cancellable();
+        this._loadArtwork(uri, this._artCancellable).then(icon => {
+            if (generation === this._artGeneration && this._artIcon && icon)
+                this._artIcon.gicon = icon;
+        }).catch(() => {});
+    }
+
     destroy() {
+        if (this._progressTimer !== null) this._scheduler.cancel(this._progressTimer);
+        this._progressTimer = null;
+        this._beatBars?.destroy();
+        ++this._artGeneration;
+        this._artCancellable?.cancel();
+        this._artCancellable = null;
+        this._artIcon = null;
         if (this._actor) {
             try {
                 this._actor.destroy();

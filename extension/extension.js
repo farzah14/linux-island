@@ -14,6 +14,7 @@ export default class LinuxIslandExtension extends Extension {
         const capsule = new Capsule({
             onControlAction: action => this._coreProxy?.controlMedia(action),
             onInteractionEvent: event => this._controller?.dispatch(event),
+            onMediaOpen: () => this._coreProxy?.refreshMedia(),
         });
         let controller = null;
         let coreProxy = null;
@@ -21,6 +22,7 @@ export default class LinuxIslandExtension extends Extension {
         try {
             capsule.mount();
             this._capsule = capsule;
+            capsule.setConnected(false);
 
             const adapter = new GnomeDisplayAdapter({
                 display: typeof global !== 'undefined' ? global.display : null,
@@ -64,10 +66,16 @@ export default class LinuxIslandExtension extends Extension {
     }
 
     _onCoreStateChanged(coreState) {
+        this._capsule?.setConnected(Boolean(coreState?.connected));
         if (coreState?.media) {
             this._capsule?.setMedia(coreState.media);
         }
         if (coreState?.settings) {
+            this._controller?.setFullscreenPolicyEnabled(coreState.settings.smartAdaptiveEnabled);
+            this._capsule?.setHoverPreviewEnabled(coreState.settings.hoverPreviewEnabled);
+            this._capsule?.setTheme(coreState.settings.theme);
+            this._capsule?.setCapsuleSize(coreState.settings.capsuleSize);
+            this._capsule?.setAnimationEnabled(coreState.settings.animationEnabled);
             const peekEnabled = Boolean(coreState.settings.notificationPeekEnabled);
             this._notifAdapter?.setEnabled(peekEnabled);
         }

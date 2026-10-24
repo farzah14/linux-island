@@ -12,10 +12,27 @@ private slots:
     void testDiscoveryAndMetadata();
     void testPlayerExitCleansState();
     void testMultiplePlayersPreference();
+    void testSeekUpdatesPosition();
 };
 
 void TestMprisFlow::initTestCase() {
     QVERIFY2(QDBusConnection::sessionBus().isConnected(), "Session bus must be connected");
+}
+
+void TestMprisFlow::testSeekUpdatesPosition() {
+    PlayerRegistry registry;
+    FakeMprisPlayer fake(QStringLiteral("org.mpris.MediaPlayer2.LinuxIslandTimeline"));
+    QVERIFY(fake.start());
+    QTRY_COMPARE_WITH_TIMEOUT(registry.activeMediaState().positionUs, 1000000, 2000);
+    QVERIFY(registry.activeMediaState().positionSampleUs > 0);
+    const auto sampled = registry.activeMediaState().positionSampleUs;
+    registry.refreshPosition();
+    QTRY_VERIFY_WITH_TIMEOUT(registry.activeMediaState().positionSampleUs > sampled, 2000);
+    fake.seekTo(42000000);
+    QTRY_COMPARE_WITH_TIMEOUT(registry.activeMediaState().positionUs, 42000000, 2000);
+    fake.seekTo(-100);
+    QTRY_COMPARE_WITH_TIMEOUT(registry.activeMediaState().positionUs, 0, 2000);
+    fake.stop();
 }
 
 void TestMprisFlow::testDiscoveryAndMetadata() {

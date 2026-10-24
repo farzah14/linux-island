@@ -68,6 +68,13 @@ export class IslandController {
         }
     }
 
+    setFullscreenPolicyEnabled(enabled) {
+        const next = enabled !== false;
+        if (this._isDestroyed || next === this._fullscreenPolicyEnabled) return;
+        this._fullscreenPolicyEnabled = next;
+        this._handleFullscreenUpdate(this._adapter?.read() ?? null);
+    }
+
     _handleFullscreenUpdate(fullscreenOnPrimary) {
         if (this._isDestroyed)
             return;

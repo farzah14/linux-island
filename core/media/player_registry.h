@@ -27,6 +27,7 @@ public:
     bool setActivePlayer(const QString &playerId);
     void setPreferredPlayerId(const QString &playerId);
     void refresh();
+    void refreshPosition();
 
 signals:
     void activePlayerChanged(const QString &playerId);
@@ -36,7 +37,9 @@ signals:
 private slots:
     void onNameOwnerChanged(const QString &name, const QString &oldOwner, const QString &newOwner);
     void onPlayerPropertiesChanged(const QString &interfaceName, const QVariantMap &changedProps, const QStringList &invalidatedProps, const QDBusMessage &msg);
+    void onPlayerSeeked(qint64 position, const QDBusMessage &msg);
 private:
+    QString serviceForMessage(const QDBusMessage &msg) const;
     void queryPlayerProperties(const QString &serviceName);
     void reevaluateActivePlayer();
     void subscribePlayerSignals(const QString &serviceName);
@@ -48,6 +51,8 @@ private:
         QVariantMap metadata;
         QVariantMap properties;
         MediaState normalizedState;
+        qint64 positionSampleUs = 0;
+        quint64 querySequence = 0;
     };
 
     QDBusConnection m_bus;

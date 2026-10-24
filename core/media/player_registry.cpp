@@ -7,6 +7,13 @@
 #include <QDBusPendingReply>
 #include <QDBusConnectionInterface>
 #include <algorithm>
+#include <chrono>
+#include <limits>
+
+static qint64 monotonicUs() {
+    return std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 
 static QVariantMap unpackMetaMap(const QVariant &var) {
     if (var.canConvert<QDBusArgument>()) {
@@ -177,6 +184,9 @@ void PlayerRegistry::subscribePlayerSignals(const QString &serviceName) {
         QStringLiteral("PropertiesChanged"),
         this,
         SLOT(onPlayerPropertiesChanged(QString,QVariantMap,QStringList,QDBusMessage)));
+    m_bus.connect(serviceName, QStringLiteral("/org/mpris/MediaPlayer2"),
+        QStringLiteral("org.mpris.MediaPlayer2.Player"), QStringLiteral("Seeked"),
+        this, SLOT(onPlayerSeeked(qint64,QDBusMessage)));
 }
 
 void PlayerRegistry::unsubscribePlayerSignals(const QString &serviceName) {
@@ -190,38 +200,58 @@ void PlayerRegistry::unsubscribePlayerSignals(const QString &serviceName) {
         QStringLiteral("PropertiesChanged"),
         this,
         SLOT(onPlayerPropertiesChanged(QString,QVariantMap,QStringList,QDBusMessage)));
+    m_bus.disconnect(serviceName, QStringLiteral("/org/mpris/MediaPlayer2"),
+        QStringLiteral("org.mpris.MediaPlayer2.Player"), QStringLiteral("Seeked"),
+        this, SLOT(onPlayerSeeked(qint64,QDBusMessage)));
+}
+
+void PlayerRegistry::refreshPosition() {
+    if (!m_activeId.isEmpty()) queryPlayerProperties(m_activeId);
+}
+
+QString PlayerRegistry::serviceForMessage(const QDBusMessage &msg) const {
+    const QString sender = msg.service();
+    for (auto it = m_players.cbegin(); it != m_players.cend(); ++it) {
+        if (it.key() == sender || (m_bus.interface() && m_bus.interface()->serviceOwner(it.key()) == sender))
+            return it.key();
+    }
+    return {};
+}
+
+void PlayerRegistry::onPlayerSeeked(qint64 position, const QDBusMessage &msg) {
+    if (m_isDestroyed) return;
+    const auto service = serviceForMessage(msg);
+    if (!m_players.contains(service)) return;
+    auto &data = m_players[service];
+    ++data.querySequence; // A pending older GetAll must not undo this seek.
+    data.properties[QStringLiteral("Position")] = std::max<qint64>(0, position);
+    data.positionSampleUs = monotonicUs();
+    data.normalizedState = normalizeMpris(service, data.metadata, data.properties);
+    data.normalizedState.positionSampleUs = data.positionSampleUs;
+    if (service == m_activeId) emit mediaStateChanged(data.normalizedState);
 }
 
 void PlayerRegistry::onPlayerPropertiesChanged(const QString &interfaceName,
                                               const QVariantMap &changedProps,
                                               const QStringList &invalidatedProps,
                                               const QDBusMessage &msg) {
-    Q_UNUSED(invalidatedProps);
     if (m_isDestroyed || interfaceName != QLatin1String("org.mpris.MediaPlayer2.Player"))
         return;
 
-    QString sender = msg.service();
-    QString matchingService;
-    for (auto it = m_players.begin(); it != m_players.end(); ++it) {
-        if (it.key() == sender) {
-            matchingService = it.key();
-            break;
-        }
-    }
-    if (matchingService.isEmpty() && m_bus.interface()) {
-        for (auto it = m_players.begin(); it != m_players.end(); ++it) {
-            if (m_bus.interface()->serviceOwner(it.key()) == sender) {
-                matchingService = it.key();
-                break;
-            }
-        }
-    }
-    if (matchingService.isEmpty()) {
-        matchingService = sender;
-    }
+    const QString matchingService = serviceForMessage(msg);
 
     if (m_players.contains(matchingService)) {
         auto &data = m_players[matchingService];
+        const auto now = monotonicUs();
+        const auto previousMetadata = data.metadata;
+        if (!changedProps.contains(QStringLiteral("Position")) && data.positionSampleUs > 0) {
+            long double position = data.normalizedState.positionUs;
+            if (data.playbackStatus == QLatin1String("Playing"))
+                position += (now - data.positionSampleUs) * static_cast<long double>(data.normalizedState.rate);
+            data.properties[QStringLiteral("Position")] = static_cast<qint64>(std::clamp<long double>(
+                position, 0, std::numeric_limits<qint64>::max()));
+        }
+        data.positionSampleUs = now;
         for (auto it = changedProps.begin(); it != changedProps.end(); ++it) {
             data.properties[it.key()] = it.value();
             if (it.key() == QLatin1String("Metadata")) {
@@ -230,17 +260,26 @@ void PlayerRegistry::onPlayerPropertiesChanged(const QString &interfaceName,
                 data.playbackStatus = it.value().toString();
             }
         }
+        if (!changedProps.contains(QStringLiteral("Position")) &&
+            (previousMetadata.value(QStringLiteral("mpris:trackid")) != data.metadata.value(QStringLiteral("mpris:trackid")) ||
+             previousMetadata.value(QStringLiteral("xesam:title")) != data.metadata.value(QStringLiteral("xesam:title"))))
+            data.properties[QStringLiteral("Position")] = qint64(0);
         data.normalizedState = normalizeMpris(matchingService, data.metadata, data.properties);
+        data.normalizedState.positionSampleUs = data.positionSampleUs;
         if (matchingService == m_activeId) {
             emit mediaStateChanged(data.normalizedState);
         }
         reevaluateActivePlayer();
+        if (changedProps.contains(QStringLiteral("PlaybackStatus")) || changedProps.contains(QStringLiteral("Metadata")) ||
+            changedProps.contains(QStringLiteral("Rate")) || invalidatedProps.contains(QStringLiteral("Position")))
+            queryPlayerProperties(matchingService);
     }
 }
 
 void PlayerRegistry::queryPlayerProperties(const QString &serviceName) {
-    if (!m_bus.isConnected() || m_isDestroyed)
+    if (!m_bus.isConnected() || m_isDestroyed || !m_players.contains(serviceName))
         return;
+    const auto sequence = ++m_players[serviceName].querySequence;
 
     QDBusInterface propsIface(
         serviceName,
@@ -253,9 +292,9 @@ void PlayerRegistry::queryPlayerProperties(const QString &serviceName) {
         QStringLiteral("org.mpris.MediaPlayer2.Player"));
 
     auto *watcher = new QDBusPendingCallWatcher(call, this);
-    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, serviceName](QDBusPendingCallWatcher *w) {
+    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, serviceName, sequence](QDBusPendingCallWatcher *w) {
         w->deleteLater();
-        if (m_isDestroyed || !m_players.contains(serviceName))
+        if (m_isDestroyed || !m_players.contains(serviceName) || m_players[serviceName].querySequence != sequence)
             return;
 
         QDBusPendingReply<QVariantMap> reply = *w;
@@ -268,6 +307,8 @@ void PlayerRegistry::queryPlayerProperties(const QString &serviceName) {
             data.metadata = meta;
             data.playbackStatus = props.value(QStringLiteral("PlaybackStatus")).toString();
             data.normalizedState = normalizeMpris(serviceName, meta, props);
+            data.positionSampleUs = monotonicUs();
+            data.normalizedState.positionSampleUs = data.positionSampleUs;
 
             if (serviceName == m_activeId) {
                 emit mediaStateChanged(data.normalizedState);
