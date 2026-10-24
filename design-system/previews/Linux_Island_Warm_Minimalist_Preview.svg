@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="820" viewBox="0 0 1280 820" role="img" aria-labelledby="title desc">
+<title id="title">Linux Island — Warm Minimalist Design System Preview</title>
+<desc id="desc">Vector design preview showing warm graphite dark mode, cream light mode, island compact, preview and expanded states, and the five core palette colors.</desc>
+<defs>
+<linearGradient id="background" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#EEE9DF"/><stop offset="1" stop-color="#E5DED3"/></linearGradient>
+<filter id="shadow" x="-25%" y="-40%" width="150%" height="200%"><feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#292621" flood-opacity="0.12"/></filter>
+</defs>
+<rect width="1280" height="820" fill="url(#background)"/>
+<text x="70" y="76" font-family="DejaVu Sans, sans-serif" font-size="37" font-weight="700" fill="#292621">Linux Island</text>
+<text x="70" y="111" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#665E53">Warm Minimalist  /  Design System v1.0  /  Graphite · Cream · Soft Amber</text>
+<rect x="70" y="146" width="550" height="477" rx="27" fill="#191816" filter="url(#shadow)"/>
+<text x="104" y="190" font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="700" fill="#F4F0E9">DARK THEME</text>
+<text x="104" y="214" font-family="DejaVu Sans, sans-serif" font-size="13" fill="#C8C0B5">Dynamic Island — primary experience</text>
+<!-- dark compact -->
+<rect x="284" y="251" width="124" height="32" rx="16" fill="#302D28" stroke="#575148" stroke-width="1"/>
+<circle cx="309" cy="267" r="5" fill="#D8B77F"/>
+<text x="324" y="271" font-family="DejaVu Sans, sans-serif" font-size="12" fill="#F4F0E9">Island</text>
+<text x="104" y="273" font-family="DejaVu Sans, sans-serif" font-size="13" fill="#C8C0B5">Compact</text>
+<!-- dark hover -->
+<rect x="244" y="309" width="248" height="56" rx="23" fill="#302D28" stroke="#575148"/>
+<circle cx="269" cy="337" r="13" fill="#403B34"/>
+<path d="M265 329 V344 L275 337 Z" fill="#D8B77F"/>
+<text x="292" y="333" font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="700" fill="#F4F0E9">Now playing</text>
+<text x="292" y="350" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#C8C0B5">Artist · Song title</text>
+<text x="104" y="340" font-family="DejaVu Sans, sans-serif" font-size="13" fill="#C8C0B5">Hover preview</text>
+<!-- expanded -->
+<rect x="176" y="391" width="360" height="184" rx="30" fill="#302D28" stroke="#575148"/>
+<text x="200" y="422" font-family="DejaVu Sans, sans-serif" font-size="14" font-weight="700" fill="#F4F0E9">Now playing</text>
+<circle cx="510" cy="415" r="4" fill="#D8B77F"/>
+<rect x="200" y="442" width="48" height="48" rx="12" fill="#403B34"/>
+<circle cx="224" cy="466" r="14" stroke="#D8B77F" stroke-width="2" fill="none"/>
+<circle cx="224" cy="466" r="3" fill="#D8B77F"/>
+<text x="263" y="460" font-family="DejaVu Sans, sans-serif" font-size="14" font-weight="700" fill="#F4F0E9">Warm evenings</text>
+<text x="263" y="479" font-family="DejaVu Sans, sans-serif" font-size="12" fill="#C8C0B5">Sample artist</text>
+<rect x="200" y="505" width="310" height="5" rx="2.5" fill="#575148"/>
+<rect x="200" y="505" width="124" height="5" rx="2.5" fill="#D8B77F"/>
+<text x="201" y="527" font-family="DejaVu Sans, sans-serif" font-size="10" fill="#C8C0B5">1:12</text>
+<text x="485" y="527" font-family="DejaVu Sans, sans-serif" font-size="10" fill="#C8C0B5">3:04</text>
+<path d="M304 543 L304 559 M312 543 L312 559" stroke="#F4F0E9" stroke-width="2.5" stroke-linecap="round"/>
+<circle cx="355" cy="551" r="16" fill="#D8B77F"/>
+<path d="M351 544 V558 M359 544 V558" stroke="#191816" stroke-width="3" stroke-linecap="round"/>
+<path d="M401 543 L413 551 L401 559 M413 543 V559" stroke="#F4F0E9" stroke-width="2.3" fill="none" stroke-linejoin="round"/>
+<text x="104" y="484" font-family="DejaVu Sans, sans-serif" font-size="13" fill="#C8C0B5">Expanded</text>
+<!-- light theme -->
+<rect x="660" y="146" width="550" height="477" rx="27" fill="#FBF8F1" filter="url(#shadow)"/>
+<text x="694" y="190" font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="700" fill="#292621">LIGHT THEME</text>
+<text x="694" y="214" font-family="DejaVu Sans, sans-serif" font-size="13" fill="#665E53">Cream surface — graphite text — deep amber actions</text>
+<rect x="846" y="246" width="172" height="40" rx="20" fill="#EEE9DF" stroke="#C7BCAE"/>
+<circle cx="875" cy="266" r="6" fill="#80551F"/>
+<text x="891" y="271" font-family="DejaVu Sans, sans-serif" font-size="13" fill="#292621">Linux Island</text>
+<text x="694" y="272" font-family="DejaVu Sans, sans-serif" font-size="13" fill="#665E53">Compact</text>
+<rect x="780" y="310" width="360" height="216" rx="28" fill="#EEE9DF" stroke="#C7BCAE"/>
+<text x="804" y="345" font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="700" fill="#292621">Appearance</text>
+<text x="804" y="370" font-family="DejaVu Sans, sans-serif" font-size="13" fill="#5D554B">Island theme</text>
+<rect x="804" y="382" width="312" height="41" rx="12" fill="#FBF8F1" stroke="#C7BCAE"/>
+<text x="819" y="408" font-family="DejaVu Sans, sans-serif" font-size="13" fill="#292621">Warm Minimalist</text>
+<path d="M1090 399 L1096 405 L1102 399" stroke="#80551F" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="804" y="453" font-family="DejaVu Sans, sans-serif" font-size="13" fill="#5D554B">Show preview on hover</text>
+<rect x="1067" y="436" width="49" height="25" rx="12.5" fill="#80551F"/>
+<circle cx="1102" cy="448.5" r="9.5" fill="#FBF8F1"/>
+<rect x="804" y="475" width="124" height="34" rx="17" fill="#80551F"/>
+<text x="828" y="497" font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="700" fill="#FBF8F1">Apply</text>
+<rect x="939" y="475" width="124" height="34" rx="17" fill="#FBF8F1" stroke="#C7BCAE"/>
+<text x="979" y="497" font-family="DejaVu Sans, sans-serif" font-size="12" fill="#292621">Reset</text>
+<text x="695" y="552" font-family="DejaVu Sans, sans-serif" font-size="12" fill="#665E53">Shared design tokens for GJS and Qt/QML.</text>
+<text x="70" y="671" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="700" fill="#292621">Foundation palette</text>
+<rect x="70" y="696" width="200" height="56" rx="10" fill="#191816" stroke="#C7BCAE" stroke-width="0.5"/><text x="70" y="775" font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#292621">Graphite</text><text x="178" y="775" font-family="DejaVu Sans, sans-serif" font-size="12" fill="#665E53">#191816</text><rect x="298" y="696" width="200" height="56" rx="10" fill="#302D28" stroke="#C7BCAE" stroke-width="0.5"/><text x="298" y="775" font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#292621">Surface</text><text x="406" y="775" font-family="DejaVu Sans, sans-serif" font-size="12" fill="#665E53">#302D28</text><rect x="526" y="696" width="200" height="56" rx="10" fill="#898278" stroke="#C7BCAE" stroke-width="0.5"/><text x="526" y="775" font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#292621">Stone</text><text x="634" y="775" font-family="DejaVu Sans, sans-serif" font-size="12" fill="#665E53">#898278</text><rect x="754" y="696" width="200" height="56" rx="10" fill="#EEE9DF" stroke="#C7BCAE" stroke-width="0.5"/><text x="754" y="775" font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#292621">Cream</text><text x="862" y="775" font-family="DejaVu Sans, sans-serif" font-size="12" fill="#665E53">#EEE9DF</text><rect x="982" y="696" width="200" height="56" rx="10" fill="#D8B77F" stroke="#C7BCAE" stroke-width="0.5"/><text x="982" y="775" font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#292621">Amber</text><text x="1090" y="775" font-family="DejaVu Sans, sans-serif" font-size="12" fill="#665E53">#D8B77F</text></svg>

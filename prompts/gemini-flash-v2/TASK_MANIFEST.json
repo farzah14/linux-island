@@ -1,0 +1,459 @@
+{
+  "schemaVersion": 1,
+  "project": "Linux Island",
+  "codingModel": "Gemini Flash (user-selected)",
+  "sourceBaseline": "Warm Minimalist M0 bootstrap",
+  "status": "implementation not executed by this plan revision",
+  "taskCount": 21,
+  "tasks": [
+    {
+      "id": 1,
+      "milestone": "M0",
+      "slug": "bootstrap",
+      "cards": "M0-00 + M0-01",
+      "goal": "Audit existing repository and restore Qt bootstrap only if broken",
+      "dependsOn": [],
+      "file": "prompts/gemini-flash-v2/01-M0-bootstrap.md",
+      "allowedFiles": [
+        "CMakeLists.txt",
+        "CMakePresets.json",
+        "core/app/main.cpp",
+        "docs/compatibility.md",
+        "README.md"
+      ],
+      "verificationCommands": [
+        "bash scripts/dev/audit-environment.sh",
+        "node tests/extension/state-machine.test.js",
+        "python3 tests/integration/test_m0_scaffold.py",
+        "cmake --preset dev"
+      ]
+    },
+    {
+      "id": 2,
+      "milestone": "M0",
+      "slug": "gnome-lifecycle",
+      "cards": "M0-02",
+      "goal": "Prove enable/disable of one GNOME capsule in isolated GNOME 46 Wayland test user",
+      "dependsOn": [
+        1
+      ],
+      "file": "prompts/gemini-flash-v2/02-M0-gnome-lifecycle.md",
+      "allowedFiles": [
+        "extension/extension.js",
+        "extension/ui/capsule.js",
+        "extension/metadata.json",
+        "tests/extension/manual-smoke.md",
+        "docs/compatibility.md"
+      ],
+      "verificationCommands": [
+        "gnome-shell --version",
+        "gnome-extensions info linux-island@local",
+        "gnome-extensions enable linux-island@local",
+        "gnome-extensions disable linux-island@local"
+      ]
+    },
+    {
+      "id": 3,
+      "milestone": "M0",
+      "slug": "state-machine",
+      "cards": "M0-03",
+      "goal": "Validate existing five-state pure reducer under Node and GJS, adding only regression assertions",
+      "dependsOn": [
+        2
+      ],
+      "file": "prompts/gemini-flash-v2/03-M0-state-machine.md",
+      "allowedFiles": [
+        "extension/lib/interactionState.js",
+        "tests/extension/state-machine.test.js"
+      ],
+      "verificationCommands": [
+        "node tests/extension/state-machine.test.js",
+        "gjs -m tests/extension/state-machine.test.js"
+      ]
+    },
+    {
+      "id": 4,
+      "milestone": "M0",
+      "slug": "fullscreen",
+      "cards": "M0-04A + M0-04B + M0-05",
+      "goal": "Implement pure fullscreen policy with tests, then GNOME verified adapter and M0 acceptance",
+      "dependsOn": [
+        2,
+        3
+      ],
+      "file": "prompts/gemini-flash-v2/04-M0-fullscreen.md",
+      "allowedFiles": [
+        "extension/lib/displayPolicy.js",
+        "tests/extension/display-policy.test.js",
+        "extension/lib/gnomeDisplayAdapter.js",
+        "extension/lib/islandController.js",
+        "extension/extension.js"
+      ],
+      "verificationCommands": [
+        "node tests/extension/display-policy.test.js",
+        "gjs -m tests/extension/display-policy.test.js",
+        "gnome-extensions info linux-island@local"
+      ]
+    },
+    {
+      "id": 5,
+      "milestone": "M1",
+      "slug": "core1-schema",
+      "cards": "M1-05A",
+      "goal": "Freeze approved Core1 schema exact six methods and three signals",
+      "dependsOn": [
+        4
+      ],
+      "file": "prompts/gemini-flash-v2/05-M1-core1-schema.md",
+      "allowedFiles": [
+        "schemas/io.github.linuxisland.Core1.xml",
+        "tests/integration/test_schema.py",
+        "tests/integration/CMakeLists.txt"
+      ],
+      "verificationCommands": [
+        "python3 tests/integration/test_schema.py",
+        "ctest --test-dir build/dev -R dbus-schema --output-on-failure"
+      ]
+    },
+    {
+      "id": 6,
+      "milestone": "M1",
+      "slug": "core-service",
+      "cards": "M1-06A + M1-06B",
+      "goal": "Expose Core1 on user session bus with exact typed snapshot and introspection",
+      "dependsOn": [
+        5
+      ],
+      "file": "prompts/gemini-flash-v2/06-M1-core-service.md",
+      "allowedFiles": [
+        "core/app/main.cpp",
+        "core/CMakeLists.txt",
+        "core/dbus/core_service.h",
+        "core/dbus/core_adaptor.h",
+        "tests/integration/tst_core_dbus.cpp"
+      ],
+      "verificationCommands": [
+        "cmake --preset dev",
+        "cmake --build --preset dev",
+        "dbus-run-session -- ctest --test-dir build/dev -R core-dbus --output-on-failure"
+      ]
+    },
+    {
+      "id": 7,
+      "milestone": "M1",
+      "slug": "revisions",
+      "cards": "M1-07",
+      "goal": "Build revision clock and restart identity; reject stale snapshots",
+      "dependsOn": [
+        6
+      ],
+      "file": "prompts/gemini-flash-v2/07-M1-revisions.md",
+      "allowedFiles": [
+        "core/events/revision_clock.h",
+        "core/events/revision_clock.cpp",
+        "tests/unit/tst_revision_clock.cpp"
+      ],
+      "verificationCommands": [
+        "ctest --test-dir build/dev -R revision-clock --output-on-failure"
+      ]
+    },
+    {
+      "id": 8,
+      "milestone": "M1",
+      "slug": "settings-store",
+      "cards": "M1-08A + M1-08B",
+      "goal": "Implement validated schema and all-or-nothing settings persistence",
+      "dependsOn": [
+        6,
+        7
+      ],
+      "file": "prompts/gemini-flash-v2/08-M1-settings-store.md",
+      "allowedFiles": [
+        "core/settings/settings_schema.h",
+        "core/settings/settings_schema.cpp",
+        "core/settings/settings_store.h",
+        "core/settings/settings_store.cpp",
+        "tests/unit/tst_settings_schema.cpp"
+      ],
+      "verificationCommands": [
+        "ctest --test-dir build/dev -R settings-schema --output-on-failure",
+        "dbus-run-session -- ctest --test-dir build/dev -R core-dbus --output-on-failure"
+      ]
+    },
+    {
+      "id": 9,
+      "milestone": "M1",
+      "slug": "core-proxy",
+      "cards": "M1-09",
+      "goal": "Build nonblocking GJS CoreProxy with correct owner restart/revision cache",
+      "dependsOn": [
+        6,
+        7
+      ],
+      "file": "prompts/gemini-flash-v2/09-M1-core-proxy.md",
+      "allowedFiles": [
+        "extension/lib/coreProxy.js",
+        "tests/extension/core-proxy.test.js",
+        "extension/extension.js"
+      ],
+      "verificationCommands": [
+        "gjs -m tests/extension/core-proxy.test.js"
+      ]
+    },
+    {
+      "id": 10,
+      "milestone": "M2",
+      "slug": "media-normalizer",
+      "cards": "M2-10A + M2-10B",
+      "goal": "Normalize MPRIS metadata with bounded fields and exact a{sv} wire types",
+      "dependsOn": [
+        6
+      ],
+      "file": "prompts/gemini-flash-v2/10-M2-media-normalizer.md",
+      "allowedFiles": [
+        "core/media/media_state.h",
+        "core/media/media_normalizer.h",
+        "core/media/media_normalizer.cpp",
+        "tests/unit/tst_media_normalizer.cpp"
+      ],
+      "verificationCommands": [
+        "ctest --test-dir build/dev -R media-normalizer --output-on-failure"
+      ]
+    },
+    {
+      "id": 11,
+      "milestone": "M2",
+      "slug": "mpris-discovery",
+      "cards": "M2-11A + M2-11B",
+      "goal": "Select deterministic active player and discover MPRIS services asynchronously",
+      "dependsOn": [
+        10
+      ],
+      "file": "prompts/gemini-flash-v2/11-M2-mpris-discovery.md",
+      "allowedFiles": [
+        "core/media/player_registry.h",
+        "core/media/player_registry.cpp",
+        "tests/integration/fake_mpris_player.cpp",
+        "tests/integration/tst_mpris_flow.cpp"
+      ],
+      "verificationCommands": [
+        "dbus-run-session -- ctest --test-dir build/dev -R mpris-flow --output-on-failure"
+      ]
+    },
+    {
+      "id": 12,
+      "milestone": "M2",
+      "slug": "media-controls",
+      "cards": "M2-12",
+      "goal": "Whitelist transport controls with capability checks and named D-Bus errors",
+      "dependsOn": [
+        11
+      ],
+      "file": "prompts/gemini-flash-v2/12-M2-media-controls.md",
+      "allowedFiles": [
+        "core/media/mpris_controller.h",
+        "core/media/mpris_controller.cpp",
+        "core/dbus/core_adaptor.cpp",
+        "tests/integration/tst_mpris_flow.cpp"
+      ],
+      "verificationCommands": [
+        "dbus-run-session -- ctest --test-dir build/dev -R \"(core-dbus|mpris-flow)\" --output-on-failure"
+      ]
+    },
+    {
+      "id": 13,
+      "milestone": "M2",
+      "slug": "media-view",
+      "cards": "M2-13A + M2-13B",
+      "goal": "Render media view in GNOME, bind async controls, avoid stale data",
+      "dependsOn": [
+        9,
+        12
+      ],
+      "file": "prompts/gemini-flash-v2/13-M2-media-view.md",
+      "allowedFiles": [
+        "extension/ui/mediaView.js",
+        "extension/ui/capsule.js",
+        "extension/lib/coreProxy.js",
+        "tests/extension/manual-smoke.md"
+      ],
+      "verificationCommands": [
+        "node tests/extension/state-machine.test.js",
+        "gjs -m tests/extension/state-machine.test.js"
+      ]
+    },
+    {
+      "id": 14,
+      "milestone": "M3",
+      "slug": "hybrid-ui",
+      "cards": "M3-14A + M3-14B + M3-14C + M3-14D",
+      "goal": "Implement full hybrid interaction and scope Warm Minimalist theme safely",
+      "dependsOn": [
+        4,
+        13
+      ],
+      "file": "prompts/gemini-flash-v2/14-M3-hybrid-ui.md",
+      "allowedFiles": [
+        "extension/lib/islandController.js",
+        "extension/ui/capsule.js",
+        "extension/stylesheet.css",
+        "design-system/tokens/tokens.json",
+        "tests/extension/manual-smoke.md"
+      ],
+      "verificationCommands": [
+        "python3 design-system/qa/verify_tokens.py",
+        "python3 design-system/qa/test_warm_palette.py"
+      ]
+    },
+    {
+      "id": 15,
+      "milestone": "M3",
+      "slug": "smart-adaptive",
+      "cards": "M3-15A + M3-15B",
+      "goal": "Harden fullscreen/workspace/overview policy and verify UI regression",
+      "dependsOn": [
+        14
+      ],
+      "file": "prompts/gemini-flash-v2/15-M3-smart-adaptive.md",
+      "allowedFiles": [
+        "extension/lib/gnomeDisplayAdapter.js",
+        "extension/lib/displayPolicy.js",
+        "tests/extension/display-policy.test.js",
+        "docs/compatibility.md"
+      ],
+      "verificationCommands": [
+        "node tests/extension/display-policy.test.js",
+        "gjs -m tests/extension/display-policy.test.js"
+      ]
+    },
+    {
+      "id": 16,
+      "milestone": "M4",
+      "slug": "qml-settings",
+      "cards": "M4-16A + M4-16B",
+      "goal": "Create Qt Quick settings with nonblocking Core1 proxy and consistent Warm Minimalist tokens",
+      "dependsOn": [
+        8,
+        9,
+        14
+      ],
+      "file": "prompts/gemini-flash-v2/16-M4-qml-settings.md",
+      "allowedFiles": [
+        "settings-app/CMakeLists.txt",
+        "settings-app/main.cpp",
+        "settings-app/settings_proxy.cpp",
+        "settings-app/qml/Main.qml",
+        "extension/lib/coreProxy.js"
+      ],
+      "verificationCommands": [
+        "cmake --build build/dev --target linux-island-settings",
+        "dbus-run-session -- ctest --test-dir build/dev -R core-dbus --output-on-failure"
+      ]
+    },
+    {
+      "id": 17,
+      "milestone": "M4",
+      "slug": "notifications",
+      "cards": "M4-17A + M4-17B",
+      "goal": "Verify native GNOME notifications remain unchanged; add opt-in PEEK only if safe",
+      "dependsOn": [
+        14
+      ],
+      "file": "prompts/gemini-flash-v2/17-M4-notifications.md",
+      "allowedFiles": [
+        "extension/lib/notificationAdapter.js",
+        "extension/lib/islandController.js",
+        "extension/extension.js",
+        "tests/extension/manual-smoke.md"
+      ],
+      "verificationCommands": [
+        "gnome-extensions info linux-island@local"
+      ]
+    },
+    {
+      "id": 18,
+      "milestone": "M4",
+      "slug": "security",
+      "cards": "M4-18A + M4-18B",
+      "goal": "Reject malformed D-Bus data and event storms without exposing unsafe state",
+      "dependsOn": [
+        12,
+        16,
+        17
+      ],
+      "file": "prompts/gemini-flash-v2/18-M4-security.md",
+      "allowedFiles": [
+        "core/dbus/variant_codec.cpp",
+        "core/settings/settings_schema.cpp",
+        "core/media/media_normalizer.cpp",
+        "tests/security/payload-cases.md"
+      ],
+      "verificationCommands": [
+        "dbus-run-session -- ctest --test-dir build/dev --output-on-failure"
+      ]
+    },
+    {
+      "id": 19,
+      "milestone": "M5",
+      "slug": "packaging",
+      "cards": "M5-19A + M5-19B",
+      "goal": "Produce reversible user-level service and installer without sudo",
+      "dependsOn": [
+        18
+      ],
+      "file": "prompts/gemini-flash-v2/19-M5-packaging.md",
+      "allowedFiles": [
+        "packaging/systemd-user/linux-island-core.service",
+        "packaging/dev/install-local.sh",
+        "packaging/dev/uninstall-local.sh",
+        "docs/testing.md"
+      ],
+      "verificationCommands": [
+        "systemd-analyze verify packaging/systemd-user/linux-island-core.service"
+      ]
+    },
+    {
+      "id": 20,
+      "milestone": "M5",
+      "slug": "recovery",
+      "cards": "M5-20A + M5-20B",
+      "goal": "Failure injection and 20-cycle GNOME stress/rollback verification",
+      "dependsOn": [
+        19
+      ],
+      "file": "prompts/gemini-flash-v2/20-M5-recovery.md",
+      "allowedFiles": [
+        "tests/integration/tst_core_dbus.cpp",
+        "tests/integration/tst_mpris_flow.cpp",
+        "tests/extension/core-proxy.test.js",
+        "docs/compatibility.md"
+      ],
+      "verificationCommands": [
+        "dbus-run-session -- ctest --test-dir build/dev --output-on-failure"
+      ]
+    },
+    {
+      "id": 21,
+      "milestone": "M5",
+      "slug": "release",
+      "cards": "M5-21A + M5-21B",
+      "goal": "Measure performance, record AC-01..AC-10 and prepare release only after approval",
+      "dependsOn": [
+        20
+      ],
+      "file": "prompts/gemini-flash-v2/21-M5-release.md",
+      "allowedFiles": [
+        "docs/release-checklist.md",
+        "docs/testing.md",
+        "README.md",
+        "docs/compatibility.md"
+      ],
+      "verificationCommands": [
+        "cmake --preset dev",
+        "cmake --build --preset dev",
+        "ctest --preset dev --output-on-failure",
+        "python3 design-system/qa/verify_tokens.py"
+      ]
+    }
+  ]
+}

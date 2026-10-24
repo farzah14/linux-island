@@ -49,3 +49,15 @@ This verifies both theme snapshots against the canonical token file and recalcul
 ## Visual reference
 
 Open `design-system/STYLE_GUIDE_PREVIEW.html` in a browser for an **offline, static** specimen of the dark/light palette and the four visible Island states. It intentionally does not emulate GNOME Shell interactions.
+
+## Warm Minimalist export assets
+
+The offline preview illustrations included in this source package are:
+
+- `previews/Linux_Island_Warm_Minimalist_Preview.svg` — scalable concept preview.
+- `previews/Linux_Island_Warm_Minimalist_Preview.png` — raster preview.
+- `STYLE_GUIDE_PREVIEW.html` — standalone interactive-looking (but static) reference for states and light/dark themes.
+
+These assets show the **visual specification**, not a tested GNOME extension screenshot. The running M0 capsule still uses prototype styling pending M3 token integration.
+
+For small-model implementation instructions read `../GEMINI_FLASH_EXECUTION_GUIDE.md` and `../docs/superpowers/plans/gemini-flash-v2/00-START-HERE.md`.
