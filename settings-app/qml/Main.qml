@@ -5,10 +5,61 @@ import QtQuick.Layouts
 ApplicationWindow {
     id: root
     visible: true
-    width: 520
-    height: 640
+    width: 540
+    height: 720
+    minimumWidth: 520
+    minimumHeight: 560
     title: "Linux Island Settings"
     color: "#191816"
+
+    function getPlayerItems() {
+        let items = [{ text: "Automatic (Follows active playback)", value: "" }];
+        let current = settingsProxy.preferredPlayerId;
+        let found = (current === "");
+        let available = settingsProxy.availablePlayers;
+        for (let i = 0; i < available.length; ++i) {
+            let pId = available[i];
+            let displayName = settingsProxy.playerDisplayName(pId);
+            items.push({ text: displayName + " (" + pId + ")", value: pId });
+            if (pId === current) {
+                found = true;
+            }
+        }
+        if (!found && current !== "") {
+            items.push({ text: settingsProxy.playerDisplayName(current) + " (" + current + ")", value: current });
+        }
+        items.push({ text: "Custom D-Bus service name...", value: "__custom__" });
+        return items;
+    }
+
+    property var playerItems: getPlayerItems()
+
+    function syncComboIndex() {
+        let current = settingsProxy.preferredPlayerId;
+        for (let i = 0; i < playerItems.length; ++i) {
+            if (playerItems[i].value === current) {
+                playerCombo.currentIndex = i;
+                return;
+            }
+        }
+        playerCombo.currentIndex = playerItems.length - 1;
+    }
+
+    Connections {
+        target: settingsProxy
+        function onAvailablePlayersChanged() {
+            root.playerItems = root.getPlayerItems();
+            root.syncComboIndex();
+        }
+        function onPreferredPlayerIdChanged() {
+            root.playerItems = root.getPlayerItems();
+            root.syncComboIndex();
+        }
+    }
+
+    Component.onCompleted: {
+        root.syncComboIndex();
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -113,6 +164,143 @@ ApplicationWindow {
             }
         }
 
+        // Preferred Media Player Selection
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            Text {
+                text: "Preferred Media Player"
+                font.bold: true
+                font.pixelSize: 14
+                color: "#F4F0E9"
+            }
+
+            Text {
+                text: "Prioritize controls for this player when multiple media apps are active."
+                font.pixelSize: 12
+                color: "#A69C8F"
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+
+            ComboBox {
+                id: playerCombo
+                Layout.fillWidth: true
+                model: root.playerItems
+                textRole: "text"
+                valueRole: "value"
+                contentItem: Text {
+                    leftPadding: 12
+                    rightPadding: 24
+                    text: playerCombo.displayText
+                    font.pixelSize: 13
+                    color: "#F4F0E9"
+                    verticalAlignment: Text.AlignVCenter
+                    elide: Text.ElideRight
+                }
+                background: Rectangle {
+                    implicitHeight: 38
+                    radius: 8
+                    color: "#302D28"
+                    border.color: playerCombo.activeFocus ? "#D8B77F" : "#575148"
+                    border.width: 1
+                }
+                popup: Popup {
+                    y: playerCombo.height + 4
+                    width: playerCombo.width
+                    implicitHeight: Math.min(contentItem.implicitHeight + 16, 240)
+                    padding: 8
+                    contentItem: ListView {
+                        clip: true
+                        implicitHeight: contentHeight
+                        model: playerCombo.popup.visible ? playerCombo.delegateModel : null
+                        currentIndex: playerCombo.highlightedIndex
+                        ScrollIndicator.vertical: ScrollIndicator {}
+                    }
+                    background: Rectangle {
+                        radius: 8
+                        color: "#302D28"
+                        border.color: "#575148"
+                        border.width: 1
+                    }
+                }
+                delegate: ItemDelegate {
+                    width: playerCombo.width - 16
+                    contentItem: Text {
+                        text: modelData.text
+                        color: highlighted ? "#D8B77F" : "#F4F0E9"
+                        font.pixelSize: 13
+                        elide: Text.ElideRight
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        radius: 6
+                        color: highlighted ? "#403B34" : "transparent"
+                    }
+                    highlighted: playerCombo.highlightedIndex === index
+                }
+                onActivated: function(index) {
+                    let chosen = root.playerItems[index].value;
+                    if (chosen !== "__custom__") {
+                        customInputRow.visible = false;
+                        settingsProxy.setPreferredPlayerId(chosen);
+                    } else {
+                        customInputRow.visible = true;
+                        customPlayerField.forceActiveFocus();
+                    }
+                }
+            }
+
+            RowLayout {
+                id: customInputRow
+                Layout.fillWidth: true
+                visible: playerCombo.currentIndex === root.playerItems.length - 1
+                spacing: 8
+
+                TextField {
+                    id: customPlayerField
+                    Layout.fillWidth: true
+                    placeholderText: "e.g. org.mpris.MediaPlayer2.spotify"
+                    placeholderTextColor: "#736B5E"
+                    text: settingsProxy.preferredPlayerId
+                    color: "#F4F0E9"
+                    font.pixelSize: 13
+                    background: Rectangle {
+                        implicitHeight: 38
+                        radius: 8
+                        color: "#191816"
+                        border.color: customPlayerField.activeFocus ? "#D8B77F" : "#575148"
+                        border.width: 1
+                    }
+                    onAccepted: {
+                        settingsProxy.setPreferredPlayerId(text.trim());
+                    }
+                }
+
+                Button {
+                    text: "Apply"
+                    contentItem: Text {
+                        text: "Apply"
+                        color: "#191816"
+                        font.bold: true
+                        font.pixelSize: 12
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        implicitWidth: 64
+                        implicitHeight: 38
+                        radius: 8
+                        color: "#D8B77F"
+                    }
+                    onClicked: {
+                        settingsProxy.setPreferredPlayerId(customPlayerField.text.trim());
+                    }
+                }
+            }
+        }
+
         // Interaction Toggles
         ColumnLayout {
             Layout.fillWidth: true
@@ -151,7 +339,6 @@ ApplicationWindow {
         }
 
         Item { Layout.fillHeight: true }
-
         // Status & Error bar
         Rectangle {
             Layout.fillWidth: true

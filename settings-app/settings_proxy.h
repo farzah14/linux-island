@@ -18,6 +18,7 @@ class SettingsProxy : public QObject {
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY errorMessageChanged)
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
+    Q_PROPERTY(QStringList availablePlayers READ availablePlayers NOTIFY availablePlayersChanged)
 
 public:
     explicit SettingsProxy(const QDBusConnection &bus = QDBusConnection::sessionBus(), QObject *parent = nullptr);
@@ -34,6 +35,8 @@ public:
     bool busy() const { return m_busy; }
     QString errorMessage() const { return m_errorMessage; }
     bool connected() const { return m_connected; }
+    QStringList availablePlayers() const { return m_availablePlayers; }
+    Q_INVOKABLE QString playerDisplayName(const QString &playerId) const;
 
     Q_INVOKABLE void setTheme(const QString &theme);
     Q_INVOKABLE void setCapsuleSize(const QString &size);
@@ -56,6 +59,7 @@ signals:
     void busyChanged();
     void errorMessageChanged();
     void connectedChanged();
+    void availablePlayersChanged();
 
 private slots:
     void onNameOwnerChanged(const QString &serviceName, const QString &oldOwner, const QString &newOwner);
@@ -64,6 +68,8 @@ private slots:
 private:
     void applySettingsMap(const QVariantMap &settings);
     void sendPatch(const QVariantMap &patch);
+
+    void queryAvailablePlayers();
 
     QDBusConnection m_bus;
     QString m_theme = QStringLiteral("system");
@@ -77,4 +83,5 @@ private:
     bool m_busy = false;
     QString m_errorMessage;
     bool m_connected = false;
+    QStringList m_availablePlayers;
 };

@@ -32,6 +32,8 @@ SettingsProxy::SettingsProxy(const QDBusConnection &bus, QObject *parent)
 SettingsProxy::~SettingsProxy() = default;
 
 void SettingsProxy::refresh() {
+    queryAvailablePlayers();
+
     if (!m_bus.isConnected()) {
         m_connected = false;
         emit connectedChanged();
@@ -77,8 +79,8 @@ void SettingsProxy::refresh() {
 }
 
 void SettingsProxy::onNameOwnerChanged(const QString &serviceName, const QString &oldOwner, const QString &newOwner) {
-    Q_UNUSED(oldOwner);
     if (serviceName == QLatin1String("io.github.linuxisland.Core")) {
+        Q_UNUSED(oldOwner);
         bool hasOwner = !newOwner.isEmpty();
         if (m_connected != hasOwner) {
             m_connected = hasOwner;
@@ -86,6 +88,18 @@ void SettingsProxy::onNameOwnerChanged(const QString &serviceName, const QString
         }
         if (hasOwner) {
             refresh();
+        }
+    } else if (serviceName.startsWith(QLatin1String("org.mpris.MediaPlayer2."))) {
+        if (newOwner.isEmpty()) {
+            if (m_availablePlayers.removeOne(serviceName)) {
+                emit availablePlayersChanged();
+            }
+        } else if (oldOwner.isEmpty() || !m_availablePlayers.contains(serviceName)) {
+            if (!m_availablePlayers.contains(serviceName)) {
+                m_availablePlayers.append(serviceName);
+                std::sort(m_availablePlayers.begin(), m_availablePlayers.end());
+                emit availablePlayersChanged();
+            }
         }
     }
 }
@@ -206,4 +220,52 @@ void SettingsProxy::setPreferredPlayerId(const QString &id) {
     if (m_preferredPlayerId != id) {
         sendPatch({{QStringLiteral("preferredPlayerId"), id}});
     }
+}
+
+void SettingsProxy::queryAvailablePlayers() {
+    if (!m_bus.isConnected()) {
+        return;
+    }
+
+    QDBusInterface dbusIface(
+        QStringLiteral("org.freedesktop.DBus"),
+        QStringLiteral("/org/freedesktop/DBus"),
+        QStringLiteral("org.freedesktop.DBus"),
+        m_bus);
+
+    QDBusPendingCall call = dbusIface.asyncCall(QStringLiteral("ListNames"));
+    auto *watcher = new QDBusPendingCallWatcher(call, this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *w) {
+        w->deleteLater();
+        QDBusPendingReply<QStringList> reply = *w;
+        if (reply.isValid()) {
+            QStringList players;
+            for (const auto &name : reply.value()) {
+                if (name.startsWith(QLatin1String("org.mpris.MediaPlayer2."))) {
+                    players.append(name);
+                }
+            }
+            std::sort(players.begin(), players.end());
+            if (m_availablePlayers != players) {
+                m_availablePlayers = players;
+                emit availablePlayersChanged();
+            }
+        }
+    });
+}
+
+QString SettingsProxy::playerDisplayName(const QString &playerId) const {
+    if (playerId.isEmpty()) {
+        return QStringLiteral("Automatic (Active playback)");
+    }
+    const QString prefix = QStringLiteral("org.mpris.MediaPlayer2.");
+    if (playerId.startsWith(prefix)) {
+        QString name = playerId.mid(prefix.length());
+        QString base = name.section(QLatin1Char('.'), 0, 0);
+        if (!base.isEmpty()) {
+            base[0] = base[0].toUpper();
+            return base;
+        }
+    }
+    return playerId;
 }
