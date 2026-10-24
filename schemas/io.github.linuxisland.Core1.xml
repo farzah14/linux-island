@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<node>
+  <interface name="io.github.linuxisland.Core1">
+    <method name="GetSnapshot">
+      <arg name="snapshot" type="a{sv}" direction="out"/>
+    </method>
+    <method name="GetMediaState">
+      <arg name="media" type="a{sv}" direction="out"/>
+    </method>
+    <method name="ControlMedia">
+      <arg name="action" type="s" direction="in"/>
+      <arg name="accepted" type="b" direction="out"/>
+    </method>
+    <method name="SetActivePlayer">
+      <arg name="playerId" type="s" direction="in"/>
+      <arg name="accepted" type="b" direction="out"/>
+    </method>
+    <method name="GetSettings">
+      <arg name="settings" type="a{sv}" direction="out"/>
+    </method>
+    <method name="UpdateSettings">
+      <arg name="changes" type="a{sv}" direction="in"/>
+      <arg name="settingsRevision" type="t" direction="out"/>
+    </method>
+    <signal name="MediaChanged">
+      <arg name="revision" type="t"/>
+      <arg name="media" type="a{sv}"/>
+    </signal>
+    <signal name="SettingsChanged">
+      <arg name="revision" type="t"/>
+      <arg name="settings" type="a{sv}"/>
+    </signal>
+    <signal name="CoreStatusChanged">
+      <arg name="status" type="s"/>
+    </signal>
+  </interface>
+</node>

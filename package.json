@@ -1,0 +1,1 @@
+{"name":"linux-island-m0-tests","private":true,"type":"module","scripts":{"test:state":"node tests/extension/state-machine.test.js"}}
