@@ -39,7 +39,7 @@ Read `tests/extension/manual-smoke.md` first. Use an isolated VM/test user and s
 - `docs/superpowers/plans/2026-10-24-linux-island-v0.1-implementation.md`
 - `schemas/io.github.linuxisland.Core1.xml`
 
-## Design System v1.0 (Graphite & Mint)
+## Design System v1.0 (Warm Minimalist)
 
 Start with `design-system/README.md`. Canonical design tokens are in `design-system/tokens/tokens.json`; component specifications are in `design-system/components/COMPONENT_SPECIFICATIONS.md`. Open `design-system/STYLE_GUIDE_PREVIEW.html` for an offline static visual reference. These design artifacts do not replace the M0 prototype styling automatically.
 

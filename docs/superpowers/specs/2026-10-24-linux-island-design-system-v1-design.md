@@ -1,7 +1,7 @@
-# Linux Island Graphite & Mint — Design System v1.0 Specification
+# Linux Island Warm Minimalist — Design System v1.0 Specification
 
 **Status:** Candidate design baseline; visual review required prior to runtime styling integration.
-**Design direction approved:** Graphite & Mint / Modern Minimalist.
+**Design direction approved:** Warm Minimalist / Modern Minimalist (graphite, cream, amber).
 **System deliverable:** [`../../../design-system/DESIGN_SYSTEM.md`](../../../design-system/DESIGN_SYSTEM.md)
 
 The authoritative design system is stored in `design-system/` to keep tokens, component contracts, accessibility checks, and integration guidance together. This spec links to those resources rather than copying details that could drift.

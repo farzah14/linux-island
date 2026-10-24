@@ -3,84 +3,84 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Linux Island — Graphite & Mint Design System v1.0</title>
+<title>Linux Island — Warm Minimalist Design System v1.0</title>
 <style>
-:root { color-scheme: light; --page: #F5F7F5; --ink: #202923; --muted: #526458; }
+:root { color-scheme: light; --page: #F4F0E9; --ink: #292621; --muted: #665E53; }
 * { box-sizing: border-box; }
 body { font-family: system-ui, Cantarell, "Noto Sans", sans-serif; background: var(--page); color: var(--ink); margin: 0; }
 .shell { max-width: 1180px; margin: 0 auto; padding: 52px 30px 80px; }
-.top { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: start; border-bottom: 1px solid #C8D1CB; padding-bottom: 30px; }
+.top { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: start; border-bottom: 1px solid #D5C9B9; padding-bottom: 30px; }
 h1 { margin: 0 0 10px; font-size: clamp(28px, 4vw, 48px); font-weight: 650; letter-spacing: -.05em; }
-.lede { margin: 0; color: #47584C; font-size: 15px; max-width: 640px; line-height: 1.65; }
-.tag { display: inline-flex; border-radius: 999px; border: 1px solid #A2B7AA; padding: 7px 13px; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.lede { margin: 0; color: #5D554B; font-size: 15px; max-width: 640px; line-height: 1.65; }
+.tag { display: inline-flex; border-radius: 999px; border: 1px solid #C7BCAE; padding: 7px 13px; font-size: 12px; font-weight: 650; white-space: nowrap; }
 section { margin-top: 42px; }
 h2 { font-size: 18px; letter-spacing: -.02em; margin: 0 0 10px; }
-.subtitle { margin: 0 0 20px; color: #526458; font-size: 13px; line-height: 1.65; }
+.subtitle { margin: 0 0 20px; color: #665E53; font-size: 13px; line-height: 1.65; }
 .legend { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0 24px; }
-.legend span { border: 1px solid #C6CEC7; border-radius: 999px; padding: 6px 10px; font-size: 12px; color: #47584C; }
+.legend span { border: 1px solid #C7BCAE; border-radius: 999px; padding: 6px 10px; font-size: 12px; color: #5D554B; }
 .palette { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 10px; }
-.swatch { background: white; border: 1px solid #E1E5E2; border-radius: 12px; overflow: hidden; }
+.swatch { background: #FBF8F1; border: 1px solid #DDD4C6; border-radius: 12px; overflow: hidden; }
 .swatch-ink { height: 73px; }
 .swatch-info { padding: 10px 12px 12px; font-size: 12px; }
-.swatch-info small { display: block; color: #526458; font-size: 11px; padding-top: 4px; }
+.swatch-info small { display: block; color: #665E53; font-size: 11px; padding-top: 4px; }
 .panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .theme { border-radius: 20px; padding: 28px 20px 24px; min-height: 425px; background: var(--surface-canvas); color: var(--text-primary); border: 1px solid var(--border-subtle); }
-.theme.dark { --surface-canvas: #171A18;
---surface-island: #171A18;
---surface-raised: #262B28;
---surface-hover: #323A34;
---surface-scrim: #111411;
---text-primary: #F5F7F5;
---text-secondary: #B8C2BB;
---text-tertiary: #89948D;
---text-inverse: #171A18;
---text-onAccent: #171A18;
---accent-primary: #8BD9A9;
---accent-hover: #BAEACA;
---accent-subtle: #262B28;
---border-subtle: #455047;
---border-strong: #89948D;
---border-focus: #8BD9A9;
---icon-primary: #F5F7F5;
---icon-secondary: #B8C2BB;
---icon-onAccent: #171A18;
---control-primary: #8BD9A9;
---control-primaryHover: #BAEACA;
---control-secondary: #323A34;
---control-disabled: #455047;
---status-success: #8BD9A9;
---status-warning: #E9B872;
---status-danger: #FF9B94;
---progress-track: #455047;
---progress-fill: #8BD9A9; }
-.theme.light { --surface-canvas: #F5F7F5;
---surface-island: #FFFFFF;
---surface-raised: #E8EEE9;
---surface-hover: #E8EEE9;
---surface-scrim: #171A18;
---text-primary: #202923;
---text-secondary: #47584C;
---text-tertiary: #526458;
---text-inverse: #FFFFFF;
---text-onAccent: #FFFFFF;
---accent-primary: #2C7355;
---accent-hover: #226646;
---accent-subtle: #E0F5E8;
---border-subtle: #B8C2BB;
---border-strong: #526458;
---border-focus: #2C7355;
---icon-primary: #202923;
---icon-secondary: #47584C;
---icon-onAccent: #FFFFFF;
---control-primary: #2C7355;
---control-primaryHover: #226646;
---control-secondary: #E8EEE9;
---control-disabled: #B8C2BB;
---status-success: #2C7355;
+.theme.dark { --surface-canvas: #191816;
+--surface-island: #191816;
+--surface-raised: #302D28;
+--surface-hover: #403B34;
+--surface-scrim: #12110F;
+--text-primary: #F4F0E9;
+--text-secondary: #C8C0B5;
+--text-tertiary: #A69C8F;
+--text-inverse: #191816;
+--text-onAccent: #191816;
+--accent-primary: #D8B77F;
+--accent-hover: #E9CEA0;
+--accent-subtle: #403B34;
+--border-subtle: #575148;
+--border-strong: #A69C8F;
+--border-focus: #D8B77F;
+--icon-primary: #F4F0E9;
+--icon-secondary: #C8C0B5;
+--icon-onAccent: #191816;
+--control-primary: #D8B77F;
+--control-primaryHover: #E9CEA0;
+--control-secondary: #403B34;
+--control-disabled: #575148;
+--status-success: #9DD2B1;
+--status-warning: #F6CF83;
+--status-danger: #F2A3A0;
+--progress-track: #575148;
+--progress-fill: #D8B77F; }
+.theme.light { --surface-canvas: #F4F0E9;
+--surface-island: #FBF8F1;
+--surface-raised: #EEE9DF;
+--surface-hover: #E5DED3;
+--surface-scrim: #191816;
+--text-primary: #292621;
+--text-secondary: #5D554B;
+--text-tertiary: #665E53;
+--text-inverse: #FBF8F1;
+--text-onAccent: #FBF8F1;
+--accent-primary: #80551F;
+--accent-hover: #6B471B;
+--accent-subtle: #EEE0C8;
+--border-subtle: #C7BCAE;
+--border-strong: #6B6258;
+--border-focus: #80551F;
+--icon-primary: #292621;
+--icon-secondary: #5D554B;
+--icon-onAccent: #FBF8F1;
+--control-primary: #80551F;
+--control-primaryHover: #6B471B;
+--control-secondary: #EEE9DF;
+--control-disabled: #C7BCAE;
+--status-success: #276448;
 --status-warning: #875000;
 --status-danger: #A42C34;
---progress-track: #B8C2BB;
---progress-fill: #2C7355; }
+--progress-track: #C7BCAE;
+--progress-fill: #80551F; }
 .themehead { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 22px; }
 .themehead h3 { font-size: 15px; margin: 0; letter-spacing: -.02em; }
 .themehead small { font-size: 11px; color: var(--text-secondary); }
@@ -109,36 +109,36 @@ h2 { font-size: 18px; letter-spacing: -.02em; margin: 0 0 10px; }
 .control.main { background: var(--control-primary); color: var(--text-onAccent); }
 .control:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .chips { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
-.metric { background: white; padding: 16px; border-radius: 12px; border: 1px solid #E1E5E2; }
+.metric { background: #FBF8F1; padding: 16px; border-radius: 12px; border: 1px solid #DDD4C6; }
 .metric b { font-size: 18px; display: block; margin: 4px 0; }
-.metric small { display: block; color: #526458; font-size: 11px; }
-.hint { margin-top: 34px; background: #E8EEE9; color: #47584C; padding: 16px 18px; border-radius: 12px; line-height: 1.6; font-size: 13px; }
+.metric small { display: block; color: #665E53; font-size: 11px; }
+.hint { margin-top: 34px; background: #EEE9DF; color: #5D554B; padding: 16px 18px; border-radius: 12px; line-height: 1.6; font-size: 13px; }
 @media (max-width: 780px) { .panels { grid-template-columns: 1fr; } .palette { grid-template-columns: repeat(3,minmax(0,1fr)); } .shell { padding: 28px 16px 45px; } }
 @media (max-width: 450px) { .palette { grid-template-columns: repeat(2,minmax(0,1fr)); } .chips { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body><main class="shell">
-<header class="top"><div><h1>Linux Island<span style="color:#398A63">.</span></h1><p class="lede">Graphite & Mint design system. A calm, responsive interface language for desktop Linux—purposefully restrained, context-aware, and built around actual usage rather than animation for animation’s sake.</p></div><span class="tag">DESIGN SYSTEM / V1.0</span></header>
-<section><h2>01 / Color foundations</h2><p class="subtitle">Graphite neutrals create structure. Mint indicates active intent and selection. Dark and light accents intentionally differ for legibility.</p><div class="palette">
-<div class="swatch"><div class="swatch-ink" style="background:#171A18"></div><div class="swatch-info">Graphite 900<small>#171A18</small></div></div>
-<div class="swatch"><div class="swatch-ink" style="background:#262B28"></div><div class="swatch-info">Graphite 800<small>#262B28</small></div></div>
-<div class="swatch"><div class="swatch-ink" style="background:#89948D"></div><div class="swatch-info">Graphite 400<small>#89948D</small></div></div>
-<div class="swatch"><div class="swatch-ink" style="background:#F5F7F5"></div><div class="swatch-info">Canvas 050<small>#F5F7F5</small></div></div>
-<div class="swatch"><div class="swatch-ink" style="background:#8BD9A9"></div><div class="swatch-info">Mint Dark<small>#8BD9A9</small></div></div>
-<div class="swatch"><div class="swatch-ink" style="background:#2C7355"></div><div class="swatch-info">Mint Light<small>#2C7355</small></div></div>
+<header class="top"><div><h1>Linux Island<span style="color:#A97639">.</span></h1><p class="lede">Warm Minimalist design system. A refined graphite, cream and amber interface for desktop Linux—quiet, context-aware, and built around actual usage rather than animation for animation’s sake.</p></div><span class="tag">DESIGN SYSTEM / V1.0</span></header>
+<section><h2>01 / Color foundations</h2><p class="subtitle">Warm graphite provides structure; cream adds breathing room. Soft amber marks active intent, with darker amber for accessible controls on light surfaces.</p><div class="palette">
+<div class="swatch"><div class="swatch-ink" style="background:#191816"></div><div class="swatch-info">Graphite 900<small>#191816</small></div></div>
+<div class="swatch"><div class="swatch-ink" style="background:#302D28"></div><div class="swatch-info">Graphite 800<small>#302D28</small></div></div>
+<div class="swatch"><div class="swatch-ink" style="background:#EEE9DF"></div><div class="swatch-info">Cream 200<small>#EEE9DF</small></div></div>
+<div class="swatch"><div class="swatch-ink" style="background:#898278"></div><div class="swatch-info">Stone 500<small>#898278</small></div></div>
+<div class="swatch"><div class="swatch-ink" style="background:#D8B77F"></div><div class="swatch-info">Amber Dark<small>#D8B77F</small></div></div>
+<div class="swatch"><div class="swatch-ink" style="background:#80551F"></div><div class="swatch-info">Amber Light<small>#80551F</small></div></div>
 </div></section>
 <section><h2>02 / Island states</h2><p class="subtitle">The same component anatomy across both themes. Illustration only: not a working GNOME extension or a compositor simulation.</p>
 <div class="panels">
-<article class="theme dark"><div class="themehead"><h3>Dark theme</h3><small>Graphite / Mint 300</small></div>
+<article class="theme dark"><div class="themehead"><h3>Dark theme</h3><small>Graphite / Amber 300</small></div>
 <div class="sample-label">Compact</div><div class="compact capsule"><span class="dot"></span> Island</div>
 <div class="sample-label">Preview / hover</div><div class="preview capsule"><div class="artwork">♫</div><div class="titles"><div class="primary-text ellipsis">Night Drive</div><div class="secondary-text ellipsis">Sample Artist · Playing</div></div></div>
 <div class="sample-label">Peek / incoming</div><div class="peek capsule"><div class="peektop"><span class="dot"></span> Calendar · Reminder</div><div class="sub">Project review starts in 15 minutes.</div></div>
 <div class="sample-label">Expanded / click</div><div class="expanded capsule"><div class="heading"><span>Now Playing</span><span>···</span></div><div class="preview" style="width:100%;min-height:unset;padding:0"><div class="artwork" style="width:48px;height:48px">♫</div><div class="titles"><div class="primary-text ellipsis">Night Drive</div><div class="secondary-text ellipsis">Sample Artist</div></div></div><div class="track"><div></div></div><div class="times"><span>1:02</span><span>3:04</span></div><div class="controls"><button class="control" aria-label="Previous">‹‹</button><button class="control main" aria-label="Pause">Ⅱ</button><button class="control" aria-label="Next">››</button></div></div>
-</article><article class="theme light"><div class="themehead"><h3>Light theme</h3><small>Ivory / Mint 700</small></div>
+</article><article class="theme light"><div class="themehead"><h3>Light theme</h3><small>Cream / Amber 800</small></div>
 <div class="sample-label">Compact</div><div class="compact capsule"><span class="dot"></span> Island</div>
 <div class="sample-label">Preview / hover</div><div class="preview capsule"><div class="artwork">♫</div><div class="titles"><div class="primary-text ellipsis">Night Drive</div><div class="secondary-text ellipsis">Sample Artist · Playing</div></div></div>
 <div class="sample-label">Peek / incoming</div><div class="peek capsule"><div class="peektop"><span class="dot"></span> Calendar · Reminder</div><div class="sub">Project review starts in 15 minutes.</div></div>
 <div class="sample-label">Expanded / click</div><div class="expanded capsule"><div class="heading"><span>Now Playing</span><span>···</span></div><div class="preview" style="width:100%;min-height:unset;padding:0"><div class="artwork" style="width:48px;height:48px">♫</div><div class="titles"><div class="primary-text ellipsis">Night Drive</div><div class="secondary-text ellipsis">Sample Artist</div></div></div><div class="track"><div></div></div><div class="times"><span>1:02</span><span>3:04</span></div><div class="controls"><button class="control" aria-label="Previous">‹‹</button><button class="control main" aria-label="Pause">Ⅱ</button><button class="control" aria-label="Next">››</button></div></div>
 </article></div></section><section><h2>03 / Component rules</h2><p class="subtitle">A small vocabulary that scales to new features without changing the design language.</p><div class="chips"><div class="metric"><small>CAPSULE</small><b>124 × 32</b><small>Default / compact</small></div><div class="metric"><small>EXPANDED PANEL</small><b>360 × 184+</b><small>Maximum height 320</small></div><div class="metric"><small>MOTION</small><b>220 ms</b><small>Standard ease-out, no bounce</small></div></div></section>
-<div class="hint"><strong>Implementation note.</strong> These examples are static design specimens. Colors and dimensions are generated from the approved design token baseline; GNOME Shell integration, responsive behavior, focus management, notifications, and animation must be validated independently on Ubuntu GNOME Wayland. The canonical specification is <code>DESIGN_SYSTEM.md</code>.</div>
+<div class="hint"><strong>Implementation note.</strong> These examples are static design specimens. Colors and dimensions are generated from the Warm Minimalist design token baseline; GNOME Shell integration, responsive behavior, focus management, notifications, and animation must be validated independently on Ubuntu GNOME Wayland. The canonical specification is <code>DESIGN_SYSTEM.md</code>.</div>
 </main></body></html>

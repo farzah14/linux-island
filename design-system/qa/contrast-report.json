@@ -1,12 +1,12 @@
 {
-  "standard": "WCAG 2.2 inspired AA minimums (not a WCAG conformity audit)",
-  "algorithm": "WCAG sRGB relative luminance; no alpha compositing",
+  "standard": "WCAG 2.2-inspired AA targets (not a conformance audit)",
+  "algorithm": "WCAG sRGB relative luminance; opaque color pairs",
   "checks": [
     {
       "theme": "dark",
       "foreground": "text.primary",
       "background": "surface.island",
-      "contrastRatio": 16.29,
+      "contrastRatio": 15.62,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -15,7 +15,7 @@
       "theme": "dark",
       "foreground": "text.secondary",
       "background": "surface.island",
-      "contrastRatio": 9.58,
+      "contrastRatio": 9.85,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -24,7 +24,7 @@
       "theme": "dark",
       "foreground": "text.tertiary",
       "background": "surface.island",
-      "contrastRatio": 5.58,
+      "contrastRatio": 6.57,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -33,7 +33,7 @@
       "theme": "dark",
       "foreground": "text.primary",
       "background": "surface.raised",
-      "contrastRatio": 13.37,
+      "contrastRatio": 12.07,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -42,7 +42,7 @@
       "theme": "dark",
       "foreground": "text.secondary",
       "background": "surface.raised",
-      "contrastRatio": 7.87,
+      "contrastRatio": 7.61,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -51,7 +51,7 @@
       "theme": "dark",
       "foreground": "text.tertiary",
       "background": "surface.raised",
-      "contrastRatio": 4.58,
+      "contrastRatio": 5.08,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -60,7 +60,7 @@
       "theme": "dark",
       "foreground": "text.onAccent",
       "background": "control.primary",
-      "contrastRatio": 10.52,
+      "contrastRatio": 9.29,
       "minimum": 4.5,
       "pass": true,
       "role": "button text"
@@ -69,8 +69,8 @@
       "theme": "dark",
       "foreground": "icon.primary",
       "background": "surface.island",
-      "contrastRatio": 16.29,
-      "minimum": 3,
+      "contrastRatio": 15.62,
+      "minimum": 3.0,
       "pass": true,
       "role": "active icon"
     },
@@ -78,8 +78,8 @@
       "theme": "dark",
       "foreground": "border.focus",
       "background": "surface.island",
-      "contrastRatio": 10.52,
-      "minimum": 3,
+      "contrastRatio": 9.29,
+      "minimum": 3.0,
       "pass": true,
       "role": "focus ring"
     },
@@ -87,8 +87,8 @@
       "theme": "dark",
       "foreground": "border.strong",
       "background": "surface.island",
-      "contrastRatio": 5.58,
-      "minimum": 3,
+      "contrastRatio": 6.57,
+      "minimum": 3.0,
       "pass": true,
       "role": "required control outline"
     },
@@ -96,8 +96,8 @@
       "theme": "dark",
       "foreground": "status.danger",
       "background": "surface.island",
-      "contrastRatio": 8.66,
-      "minimum": 3,
+      "contrastRatio": 8.89,
+      "minimum": 3.0,
       "pass": true,
       "role": "status icon"
     },
@@ -105,8 +105,8 @@
       "theme": "dark",
       "foreground": "status.warning",
       "background": "surface.island",
-      "contrastRatio": 9.66,
-      "minimum": 3,
+      "contrastRatio": 11.97,
+      "minimum": 3.0,
       "pass": true,
       "role": "status icon"
     },
@@ -114,8 +114,8 @@
       "theme": "dark",
       "foreground": "progress.fill",
       "background": "surface.island",
-      "contrastRatio": 10.52,
-      "minimum": 3,
+      "contrastRatio": 9.29,
+      "minimum": 3.0,
       "pass": true,
       "role": "progress fill"
     },
@@ -123,7 +123,7 @@
       "theme": "light",
       "foreground": "text.primary",
       "background": "surface.island",
-      "contrastRatio": 14.97,
+      "contrastRatio": 14.21,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -132,7 +132,7 @@
       "theme": "light",
       "foreground": "text.secondary",
       "background": "surface.island",
-      "contrastRatio": 7.59,
+      "contrastRatio": 6.91,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -141,7 +141,7 @@
       "theme": "light",
       "foreground": "text.tertiary",
       "background": "surface.island",
-      "contrastRatio": 6.32,
+      "contrastRatio": 6.02,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -150,7 +150,7 @@
       "theme": "light",
       "foreground": "text.primary",
       "background": "surface.raised",
-      "contrastRatio": 12.72,
+      "contrastRatio": 12.46,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -159,7 +159,7 @@
       "theme": "light",
       "foreground": "text.secondary",
       "background": "surface.raised",
-      "contrastRatio": 6.44,
+      "contrastRatio": 6.06,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -168,7 +168,7 @@
       "theme": "light",
       "foreground": "text.tertiary",
       "background": "surface.raised",
-      "contrastRatio": 5.37,
+      "contrastRatio": 5.27,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -177,7 +177,7 @@
       "theme": "light",
       "foreground": "text.onAccent",
       "background": "control.primary",
-      "contrastRatio": 5.69,
+      "contrastRatio": 6.12,
       "minimum": 4.5,
       "pass": true,
       "role": "button text"
@@ -186,8 +186,8 @@
       "theme": "light",
       "foreground": "icon.primary",
       "background": "surface.island",
-      "contrastRatio": 14.97,
-      "minimum": 3,
+      "contrastRatio": 14.21,
+      "minimum": 3.0,
       "pass": true,
       "role": "active icon"
     },
@@ -195,8 +195,8 @@
       "theme": "light",
       "foreground": "border.focus",
       "background": "surface.island",
-      "contrastRatio": 5.69,
-      "minimum": 3,
+      "contrastRatio": 6.12,
+      "minimum": 3.0,
       "pass": true,
       "role": "focus ring"
     },
@@ -204,8 +204,8 @@
       "theme": "light",
       "foreground": "border.strong",
       "background": "surface.island",
-      "contrastRatio": 6.32,
-      "minimum": 3,
+      "contrastRatio": 5.64,
+      "minimum": 3.0,
       "pass": true,
       "role": "required control outline"
     },
@@ -213,8 +213,8 @@
       "theme": "light",
       "foreground": "status.danger",
       "background": "surface.island",
-      "contrastRatio": 7.03,
-      "minimum": 3,
+      "contrastRatio": 6.63,
+      "minimum": 3.0,
       "pass": true,
       "role": "status icon"
     },
@@ -222,8 +222,8 @@
       "theme": "light",
       "foreground": "status.warning",
       "background": "surface.island",
-      "contrastRatio": 6.61,
-      "minimum": 3,
+      "contrastRatio": 6.23,
+      "minimum": 3.0,
       "pass": true,
       "role": "status icon"
     },
@@ -231,8 +231,8 @@
       "theme": "light",
       "foreground": "progress.fill",
       "background": "surface.island",
-      "contrastRatio": 5.69,
-      "minimum": 3,
+      "contrastRatio": 6.12,
+      "minimum": 3.0,
       "pass": true,
       "role": "progress fill"
     }

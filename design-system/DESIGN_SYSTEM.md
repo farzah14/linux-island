@@ -3,7 +3,7 @@
 **ID:** LI-DS-001
 **Tanggal:** 2026-10-24
 **Status:** Design baseline for review and implementation (not yet runtime-verified)
-**Brand:** Graphite & Mint
+**Brand:** Warm Minimalist
 **Produk:** Linux Island v0.1 MVP; design catalog anticipates later releases
 **Platform pertama:** Ubuntu 24.04 GNOME Wayland; Qt/QML Settings and GNOME Shell/GJS Island UI
 
@@ -11,7 +11,7 @@
 
 ## 1. Konsep dan karakter visual
 
-**Modern Minimalist, bukan replika macOS.** Desain harus terasa native terhadap Linux, terbaca pada wallpaper terang/gelap, tenang saat idle, dan aktif hanya ketika pengguna membutuhkannya. Identitas Graphite & Mint menggunakan permukaan graphite netral dan aksen mint selektif. Tidak menggunakan gradien spektakuler, glow neon, emoji untuk kontrol, 3D, atau bounce berlebihan.
+**Modern Minimalist, bukan replika macOS.** Desain harus terasa native terhadap Linux, terbaca pada wallpaper terang/gelap, tenang saat idle, dan aktif hanya ketika pengguna membutuhkannya. Identitas Warm Minimalist menggunakan graphite bernuansa hangat, krem sebagai ruang bernapas, serta aksen amber yang lembut dan hemat pemakaian. Warna status positif memakai sage green hanya sebagai kode semantik, bukan aksen brand. Tidak menggunakan gradien spektakuler, glow neon, emoji untuk kontrol, 3D, atau bounce berlebihan.
 
 **Prinsip yang tidak boleh dilanggar:**
 
@@ -27,9 +27,9 @@
 
 | Elemen | Keputusan |
 |---|---|
-| Aksen utama | Mint `#8BD9A9` untuk dark; evergreen `#2C7355` untuk light demi kontras |
-| Surface utama dark | Graphite `#171A18` |
-| Surface utama light | Putih `#FFFFFF` di atas canvas `#F5F7F5` |
+| Aksen utama | Amber lembut `#D8B77F` (dark); amber pekat `#80551F` (light) demi kontras |
+| Surface utama dark | Graphite `#191816` |
+| Surface utama light | Krem `#FBF8F1` di atas canvas `#F4F0E9` |
 | Tipografi | System font; preferensi Cantarell/Noto Sans jika fallback diperlukan |
 | Ikon | Monoline 1.75–2px optical stroke, rounded joins, native/symbolic style |
 | Shape | Capsule pill, panel radius 24px, nested card 12–16px |
@@ -42,7 +42,7 @@ Token utama berada di `tokens/tokens.json`; dua file `tokens/dark.flat.json` dan
 
 **Tiga lapisan:**
 
-- **Primitive:** `palette.graphite.900`, `palette.mint.300`, dsb. Nilai warna mentah.
+- **Primitive:** `palette.graphite.900`, `palette.amber.300`, dsb. Nilai warna mentah.
 - **Semantic:** `semantic.dark.text.primary`, `semantic.light.control.primary`. Konteks fungsional.
 - **Component / metrics:** `metrics.componentsPx.compact.width`, `metrics.motionMs.standard`, `metrics.radiusPx.panel`.
 
@@ -54,38 +54,41 @@ Token utama berada di `tokens/tokens.json`; dua file `tokens/dark.flat.json` dan
 
 | Primitive | HEX | Pemakaian |
 |---|---|---|
-| Graphite 950 | `#111411` | scrim / deepest background |
-| Graphite 900 | `#171A18` | dark Island surface |
-| Graphite 850 | `#1D211E` | overlay background |
-| Graphite 800 | `#262B28` | raised card |
-| Graphite 700 | `#323A34` | hover background |
-| Graphite 600 | `#455047` | subtle stroke, decorative separators |
-| Graphite 400 | `#89948D` | tertiary dark text |
-| Graphite 300 | `#B8C2BB` | secondary dark text |
-| Graphite 050 | `#F5F7F5` | primary dark text/light canvas |
-| Mint 300 | `#8BD9A9` | primary dark accent |
-| Mint 200 | `#BAEACA` | dark accent hover |
-| Mint 700 | `#2C7355` | primary light accent |
-| Mint 800 | `#226646` | light accent hover |
+| Graphite 950 | `#12110F` | scrim / deepest background |
+| Graphite 900 | `#191816` | dark Island surface |
+| Graphite 850 | `#23211E` | overlay background |
+| Graphite 800 | `#302D28` | raised card |
+| Graphite 700 | `#403B34` | hover background |
+| Graphite 600 | `#575148` | subtle stroke, decorative separators |
+| Graphite 500 | `#898278` | muted warm graphite reference |
+| Graphite 400 | `#A69C8F` | tertiary dark text |
+| Graphite 300 | `#C8C0B5` | secondary dark text |
+| Graphite 050 | `#F4F0E9` | primary dark text / warm canvas |
+| Cream 050 | `#FBF8F1` | light Island surface |
+| Cream 200 | `#EEE9DF` | light raised surface |
+| Amber 300 | `#D8B77F` | primary dark accent |
+| Amber 200 | `#E9CEA0` | dark accent hover |
+| Amber 800 | `#80551F` | primary light accent |
+| Amber 900 | `#6B471B` | light accent hover |
 
-**Mengapa aksen dark/light berbeda?** Warna mint yang cerah sulit dipakai sebagai teks/ikon pada surface putih. Light menggunakan mint yang lebih gelap agar tetap sesuai prinsip Graphite & Mint dan terbaca.
+**Mengapa aksen dark/light berbeda?** Warna amber yang cerah sulit dipakai sebagai teks/ikon pada surface putih. Light menggunakan amber lebih gelap untuk menjaga kontras teks dan kontrol pada latar krem.
 
 ### 2.2 Semantic colors
 
 | Role | Dark | Light | Aturan |
 |---|---|---|---|
-| `surface.island` | `#171A18` | `#FFFFFF` | solid; selalu memiliki kontras dengan teks |
-| `surface.raised` | `#262B28` | `#E8EEE9` | nested panels |
-| `text.primary` | `#F5F7F5` | `#202923` | heading/body |
-| `text.secondary` | `#B8C2BB` | `#47584C` | subtitle/metadata |
-| `text.tertiary` | `#89948D` | `#526458` | noncritical status timestamps |
-| `accent.primary` | `#8BD9A9` | `#2C7355` | emphasize intent |
-| `text.onAccent` | `#171A18` | `#FFFFFF` | primary action text |
-| `border.focus` | `#8BD9A9` | `#2C7355` | focus ring 2px |
-| `status.warning` | `#E9B872` | `#875000` | always pair with icon/text |
-| `status.danger` | `#FF9B94` | `#A42C34` | always pair with icon/text |
+| `surface.island` | `#191816` | `#FBF8F1` | solid; selalu memiliki kontras dengan teks |
+| `surface.raised` | `#302D28` | `#EEE9DF` | nested panels |
+| `text.primary` | `#F4F0E9` | `#292621` | heading/body |
+| `text.secondary` | `#C8C0B5` | `#5D554B` | subtitle/metadata |
+| `text.tertiary` | `#A69C8F` | `#665E53` | noncritical status timestamps |
+| `accent.primary` | `#D8B77F` | `#80551F` | emphasize intent |
+| `text.onAccent` | `#191816` | `#FBF8F1` | primary action text |
+| `border.focus` | `#D8B77F` | `#80551F` | focus ring 2px |
+| `status.warning` | `#F6CF83` | `#875000` | always pair with icon/text |
+| `status.danger` | `#F2A3A0` | `#A42C34` | always pair with icon/text |
 
-**Status:** success/connected = mint + check/icon + label; warning = amber + alert glyph + label; error = red + error glyph + label. Tidak pernah warna saja.
+**Status:** success/connected memakai sage green (`#9DD2B1` dark / `#276448` light) disertai check/label; warning memakai amber serta alert glyph/label; error memakai merah dan error glyph/label. Tidak pernah warna saja.
 
 **Contrast QA:** gunakan `qa/contrast-report.json` untuk hasil penghitungan color-pair. Target desain mengikuti WCAG 2.2 AA: teks normal ≥4.5:1, komponen visual esensial ≥3:1. Ini bukan deklarasi bahwa keseluruhan UI sudah conformant; layering, blur, rendering fonts dan real-world capture harus diuji terpisah.
 
@@ -258,3 +261,7 @@ See [`INTEGRATION_GUIDE.md`](INTEGRATION_GUIDE.md) for translation to GJS and QM
 - Project Technical Design v0.1: `../docs/superpowers/specs/2026-10-24-linux-island-v0.1-design.md`
 
 Values and proportions in this document are **project design decisions**, not empirical GNOME or Qt performance measurements. Verify visually and through integration tests before shipping.
+
+## 15. Warm Minimalist revision note
+
+Palet awal yang berbasis aksen hijau diganti oleh Warm Minimalist (graphite, cream, amber) sesuai keputusan produk. Ukuran komponen, state machine, tipografi, timing animasi, kontrak D-Bus, dan pembagian tanggung jawab GJS/QML **tidak berubah**. Ini perubahan design-token sebelum integrasi runtime, bukan bukti theme telah aktif pada GNOME Shell.
