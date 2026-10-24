@@ -1,0 +1,153 @@
+{
+  "designSystemVersion": "1.0.0",
+  "theme": "light",
+  "colors": {
+    "surface.canvas": "#F5F7F5",
+    "surface.island": "#FFFFFF",
+    "surface.raised": "#E8EEE9",
+    "surface.hover": "#E8EEE9",
+    "surface.scrim": "#171A18",
+    "text.primary": "#202923",
+    "text.secondary": "#47584C",
+    "text.tertiary": "#526458",
+    "text.inverse": "#FFFFFF",
+    "text.onAccent": "#FFFFFF",
+    "accent.primary": "#2C7355",
+    "accent.hover": "#226646",
+    "accent.subtle": "#E0F5E8",
+    "border.subtle": "#B8C2BB",
+    "border.strong": "#526458",
+    "border.focus": "#2C7355",
+    "icon.primary": "#202923",
+    "icon.secondary": "#47584C",
+    "icon.onAccent": "#FFFFFF",
+    "control.primary": "#2C7355",
+    "control.primaryHover": "#226646",
+    "control.secondary": "#E8EEE9",
+    "control.disabled": "#B8C2BB",
+    "status.success": "#2C7355",
+    "status.warning": "#875000",
+    "status.danger": "#A42C34",
+    "progress.track": "#B8C2BB",
+    "progress.fill": "#2C7355"
+  },
+  "spacingPx": {
+    "0": 0,
+    "1": 4,
+    "2": 8,
+    "3": 12,
+    "4": 16,
+    "5": 20,
+    "6": 24,
+    "7": 28,
+    "8": 32,
+    "10": 40,
+    "12": 48
+  },
+  "radiusPx": {
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 20,
+    "panel": 24,
+    "pill": 999
+  },
+  "borderWidthPx": {
+    "hairline": 1,
+    "focus": 2
+  },
+  "iconSizePx": {
+    "xs": 14,
+    "sm": 16,
+    "md": 20,
+    "lg": 24
+  },
+  "fontPx": {
+    "tiny": 11,
+    "caption": 12,
+    "bodySmall": 13,
+    "body": 14,
+    "bodyEmphasis": 16,
+    "headingSmall": 18,
+    "heading": 20,
+    "display": 24
+  },
+  "lineHeightRatio": {
+    "compact": 1.2,
+    "body": 1.4,
+    "reading": 1.5
+  },
+  "fontWeight": {
+    "regular": 400,
+    "medium": 500,
+    "semibold": 600,
+    "bold": 700
+  },
+  "componentsPx": {
+    "compact": {
+      "width": 124,
+      "height": 32,
+      "minWidth": 96,
+      "maxWidth": 240
+    },
+    "preview": {
+      "width": 248,
+      "minHeight": 56
+    },
+    "peek": {
+      "width": 296,
+      "minHeight": 72,
+      "maxHeight": 104
+    },
+    "expanded": {
+      "width": 360,
+      "minHeight": 184,
+      "maxHeight": 320,
+      "minWidth": 280
+    },
+    "settingsWindow": {
+      "minWidth": 520,
+      "preferredWidth": 680,
+      "minHeight": 560
+    },
+    "mediaArtwork": 48,
+    "iconButtonVisual": 32,
+    "iconButtonHit": 40,
+    "toggleHeight": 36,
+    "progressTrackHeight": 4,
+    "progressHitHeight": 24,
+    "focusOutset": 2,
+    "panelSafeInset": 8
+  },
+  "motionMs": {
+    "instant": 0,
+    "micro": 90,
+    "fast": 150,
+    "standard": 220,
+    "emphasis": 300,
+    "hoverEnterDelay": 120,
+    "hoverExitDelay": 240,
+    "peekHold": 3500,
+    "peekCooldown": 250,
+    "reducedOpacity": 80
+  },
+  "motionEasing": {
+    "enter": "cubic-bezier(0.2, 0, 0, 1)",
+    "exit": "cubic-bezier(0.4, 0, 1, 1)",
+    "linear": "linear"
+  },
+  "opacity": {
+    "enabled": 1.0,
+    "muted": 0.72,
+    "disabled": 0.4,
+    "scrim": 0.64
+  },
+  "layer": {
+    "panelHost": 10,
+    "island": 20,
+    "peek": 30,
+    "expanded": 40,
+    "focus": 50
+  }
+}
