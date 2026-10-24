@@ -1,49 +1,43 @@
-/* Linux Island — Warm Minimalist v1.0 Scoped Stylesheet */
-
-.linux-island {
-    padding: 0 4px;
-}
+/* Linux Island — Warm Minimalist v1.0 Floating Island Stylesheet */
 
 .linux-island__capsule {
     background-color: #191816;
-    border-radius: 16px;
-    padding: 0 12px;
-    border: 1px solid #575148;
-    color: #F4F0E9;
-    font-weight: 600;
+    border-radius: 22px;
+    padding: 7px 18px;
+    border: 1px solid #403B34;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
 }
 
 .linux-island__capsule:hover {
-    background-color: #403B34;
+    background-color: #23211E;
     border-color: #D8B77F;
-}
-
-.linux-island__capsule:focus,
-.linux-island__focus {
-    border: 2px solid #D8B77F;
 }
 
 .linux-island__label {
     color: #F4F0E9;
+    font-size: 13px;
     font-weight: 600;
 }
 
 .linux-island__preview {
-    background-color: #302D28;
-    border-radius: 16px;
-    padding: 4px 16px;
-    border: 1px solid #D8B77F;
+    background-color: #23211E;
+    border-radius: 22px;
+    padding: 8px 20px;
+    border: 1.5px solid #D8B77F;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
 }
 
 .linux-island__media {
-    padding: 8px 12px;
-    spacing: 4px;
+    padding: 10px 12px 6px 12px;
+    spacing: 6px;
     background-color: #191816;
-    border-radius: 12px;
+    border-radius: 14px;
+    margin-top: 6px;
 }
 
 .linux-island__media-title {
     color: #F4F0E9;
+    font-size: 13px;
     font-weight: bold;
 }
 
@@ -53,10 +47,11 @@
 }
 
 .linux-island__media-button {
-    background-color: #403B34;
+    background-color: #302D28;
     color: #F4F0E9;
     border-radius: 8px;
-    padding: 4px 8px;
+    padding: 4px 12px;
+    font-size: 12px;
 }
 
 .linux-island__media-button:hover {

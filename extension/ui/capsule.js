@@ -1,22 +1,36 @@
-// GNOME Shell actor: no D-Bus or external process dependencies in the M0 spike.
+// GNOME Shell Floating Dynamic Island UI actor
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import {MediaView} from './mediaView.js';
 
 export class Capsule {
     constructor({onControlAction, onInteractionEvent} = {}) {
+        this._onControlAction = onControlAction ?? (() => {});
         this._onInteractionEvent = onInteractionEvent ?? (() => {});
+        this._currentState = 'COMPACT';
 
-        this._button = new PanelMenu.Button(0, 'Linux Island', false);
-        this._button.add_style_class_name('linux-island');
-
-        this._container = new St.BoxLayout({
+        // Root floating island widget
+        this._widget = new St.BoxLayout({
+            name: 'linux-island-pill',
             style_class: 'linux-island__capsule',
-            y_align: Clutter.ActorAlign.CENTER,
+            vertical: true,
             reactive: true,
             track_hover: true,
+            can_focus: true,
+        });
+
+        // Compact pill row (always visible at top of island)
+        this._compactRow = new St.BoxLayout({
+            style: 'spacing: 8px;',
+            y_align: Clutter.ActorAlign.CENTER,
+            x_align: Clutter.ActorAlign.CENTER,
+        });
+
+        this._icon = new St.Label({
+            text: '🏝️',
+            style: 'font-size: 13px;',
+            y_align: Clutter.ActorAlign.CENTER,
         });
 
         this._label = new St.Label({
@@ -24,50 +38,82 @@ export class Capsule {
             style_class: 'linux-island__label',
             y_align: Clutter.ActorAlign.CENTER,
         });
-        this._container.add_child(this._label);
 
+        this._compactRow.add_child(this._icon);
+        this._compactRow.add_child(this._label);
+        this._widget.add_child(this._compactRow);
+
+        // Expanded media card (shown when EXPANDED)
         this._mediaView = new MediaView({
-            onControlAction,
+            onControlAction: this._onControlAction,
         });
-
-        if (this._button.menu && this._mediaView.actor) {
-            this._button.menu.box.add_child(this._mediaView.actor);
+        if (this._mediaView.actor) {
+            this._mediaView.actor.visible = false;
+            this._widget.add_child(this._mediaView.actor);
         }
 
-        this._button.add_child(this._container);
-
-        this._container.connect('notify::hover', () => {
-            const isHovered = this._container.hover;
+        // Hover handling
+        this._widget.connect('notify::hover', () => {
+            if (this._currentState === 'EXPANDED') return;
+            const isHovered = this._widget.hover;
             this._onInteractionEvent(isHovered ? 'HOVER_ENTER' : 'HOVER_LEAVE');
         });
 
-        this._button.connect('button-press-event', () => {
-            this._onInteractionEvent('CLICK');
-            return Clutter.EVENT_PROPAGATE;
+        // Click handling (toggles EXPANDED and COMPACT)
+        this._widget.connect('button-press-event', () => {
+            if (this._currentState === 'EXPANDED') {
+                this._onInteractionEvent('DISMISS');
+            } else {
+                this._onInteractionEvent('CLICK');
+            }
+            return Clutter.EVENT_STOP;
         });
 
-        this._button.connect('key-press-event', (_actor, event) => {
+        // Keyboard Escape key dismiss
+        this._widget.connect('key-press-event', (_actor, event) => {
             if (event.get_key_symbol() === Clutter.KEY_Escape) {
                 this._onInteractionEvent('DISMISS');
                 return Clutter.EVENT_STOP;
             }
             return Clutter.EVENT_PROPAGATE;
         });
+
+        // Auto re-center when dimensions change
+        this._widget.connect('notify::allocation', () => this._relayout());
+    }
+
+    _relayout() {
+        const monitor = Main.layoutManager.primaryMonitor;
+        if (!monitor || !this._widget)
+            return;
+
+        const width = this._widget.width;
+        // Position at the exact horizontal center of the primary monitor
+        const x = Math.round(monitor.x + (monitor.width - width) / 2);
+        // Position at top with an 8px aesthetic margin from the screen edge
+        const y = monitor.y + 8;
+        this._widget.set_position(x, y);
     }
 
     mount() {
-        const isCenterVisible = Main.panel._centerBox && Main.panel._centerBox.visible;
-        const targetBox = isCenterVisible ? 'center' : 'left';
-        Main.panel.addToStatusArea('linux-island', this._button, 0, targetBox);
+        Main.layoutManager.addTopChrome(this._widget, {
+            affectsStruts: false,
+            trackFullscreen: true,
+        });
+        Main.layoutManager.connectObject('monitors-changed', () => this._relayout(), this);
+        this._relayout();
     }
 
     setVisible(visible) {
-        if (this._button)
-            this._button.visible = Boolean(visible);
+        if (this._widget) {
+            this._widget.visible = Boolean(visible);
+            if (visible) this._relayout();
+        }
     }
 
     applyState(state) {
-        if (!this._container)
+        this._currentState = state;
+        if (!this._widget)
             return;
 
         if (state === 'HIDDEN') {
@@ -76,34 +122,63 @@ export class Capsule {
         }
 
         this.setVisible(true);
-        this._container.remove_style_class_name('linux-island__preview');
-        this._container.remove_style_class_name('linux-island__capsule');
 
-        if (state === 'PREVIEW' || state === 'EXPANDED' || state === 'PEEK') {
-            this._container.add_style_class_name('linux-island__preview');
+        if (state === 'EXPANDED') {
+            if (this._mediaView?.actor) {
+                this._mediaView.actor.visible = true;
+            }
+            this._widget.remove_style_class_name('linux-island__capsule');
+            this._widget.add_style_class_name('linux-island__preview');
+        } else if (state === 'PREVIEW' || state === 'PEEK') {
+            if (this._mediaView?.actor) {
+                this._mediaView.actor.visible = false;
+            }
+            this._widget.remove_style_class_name('linux-island__capsule');
+            this._widget.add_style_class_name('linux-island__preview');
         } else {
-            this._container.add_style_class_name('linux-island__capsule');
+            // COMPACT
+            if (this._mediaView?.actor) {
+                this._mediaView.actor.visible = false;
+            }
+            this._widget.remove_style_class_name('linux-island__preview');
+            this._widget.add_style_class_name('linux-island__capsule');
         }
+
+        this._relayout();
     }
 
     setMedia(media) {
         if (this._label) {
             if (media && media.title && media.title.trim().length > 0) {
-                const t = media.title.trim();
-                this._label.text = t.length > 22 ? t.slice(0, 20) + '...' : t;
+                const title = media.title.trim();
+                const artist = (media.artist && media.artist.trim().length > 0) ? ` • ${media.artist.trim()}` : '';
+                const fullText = title + artist;
+                this._label.text = fullText.length > 36 ? fullText.slice(0, 34) + '...' : fullText;
+                if (this._icon) {
+                    this._icon.text = (media.playbackStatus === 'Playing') ? '🎵' : '⏸️';
+                }
             } else {
                 this._label.text = 'Island';
+                if (this._icon) {
+                    this._icon.text = '🏝️';
+                }
             }
         }
         this._mediaView?.setMedia(media);
+        this._relayout();
     }
 
     destroy() {
+        Main.layoutManager.disconnectObject(this);
+        if (this._widget) {
+            Main.layoutManager.removeChrome(this._widget);
+            this._widget.destroy();
+            this._widget = null;
+        }
         this._mediaView?.destroy();
         this._mediaView = null;
-        this._button?.destroy();
-        this._button = null;
-        this._container = null;
+        this._compactRow = null;
+        this._icon = null;
         this._label = null;
     }
 }
