@@ -30,6 +30,10 @@ export class Capsule {
             onControlAction,
         });
 
+        if (this._button.menu && this._mediaView.actor) {
+            this._button.menu.box.add_child(this._mediaView.actor);
+        }
+
         this._button.add_child(this._container);
 
         this._container.connect('notify::hover', () => {
@@ -52,7 +56,9 @@ export class Capsule {
     }
 
     mount() {
-        Main.panel.addToStatusArea('linux-island', this._button, 0, 'center');
+        const isCenterVisible = Main.panel._centerBox && Main.panel._centerBox.visible;
+        const targetBox = isCenterVisible ? 'center' : 'left';
+        Main.panel.addToStatusArea('linux-island', this._button, 0, targetBox);
     }
 
     setVisible(visible) {
@@ -81,6 +87,14 @@ export class Capsule {
     }
 
     setMedia(media) {
+        if (this._label) {
+            if (media && media.title && media.title.trim().length > 0) {
+                const t = media.title.trim();
+                this._label.text = t.length > 22 ? t.slice(0, 20) + '...' : t;
+            } else {
+                this._label.text = 'Island';
+            }
+        }
         this._mediaView?.setMedia(media);
     }
 

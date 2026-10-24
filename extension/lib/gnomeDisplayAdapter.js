@@ -76,8 +76,7 @@ export class GnomeDisplayAdapter {
                         const isFs = typeof w.is_fullscreen === 'function' ? w.is_fullscreen() : false;
                         return winMonitor === primaryIndex && isFs;
                     });
-                    if (hasFullscreen)
-                        return true;
+                    return hasFullscreen;
                 }
             } catch (_) {
                 // Fall back to display check
@@ -86,10 +85,10 @@ export class GnomeDisplayAdapter {
 
         // Display monitor query fallback
         if (typeof this._display.get_monitor_in_fullscreen === 'function') {
-            return this._display.get_monitor_in_fullscreen(primaryIndex);
+            return Boolean(this._display.get_monitor_in_fullscreen(primaryIndex));
         }
 
-        return undefined;
+        return false;
     }
 
     /**
