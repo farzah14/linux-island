@@ -2,10 +2,13 @@
 // Pure functions run under Node.js and GJS; DBus operations use Gio when available.
 
 let Gio = null;
+let GLib = null;
 if (typeof process === 'undefined') {
     try {
         const gi = await import('gi://Gio');
         Gio = gi.default ?? gi;
+        const gl = await import('gi://GLib');
+        GLib = gl.default ?? gl;
     } catch (_) {}
 }
 
@@ -269,10 +272,12 @@ export class CoreProxy {
 
         this._controlInflight = true;
         return new Promise(resolve => {
-            const GLib = (typeof globalThis.imports !== 'undefined' && globalThis.imports.gi?.GLib)
-                ? globalThis.imports.gi.GLib
-                : null;
             const params = GLib ? new GLib.Variant('(s)', [action]) : null;
+            if (!params) {
+                this._controlInflight = false;
+                resolve(false);
+                return;
+            }
 
             this._proxy.call(
                 'ControlMedia',
@@ -290,7 +295,8 @@ export class CoreProxy {
                         const reply = proxy.call_finish(res);
                         const [accepted] = reply.deepUnpack();
                         resolve(Boolean(accepted));
-                    } catch (_) {
+                    } catch (err) {
+                        console.error('ControlMedia error:', err);
                         resolve(false);
                     }
                 }

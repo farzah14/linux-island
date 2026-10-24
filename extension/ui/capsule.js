@@ -20,11 +20,12 @@ export class Capsule {
             can_focus: true,
         });
 
-        // Compact pill row (always visible at top of island)
+        // Compact pill row (visible in COMPACT/PREVIEW/PEEK)
         this._compactRow = new St.BoxLayout({
             style: 'spacing: 8px;',
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.CENTER,
+            reactive: true,
         });
 
         this._icon = new St.Label({
@@ -46,6 +47,7 @@ export class Capsule {
         // Expanded media card (shown when EXPANDED)
         this._mediaView = new MediaView({
             onControlAction: this._onControlAction,
+            onDismiss: () => this._onInteractionEvent('DISMISS'),
         });
         if (this._mediaView.actor) {
             this._mediaView.actor.visible = false;
@@ -59,11 +61,9 @@ export class Capsule {
             this._onInteractionEvent(isHovered ? 'HOVER_ENTER' : 'HOVER_LEAVE');
         });
 
-        // Click handling (toggles EXPANDED and COMPACT)
-        this._widget.connect('button-press-event', () => {
-            if (this._currentState === 'EXPANDED') {
-                this._onInteractionEvent('DISMISS');
-            } else {
+        // Click on compact pill expands it
+        this._compactRow.connect('button-press-event', () => {
+            if (this._currentState !== 'EXPANDED') {
                 this._onInteractionEvent('CLICK');
             }
             return Clutter.EVENT_STOP;
@@ -78,7 +78,6 @@ export class Capsule {
             return Clutter.EVENT_PROPAGATE;
         });
 
-        // Auto re-center when dimensions change
         this._widget.connect('notify::allocation', () => this._relayout());
     }
 
@@ -129,12 +128,18 @@ export class Capsule {
         this.setVisible(true);
 
         if (state === 'EXPANDED') {
+            if (this._compactRow) {
+                this._compactRow.visible = false;
+            }
             if (this._mediaView?.actor) {
                 this._mediaView.actor.visible = true;
             }
             this._widget.remove_style_class_name('linux-island__capsule');
             this._widget.add_style_class_name('linux-island__preview');
         } else if (state === 'PREVIEW' || state === 'PEEK') {
+            if (this._compactRow) {
+                this._compactRow.visible = true;
+            }
             if (this._mediaView?.actor) {
                 this._mediaView.actor.visible = false;
             }
@@ -142,6 +147,9 @@ export class Capsule {
             this._widget.add_style_class_name('linux-island__preview');
         } else {
             // COMPACT
+            if (this._compactRow) {
+                this._compactRow.visible = true;
+            }
             if (this._mediaView?.actor) {
                 this._mediaView.actor.visible = false;
             }

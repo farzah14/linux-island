@@ -62,9 +62,11 @@ export class MediaView {
     /**
      * @param {Object} [options]
      * @param {Function} [options.onControlAction] - (action: string) => void
+     * @param {Function} [options.onDismiss] - () => void
      */
-    constructor({onControlAction} = {}) {
+    constructor({onControlAction, onDismiss} = {}) {
         this._onControlAction = onControlAction ?? (() => {});
+        this._onDismiss = onDismiss ?? (() => {});
         this._actor = null;
         this._titleLabel = null;
         this._artistLabel = null;
@@ -84,28 +86,96 @@ export class MediaView {
     _buildUi() {
         this._actor = new St.BoxLayout({
             vertical: true,
-            style: 'padding: 8px 12px; spacing: 4px;',
+            style: 'width: 330px; padding: 12px 14px 14px 14px; spacing: 8px;',
+            reactive: true,
+        });
+
+        // Top mini-bar: "🏝️ Linux Island" + spacer + close button "✕"
+        const topBar = new St.BoxLayout({
+            style: 'spacing: 8px;',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        const brandLabel = new St.Label({
+            text: '🏝️ Linux Island',
+            style: 'font-size: 11px; font-weight: 600; color: #A69C8F;',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        const topSpacer = new St.Widget({
+            x_expand: true,
+        });
+
+        const closeBtn = new St.Button({
+            label: '✕',
+            style: 'padding: 2px 8px; border-radius: 8px; background-color: #23211E; color: #A69C8F; font-size: 11px;',
+            reactive: true,
+            can_focus: true,
+        });
+        closeBtn.connect('clicked', () => this._onDismiss());
+
+        topBar.add_child(brandLabel);
+        topBar.add_child(topSpacer);
+        topBar.add_child(closeBtn);
+        this._actor.add_child(topBar);
+
+        // Track info row: Album art box on left, Title + Artist on right
+        const trackRow = new St.BoxLayout({
+            style: 'spacing: 12px; padding: 4px 0;',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        const artBox = new St.BoxLayout({
+            style: 'width: 44px; height: 44px; border-radius: 10px; background-color: #23211E; border: 1px solid #403B34;',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        const artIcon = new St.Label({
+            text: '🎵',
+            style: 'font-size: 18px;',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        artBox.add_child(artIcon);
+        trackRow.add_child(artBox);
+
+        const textCol = new St.BoxLayout({
+            vertical: true,
+            style: 'spacing: 2px;',
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
         });
 
         this._titleLabel = new St.Label({
             text: 'No Media Playing',
-            style: 'font-weight: bold; color: #FFFFFF;',
-            y_align: Clutter.ActorAlign.CENTER,
+            style: 'font-size: 14px; font-weight: bold; color: #F4F0E9;',
         });
+        if (this._titleLabel.clutter_text) {
+            this._titleLabel.clutter_text.set_ellipsize(3);
+        }
 
         this._artistLabel = new St.Label({
             text: '',
-            style: 'color: #D8B77F; font-size: 11px;',
-            y_align: Clutter.ActorAlign.CENTER,
+            style: 'font-size: 12px; color: #D8B77F;',
         });
+        if (this._artistLabel.clutter_text) {
+            this._artistLabel.clutter_text.set_ellipsize(3);
+        }
 
+        textCol.add_child(this._titleLabel);
+        textCol.add_child(this._artistLabel);
+        trackRow.add_child(textCol);
+        this._actor.add_child(trackRow);
+
+        // Playback controls row: [  ⏮  ]   [   ▶   ]   [  ⏭  ]
         const controlsBox = new St.BoxLayout({
-            style: 'spacing: 8px; padding-top: 4px;',
+            style: 'spacing: 16px; padding-top: 8px;',
             x_align: Clutter.ActorAlign.CENTER,
         });
 
         this._prevBtn = new St.Button({
             label: '⏮',
+            style: 'padding: 6px 18px; border-radius: 12px; background-color: #23211E; color: #F4F0E9; font-size: 15px;',
             reactive: true,
             can_focus: true,
         });
@@ -113,6 +183,7 @@ export class MediaView {
 
         this._playPauseBtn = new St.Button({
             label: '▶',
+            style: 'padding: 8px 26px; border-radius: 14px; background-color: #D8B77F; color: #191816; font-size: 17px; font-weight: bold;',
             reactive: true,
             can_focus: true,
         });
@@ -120,6 +191,7 @@ export class MediaView {
 
         this._nextBtn = new St.Button({
             label: '⏭',
+            style: 'padding: 6px 18px; border-radius: 12px; background-color: #23211E; color: #F4F0E9; font-size: 15px;',
             reactive: true,
             can_focus: true,
         });
@@ -128,9 +200,6 @@ export class MediaView {
         controlsBox.add_child(this._prevBtn);
         controlsBox.add_child(this._playPauseBtn);
         controlsBox.add_child(this._nextBtn);
-
-        this._actor.add_child(this._titleLabel);
-        this._actor.add_child(this._artistLabel);
         this._actor.add_child(controlsBox);
     }
 
@@ -162,6 +231,7 @@ export class MediaView {
             } catch (_) {}
             this._actor = null;
         }
+        this._titleLabel = null;
         this._artistLabel = null;
         this._playPauseBtn = null;
         this._nextBtn = null;
