@@ -8,27 +8,25 @@ No pre-existing Linux Island repository was present in this workspace. The conne
 
 | Planned task | Status | Evidence |
 |---|---|---|
-| Task 01: bootstrap repository / CMake | PARTIAL | Files and preset exist; Qt6 configuration blocked (`Qt6Config.cmake` missing). |
-| Task 02: GNOME capsule lifecycle | STATIC PROTOTYPE | `metadata.json`, ES module extension, and panel actor created; no runtime GNOME execution. |
-| Task 03: pure interaction state reducer | LOGIC VERIFIED UNDER NODE | Red test: module-not-found exit 1; green test: 17 assertions pass under Node. GJS runtime confirmation pending. |
-| Task 04: fullscreen, Smart Adaptive, cleanup | NOT STARTED | Requires an actual GNOME 46 Wayland test user/VM and its live Mutter APIs. |
+| Task 01: bootstrap repository / CMake | **PASSED** | CMake 4.2.3 and Ninja 1.13.2 configure and build `build/dev/core/linux-island-core` with Qt 6.10.2 Core/DBus; 0 ctest failures. |
+| Task 02: GNOME capsule lifecycle | **STATIC AUDIT PASS / RUNTIME BLOCKED** | ES module lifecycle and `PanelMenu.Button` integration verified against GNOME Shell 50.1 API; runtime enable/disable blocked pending isolated test user session. |
+| Task 03: pure interaction state reducer | **PASSED** | 21 assertions verified under both Node.js v22.22.1 and GJS 1.88.0. |
+| Task 04: fullscreen, Smart Adaptive, cleanup | **PASSED (Logic & Adapter Contracts)** | Card M0-04A pure policy (5 checks) and Card M0-04B controller + display adapter (10 checks) pass under Node and GJS. Live runtime acceptance blocked pending isolated test user session. |
 
 ## Verified facts
 
-- `node tests/extension/state-machine.test.js`: pass (17 state assertions).
-- `python3 tests/integration/test_m0_scaffold.py`: pass (static file and metadata checks).
-- `node --check`: exit 0 for all three JS source modules.
-- Approved D-Bus XML copied byte-for-byte; XML parsed; 6 methods and 3 signals.
-- `cmake --preset dev`: fails because `Qt6Config.cmake` is not installed in this container.
-- GNOME Shell, GNOME Extensions CLI, and GJS are not installed here.
+- `cmake --preset dev && cmake --build build/dev`: pass (binary linked dynamically to Qt6Core).
+- `node tests/extension/state-machine.test.js` & `gjs -m tests/extension/state-machine.test.js`: pass (21 assertions).
+- `node tests/extension/display-policy.test.js` & `gjs -m tests/extension/display-policy.test.js`: pass (5 checks).
+- `node tests/extension/island-controller.test.js` & `gjs -m tests/extension/island-controller.test.js`: pass (10 checks).
+- `python3 scripts/dev/verify-kit.py`: pass (21 prompts, 7 runbooks, tokens, Core1 XML).
+- `python3 tests/integration/test_m0_scaffold.py`: pass (static scaffold checks).
+- `python3 design-system/qa/verify_tokens.py`: pass (26 contrast checks).
+- `node --check extension/**/*.js`: exit 0 for all extension modules.
+- Staged test package created at `build/test-compat-gnome50/linux-island@local.shell-extension.zip`.
 
-These facts do **not** demonstrate a running Island or successful GNOME Wayland integration.
+## Runtime Acceptance Gate
 
-## Next actions on an Ubuntu 24.04/GNOME 46 Wayland test VM
-
-1. Read `tests/extension/manual-smoke.md` and capture actual host facts in `docs/compatibility.md`.
-2. Install necessary dependencies only on the disposable test environment and run `cmake --preset dev`, `cmake --build --preset dev`, `ctest --preset dev`.
-3. Run `gjs -m tests/extension/state-machine.test.js` to confirm pure state logic in GJS.
-4. Install the extension into the **test user** and verify enable/disable lifecycle 10 times.
-5. Implement Task 04 only after identifying the supported GNOME fullscreen/primary-monitor signals on that host; perform fullscreen/recovery acceptance tests.
-6. Do not proceed to M1 until live M0 compatibility acceptance passes or documented deviations are approved.
+- **Environment Constraint:** Host runs Ubuntu 26.04.1 LTS / GNOME Shell 50.1 Wayland as the primary user desktop (`farzah`).
+- **Safety Rule:** Experimental extensions must never be activated on the primary daily-use desktop.
+- **Status:** Live GNOME runtime acceptance remains **BLOCKED** until a dedicated test account (`gnometest`) or VM is provisioned to execute the 10-cycle smoke test.

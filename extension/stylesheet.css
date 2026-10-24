@@ -1,0 +1,69 @@
+/* Linux Island — Warm Minimalist v1.0 Scoped Stylesheet */
+
+.linux-island {
+    padding: 0 4px;
+}
+
+.linux-island__capsule {
+    background-color: #191816;
+    border-radius: 16px;
+    padding: 0 12px;
+    border: 1px solid #575148;
+    color: #F4F0E9;
+    font-weight: 600;
+}
+
+.linux-island__capsule:hover {
+    background-color: #403B34;
+    border-color: #D8B77F;
+}
+
+.linux-island__capsule:focus,
+.linux-island__focus {
+    border: 2px solid #D8B77F;
+}
+
+.linux-island__label {
+    color: #F4F0E9;
+    font-weight: 600;
+}
+
+.linux-island__preview {
+    background-color: #302D28;
+    border-radius: 16px;
+    padding: 4px 16px;
+    border: 1px solid #D8B77F;
+}
+
+.linux-island__media {
+    padding: 8px 12px;
+    spacing: 4px;
+    background-color: #191816;
+    border-radius: 12px;
+}
+
+.linux-island__media-title {
+    color: #F4F0E9;
+    font-weight: bold;
+}
+
+.linux-island__media-artist {
+    color: #D8B77F;
+    font-size: 11px;
+}
+
+.linux-island__media-button {
+    background-color: #403B34;
+    color: #F4F0E9;
+    border-radius: 8px;
+    padding: 4px 8px;
+}
+
+.linux-island__media-button:hover {
+    background-color: #D8B77F;
+    color: #191816;
+}
+
+.linux-island__media-button:focus {
+    border: 2px solid #D8B77F;
+}

@@ -1,0 +1,15 @@
+[Unit]
+Description=Linux Island Core
+After=graphical-session.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=dbus
+BusName=io.github.linuxisland.Core
+ExecStart=%h/.local/libexec/linux-island-core
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

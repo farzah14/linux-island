@@ -1,50 +1,72 @@
-# Linux Island (M0 bootstrap)
+# Linux Island (v0.1)
 
-Status: **development prototype — not a usable Dynamic Island yet**.
+A Dynamic Island-inspired interface for Linux desktops, built for GNOME on Wayland with C++20, Qt 6, and GJS.
 
-## Purpose
+## Approved Architecture
 
-C++20/Qt 6 Core + GNOME Shell Extension (GJS) + Qt/QML Settings (later milestone), linked through a D-Bus session service. M0 validates GNOME capsule lifecycle and pure UI state semantics before the backend is implemented.
+- **GNOME Shell Extension (GJS):** Owns capsule UI, animations, interaction states (`HIDDEN`, `COMPACT`, `PREVIEW`, `EXPANDED`, `PEEK`), and media cards.
+- **C++20 / Qt 6 Core Service:** Owns MPRIS player discovery, metadata normalization, validated settings persistence, and session bus IPC.
+- **D-Bus Session Bus (`io.github.linuxisland.Core1`):** Frozen, type-safe IPC interface linking the Core daemon, GNOME Shell Extension, and Settings client.
+- **Qt Quick / QML Settings Application:** Independent preferences application (`linux-island-settings`) with live bidirectional synchronization.
+- **Warm Minimalist Design System:** Canonical tokens (`design-system/tokens/tokens.json`) using graphite, cream, and warm amber palette.
 
-## Environment
+---
 
-First test platform: Ubuntu 24.04 GNOME 46 Wayland. Other desktop environments are **not** supported by this M0 scaffold yet.
+## Build & Test Instructions
 
-## Baseline tests that run without GNOME or Qt
+### 1. Build Requirements
+- Ubuntu 24.04 LTS or 26.04 LTS (Wayland)
+- GCC / G++ (C++20 support)
+- CMake 3.22+ and Ninja
+- Qt 6 (Core, DBus, Test, Gui, Qml, Quick)
+- GJS (GNOME JavaScript)
+- Node.js (for offline pure logic tests)
+- Python 3
 
-```bash
-node tests/extension/state-machine.test.js
-python3 tests/integration/test_m0_scaffold.py
-node --check extension/extension.js
-node --check extension/ui/capsule.js
-```
-
-These are **static or pure JavaScript checks only**. They do not establish GNOME runtime compatibility.
-
-## Native Qt bootstrap (requires Qt 6 development packages)
-
+### 2. Configure & Build
 ```bash
 cmake --preset dev
-cmake --build --preset dev
-ctest --preset dev
+cmake --build build/dev
 ```
 
-## Manual GNOME testing
-
-Read `tests/extension/manual-smoke.md` first. Use an isolated VM/test user and save actual results in `docs/compatibility.md`.
-
-## Reference documents
-
-- `docs/superpowers/specs/2026-10-24-linux-island-v0.1-design.md`
-- `docs/superpowers/plans/2026-10-24-linux-island-v0.1-implementation.md`
-- `schemas/io.github.linuxisland.Core1.xml`
-
-## Design System v1.0 (Warm Minimalist)
-
-Start with `design-system/README.md`. Canonical design tokens are in `design-system/tokens/tokens.json`; component specifications are in `design-system/components/COMPONENT_SPECIFICATIONS.md`. Open `design-system/STYLE_GUIDE_PREVIEW.html` for an offline static visual reference. These design artifacts do not replace the M0 prototype styling automatically.
-
-Validate the handoff:
-
+### 3. Run Automated Tests
 ```bash
+# CTest suite (7 C++/Qt tests)
+ctest --test-dir build/dev --output-on-failure
+
+# JavaScript logic and reducer tests
+node tests/extension/state-machine.test.js
+node tests/extension/display-policy.test.js
+node tests/extension/island-controller.test.js
+node tests/extension/core-proxy.test.js
+node tests/extension/media-view.test.js
+node tests/extension/controller.test.js
+
+# Design system and scaffold verification
+python3 scripts/dev/verify-kit.py
 python3 design-system/qa/verify_tokens.py
 ```
+
+---
+
+## Local User Installation
+
+Install without root privileges:
+```bash
+bash packaging/dev/install-local.sh
+```
+
+Uninstall and cleanly revert:
+```bash
+bash packaging/dev/uninstall-local.sh
+```
+
+---
+
+## Documentation
+
+- `docs/release-checklist.md`: Acceptance criteria AC-01 through AC-10 verification report.
+- `docs/testing.md`: Complete testing and deployment instructions.
+- `docs/compatibility.md`: Target platform compatibility matrix and host audit facts.
+- `schemas/io.github.linuxisland.Core1.xml`: Immutable D-Bus Core1 XML specification.
+- `design-system/DESIGN_SYSTEM.md`: Warm Minimalist design system reference.

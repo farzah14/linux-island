@@ -23,11 +23,15 @@ check('HIDDEN', 'PEEK_REQUEST', 'HIDDEN');
 check('HIDDEN', 'FULLSCREEN_OFF', 'COMPACT');
 check('COMPACT', 'MEDIA_CHANGED', 'COMPACT');
 check('EXPANDED', 'MEDIA_CHANGED', 'EXPANDED');
+check('PEEK', 'FULLSCREEN_ON', 'HIDDEN');
+check('HIDDEN', 'PEEK_TIMEOUT', 'HIDDEN');
+check('EXPANDED', 'HOVER_LEAVE', 'EXPANDED');
+check('PEEK', 'CLICK', 'PEEK'); // existing v0.1 semantics; do not silently expand
 let invalidRejected = false;
 try { transition('NOT_A_STATE', 'CLICK'); } catch { invalidRejected = true; }
 if (!invalidRejected) throw new Error('Invalid UI state was accepted');
 printResult();
 function printResult() {
     // console.log is supported by both Node and GJS.
-    console.log('PASS: 17 state-machine assertions');
+    console.log('PASS: 21 state-machine assertions');
 }
