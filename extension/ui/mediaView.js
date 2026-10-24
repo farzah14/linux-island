@@ -156,9 +156,12 @@ export class MediaView {
     }
 
     destroy() {
-        this._actor?.destroy();
-        this._actor = null;
-        this._titleLabel = null;
+        if (this._actor) {
+            try {
+                this._actor.destroy();
+            } catch (_) {}
+            this._actor = null;
+        }
         this._artistLabel = null;
         this._playPauseBtn = null;
         this._nextBtn = null;

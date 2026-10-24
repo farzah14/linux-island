@@ -87,7 +87,12 @@ export class Capsule {
         if (!monitor || !this._widget)
             return;
 
-        const width = this._widget.width;
+        let width = this._widget.width;
+        if (width <= 0) {
+            const [, natW] = this._widget.get_preferred_width(-1);
+            width = natW > 0 ? natW : 160;
+        }
+
         // Position at the exact horizontal center of the primary monitor
         const x = Math.round(monitor.x + (monitor.width - width) / 2);
         // Position at top with an 8px aesthetic margin from the screen edge
@@ -98,7 +103,7 @@ export class Capsule {
     mount() {
         Main.layoutManager.addTopChrome(this._widget, {
             affectsStruts: false,
-            trackFullscreen: true,
+            trackFullscreen: false,
         });
         Main.layoutManager.connectObject('monitors-changed', () => this._relayout(), this);
         this._relayout();
@@ -170,13 +175,18 @@ export class Capsule {
 
     destroy() {
         Main.layoutManager.disconnectObject(this);
+        try {
+            this._mediaView?.destroy();
+        } catch (_) {}
+        this._mediaView = null;
+
         if (this._widget) {
-            Main.layoutManager.removeChrome(this._widget);
-            this._widget.destroy();
+            try {
+                Main.layoutManager.removeChrome(this._widget);
+                this._widget.destroy();
+            } catch (_) {}
             this._widget = null;
         }
-        this._mediaView?.destroy();
-        this._mediaView = null;
         this._compactRow = null;
         this._icon = null;
         this._label = null;
