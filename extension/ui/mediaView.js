@@ -5,6 +5,7 @@ import {BeatBars} from './beatBars.js';
 import {estimateTimeline, formatTime} from '../lib/mediaTimeline.js';
 import {SystemMetricsRow} from './systemMetricTile.js';
 import {QuickTogglesRow} from './quickToggle.js';
+import {FeatureCarousel} from './featureCarousel.js';
 
 export const CAPSULE_SIZES = Object.freeze({
     small: {width: 268, artwork: 40, button: 28, play: 36, icon: 12,
@@ -83,11 +84,11 @@ export class MediaView {
      * @param {Function} [options.onDismiss] - () => void
      * @param {Function} [options.artworkLoader] - async validated local icon loader
      */
-    constructor({onControlAction, onDismiss, artworkLoader = loadLocalArtwork,
+    constructor({onControlAction, onDismiss, onThemeToggle, artworkLoader = loadLocalArtwork,
         clock = () => GLib ? GLib.get_monotonic_time() : 0, scheduler} = {}) {
         this._onControlAction = onControlAction ?? (() => {});
         this._onDismiss = onDismiss ?? (() => {});
-        this._actor = null;
+        this._onThemeToggle = onThemeToggle ?? (() => {});
         this._titleLabel = null;
         this._artistLabel = null;
         this._playPauseBtn = null;
@@ -257,14 +258,21 @@ export class MediaView {
         this._actor.add_child(controlsBox);
 
         this._metricsRow = new SystemMetricsRow({scheduler: this._scheduler});
-        if (this._metricsRow.actor) {
-            this._actor.add_child(this._metricsRow.actor);
-        }
+        this._quickTogglesRow = new QuickTogglesRow({onThemeToggle: this._onThemeToggle});
 
-        this._quickTogglesRow = new QuickTogglesRow();
-        if (this._quickTogglesRow.actor) {
-            this._actor.add_child(this._quickTogglesRow.actor);
+        this._carousel = new FeatureCarousel({
+            pages: [
+                { id: 'metrics', actor: this._metricsRow.actor, label: 'System Metrics' },
+                { id: 'settings', actor: this._quickTogglesRow.actor, label: 'Quick Settings & Theme' },
+            ],
+        });
+        if (this._carousel.actor) {
+            this._actor.add_child(this._carousel.actor);
         }
+    }
+
+    setTheme(theme) {
+        this._quickTogglesRow?.setTheme(theme);
     }
 
     setCapsuleSize(size) {
@@ -369,6 +377,8 @@ export class MediaView {
         if (this._progressTimer !== null) this._scheduler.cancel(this._progressTimer);
         this._progressTimer = null;
         this._beatBars?.destroy();
+        this._carousel?.destroy();
+        this._carousel = null;
         this._metricsRow?.destroy();
         this._metricsRow = null;
         this._quickTogglesRow?.destroy();

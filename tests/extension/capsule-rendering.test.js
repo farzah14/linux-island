@@ -87,6 +87,11 @@ let quickToggleSource = (await readFile(new URL('../../extension/ui/quickToggle.
     .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
 const {QuickTogglesRow} = await load(quickToggleSource);
 globalThis.renderTest.QuickTogglesRow = QuickTogglesRow;
+let carouselSource = (await readFile(new URL('../../extension/ui/featureCarousel.js', import.meta.url), 'utf8'))
+    .replace('let St = null;', 'let St = globalThis.renderTest.St;')
+    .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
+const {FeatureCarousel} = await load(carouselSource);
+globalThis.renderTest.FeatureCarousel = FeatureCarousel;
 let mediaSource = await readFile(new URL('../../extension/ui/mediaView.js', import.meta.url), 'utf8');
 mediaSource = mediaSource.replace('let St = null;', 'let St = globalThis.renderTest.St;')
     .replace(/^import .*localArtwork.*;$/gm, 'const {loadLocalArtwork} = globalThis.renderTest;')
@@ -94,6 +99,7 @@ mediaSource = mediaSource.replace('let St = null;', 'let St = globalThis.renderT
     .replace(/^import .*mediaTimeline.*;$/gm, 'const {estimateTimeline, formatTime} = globalThis.renderTest;')
     .replace(/^import .*systemMetricTile.*;$/gm, 'const {SystemMetricsRow} = globalThis.renderTest;')
     .replace(/^import .*quickToggle.*;$/gm, 'const {QuickTogglesRow} = globalThis.renderTest;')
+    .replace(/^import .*featureCarousel.*;$/gm, 'const {FeatureCarousel} = globalThis.renderTest;')
     .replace('let Gio = null;', 'let Gio = globalThis.renderTest.Gio;')
     .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
 const {MediaView, CAPSULE_SIZES} = await load(mediaSource);
@@ -152,7 +158,9 @@ capsule.setCapsuleSize('medium');
 capsule.applyState('COMPACT');
 assert.ok(capsule._beatBars, 'compact title needs beat bars');
 assert.match(capsule._mediaView.actor.style, /width: 328px/, 'wide card content width');
-assert.equal(capsule._mediaView.actor.children.length, 5, 'track, thin timeline, controls, metrics, and quick toggles rows');
+assert.equal(capsule._mediaView.actor.children.length, 4, 'track, thin timeline, controls, and features carousel rows');
+assert.ok(capsule._mediaView._carousel, 'media card has slideable features carousel');
+assert.equal(capsule._mediaView._carousel.pageCount, 2, 'metrics and settings pages');
 assert.match(capsule._mediaView._prevBtn.style, /height: 32px/, 'short playback buttons');
 assert.match(capsule._mediaView._playPauseBtn.style, /height: 32px/);
 assert.doesNotMatch(capsule._mediaView.actor.style, /min-height/, 'no forced empty height');

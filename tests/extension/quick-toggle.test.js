@@ -26,6 +26,12 @@ function assertEqual(actual, expected, message) {
     assertEqual(toggle.isActive, true);
 
     toggle.destroy();
+
+    toggle.setIcon('weather-clear-symbolic');
+    assertEqual(toggle._iconName, 'weather-clear-symbolic');
+
+    toggle.setLabel('Light');
+    assertEqual(toggle._label, 'Light');
 }
 
 // 2. Presentation test of QuickTogglesRow with mock manager
@@ -58,6 +64,20 @@ function assertEqual(actual, expected, message) {
         assertEqual(row._darkToggle.isActive, true);
     }
 
+
+    // Test Island theme switcher callback and setTheme
+    let themeToggled = false;
+    const themedRow = new QuickTogglesRow({
+        manager: mockManager,
+        onThemeToggle: () => { themeToggled = true; },
+    });
+    themedRow._themeToggle._onToggle();
+    assert(themeToggled, 'onThemeToggle callback called when themeToggle clicked');
+
+    themedRow.setTheme('light');
+    assertEqual(themedRow._themeToggle._label, 'Theme: Light');
+    assertEqual(themedRow._themeToggle._iconName, 'weather-clear-symbolic');
+    themedRow.destroy();
     row.destroy();
     assert(row._destroyed, 'Row should be destroyed');
 }

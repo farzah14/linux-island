@@ -312,6 +312,51 @@ export class CoreProxy {
         });
     }
 
+    async updateSettings(patch) {
+        if (this._isDestroyed || !this._proxy || !this._proxy.g_name_owner || !patch) {
+            return false;
+        }
+
+        return new Promise(resolve => {
+            if (!GLib) {
+                resolve(false);
+                return;
+            }
+
+            const dict = {};
+            for (const [key, val] of Object.entries(patch)) {
+                if (typeof val === 'string') {
+                    dict[key] = new GLib.Variant('s', val);
+                } else if (typeof val === 'boolean') {
+                    dict[key] = new GLib.Variant('b', val);
+                }
+            }
+
+            const params = new GLib.Variant('(a{sv})', [dict]);
+            this._proxy.call(
+                'UpdateSettings',
+                params,
+                this._gio.DBusCallFlags.NONE,
+                -1,
+                this._cancellable,
+                (proxy, res) => {
+                    if (this._isDestroyed) {
+                        resolve(false);
+                        return;
+                    }
+                    try {
+                        const reply = proxy.call_finish(res);
+                        const [rev] = reply.deepUnpack();
+                        resolve(Number(rev));
+                    } catch (err) {
+                        console.error('UpdateSettings error:', err);
+                        resolve(false);
+                    }
+                }
+            );
+        });
+    }
+
 
     destroy() {
         if (this._isDestroyed)

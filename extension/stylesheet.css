@@ -21,6 +21,8 @@
 .linux-island__metric-fill { border-radius: 2px; }
 .linux-island__quick-toggle { border-radius: 10px; border: 1px solid transparent; }
 .linux-island__quick-toggle-label { font-size: 11px; font-weight: 600; }
+.linux-island__carousel-dot { width: 5px; height: 5px; border-radius: 3px; border: 0; padding: 0; }
+.linux-island__carousel-dot--active { width: 14px; height: 5px; border-radius: 3px; border: 0; padding: 0; }
 
 .linux-island--dark.linux-island__capsule {
     background-color: #191816;
@@ -135,6 +137,18 @@
     color: inherit;
 }
 
+.linux-island--dark .linux-island__carousel-dot {
+    background-color: #575148;
+}
+
+.linux-island--dark .linux-island__carousel-dot:hover {
+    background-color: #C8C0B5;
+}
+
+.linux-island--dark .linux-island__carousel-dot--active {
+    background-color: #D8B77F;
+}
+
 .linux-island--light.linux-island__capsule {
     background-color: #FBF8F1;
     color: #292621;
@@ -246,4 +260,16 @@
 
 .linux-island--light .linux-island__quick-toggle-label {
     color: inherit;
+}
+
+.linux-island--light .linux-island__carousel-dot {
+    background-color: #C7BCAE;
+}
+
+.linux-island--light .linux-island__carousel-dot:hover {
+    background-color: #5D554B;
+}
+
+.linux-island--light .linux-island__carousel-dot--active {
+    background-color: #80551F;
 }

@@ -8,10 +8,11 @@ import {MediaView, CAPSULE_SIZES} from './mediaView.js';
 import {BeatBars} from './beatBars.js';
 
 export class Capsule {
-    constructor({onControlAction, onInteractionEvent, onMediaOpen} = {}) {
+    constructor({onControlAction, onInteractionEvent, onMediaOpen, onUpdateSettings} = {}) {
         this._onControlAction = onControlAction ?? (() => {});
         this._onInteractionEvent = onInteractionEvent ?? (() => {});
         this._onMediaOpen = onMediaOpen ?? (() => {});
+        this._onUpdateSettings = onUpdateSettings ?? (() => {});
         this._currentState = 'COMPACT';
         this._animationEnabled = true;
         this._connected = true;
@@ -63,6 +64,7 @@ export class Capsule {
         this._mediaView = new MediaView({
             onControlAction: this._onControlAction,
             onDismiss: () => this._onInteractionEvent('DISMISS'),
+            onThemeToggle: () => this.cycleTheme(),
         });
         if (this._mediaView.actor) {
             this._mediaView.actor.visible = false;
@@ -245,6 +247,18 @@ export class Capsule {
         if (!['light', 'dark', 'system'].includes(theme)) return;
         this._themePreference = theme;
         this._applyTheme();
+        this._mediaView?.setTheme(theme);
+    }
+
+    cycleTheme() {
+        const cycle = {
+            'dark': 'light',
+            'light': 'system',
+            'system': 'dark',
+        };
+        const next = cycle[this._themePreference] ?? 'dark';
+        this.setTheme(next);
+        this._onUpdateSettings({theme: next});
     }
 
     _applyTheme() {

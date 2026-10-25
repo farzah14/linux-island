@@ -15,6 +15,7 @@ export default class LinuxIslandExtension extends Extension {
             onControlAction: action => this._coreProxy?.controlMedia(action),
             onInteractionEvent: event => this._controller?.dispatch(event),
             onMediaOpen: () => this._coreProxy?.refreshMedia(),
+            onUpdateSettings: patch => this._coreProxy?.updateSettings(patch),
         });
         let controller = null;
         let coreProxy = null;
