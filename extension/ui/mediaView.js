@@ -103,6 +103,9 @@ export class MediaView {
         this._availablePlayers = [];
         this._playerSwitcherBtn = null;
         this._playerSwitcherLabel = null;
+        this._volume = 1.0;
+        this._volTrack = null;
+        this._volFill = null;
         this._titleLabel = null;
         this._artistLabel = null;
         this._playPauseBtn = null;
@@ -148,7 +151,7 @@ export class MediaView {
         // Section 1: Pure Media Player section
         this._mediaSection = new St.BoxLayout({
             vertical: true,
-            style: 'spacing: 6px;',
+            style: 'width: 300px; height: 114px; spacing: 4px;',
             x_expand: true,
         });
 
@@ -341,10 +344,105 @@ export class MediaView {
         controlsBox.add_child(this._durationLabel);
         this._mediaSection.add_child(controlsBox);
 
+        // Volume slider row: [ 🔈 ]  [ ======------ ]  [ 🔊 ]
+        const volumeBox = new St.BoxLayout({
+            style: 'spacing: 8px; height: 16px;',
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+        });
+
+        this._volDownBtn = new St.Button({
+            style: 'padding: 0; border: 0; background-color: transparent;',
+            reactive: true,
+            can_focus: true,
+            accessible_name: 'Mute',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._volDownIcon = new St.Icon({
+            icon_name: 'audio-volume-low-symbolic',
+            fallback_icon_name: 'audio-volume-low-symbolic',
+            icon_size: 12,
+            style_class: 'linux-island__metric-icon',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._volDownBtn.set_child(this._volDownIcon);
+        this._volDownBtn.connect('clicked', () => {
+            this.setVolume(0.0);
+            this._onControlAction('Volume:0.0');
+        });
+
+        this._volTrack = new St.Bin({
+            style: 'height: 4px; border-radius: 2px;',
+            style_class: 'linux-island__progress-track',
+            x_expand: true,
+            reactive: true,
+            track_hover: true,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._volFill = new St.Widget({
+            style: 'height: 4px; border-radius: 2px;',
+            style_class: 'linux-island__progress-fill',
+            x_align: Clutter.ActorAlign.START,
+            y_align: Clutter.ActorAlign.CENTER,
+            reactive: false,
+        });
+        this._volTrack.set_child(this._volFill);
+        this._volTrack.connect('notify::allocation', () => this._syncVolFill());
+
+        const handleVolClick = (event) => {
+            let clickX = 0;
+            if (typeof event.get_coords === 'function') {
+                const [x] = event.get_coords();
+                const [stageX] = this._volTrack.get_transformed_position?.() ?? [0];
+                clickX = x - stageX;
+            }
+            const width = this._volTrack.width;
+            if (width > 0) {
+                const vol = Math.max(0.0, Math.min(1.0, clickX / width));
+                this.setVolume(vol);
+                this._onControlAction(`Volume:${vol.toFixed(2)}`);
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        };
+
+        this._volTrack.connect('button-press-event', (_actor, event) => handleVolClick(event));
+        this._volTrack.connect('motion-event', (_actor, event) => {
+            if (typeof event.get_state === 'function' && (event.get_state() & (Clutter.ModifierType?.BUTTON1_MASK ?? 256))) {
+                return handleVolClick(event);
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        this._volUpBtn = new St.Button({
+            style: 'padding: 0; border: 0; background-color: transparent;',
+            reactive: true,
+            can_focus: true,
+            accessible_name: 'Max volume',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._volUpIcon = new St.Icon({
+            icon_name: 'audio-volume-high-symbolic',
+            fallback_icon_name: 'audio-volume-high-symbolic',
+            icon_size: 12,
+            style_class: 'linux-island__metric-icon',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._volUpBtn.set_child(this._volUpIcon);
+        this._volUpBtn.connect('clicked', () => {
+            this.setVolume(1.0);
+            this._onControlAction('Volume:1.0');
+        });
+
+        volumeBox.add_child(this._volDownBtn);
+        volumeBox.add_child(this._volTrack);
+        volumeBox.add_child(this._volUpBtn);
+        this._mediaSection.add_child(volumeBox);
+
         // Section 2: Pure System & Controls section (CPU, RAM, Battery on LEFT, and Icon Quick Controls on RIGHT)
         this._systemSection = new St.BoxLayout({
             vertical: false,
-            style: 'width: 300px; height: 98px; spacing: 12px; padding: 2px 0;',
+            style: 'width: 300px; height: 114px; spacing: 12px; padding: 2px 0;',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
@@ -388,6 +486,23 @@ export class MediaView {
         this._quickTogglesRow?.setTheme(theme);
     }
 
+    setVolume(vol) {
+        this._volume = (typeof vol === 'number' && !isNaN(vol)) ? Math.max(0.0, Math.min(1.0, vol)) : 1.0;
+        this._syncVolFill();
+    }
+
+    _syncVolFill() {
+        if (!this._volFill || !this._volTrack) return;
+        const totalW = this._volTrack.width;
+        if (totalW <= 0) return;
+        const fillW = Math.max(0, Math.round((totalW * (this._volume ?? 1.0))));
+        if (typeof this._volFill.set_width === 'function') {
+            this._volFill.set_width(fillW);
+        } else {
+            this._volFill.width = fillW;
+        }
+    }
+
     _cyclePlayer() {
         if (!this._availablePlayers || this._availablePlayers.length <= 1) return;
         const current = this._progressMedia?.playerId || '';
@@ -421,11 +536,11 @@ export class MediaView {
         this._actor.style = `width: ${preset.width}px; padding: 8px 14px; spacing: 6px;`;
         const contentWidth = preset.width - 28;
         if (this._mediaSection) {
-            this._mediaSection.style = `width: ${contentWidth}px; height: 98px; spacing: 6px;`;
+            this._mediaSection.style = `width: ${contentWidth}px; height: 114px; spacing: 4px;`;
             this._mediaSection.width = contentWidth;
         }
         if (this._systemSection) {
-            this._systemSection.style = `width: ${contentWidth}px; height: 98px; spacing: 12px; padding: 2px 0;`;
+            this._systemSection.style = `width: ${contentWidth}px; height: 114px; spacing: 12px; padding: 2px 0;`;
             this._systemSection.width = contentWidth;
         }
         if (this._metricsRow) {
@@ -461,6 +576,9 @@ export class MediaView {
         this._renderProgress();
         this._syncProgressTimer();
         this._setArtwork(this._connected && media?.playerId ? media : null);
+        if (typeof media?.volume === 'number' && !isNaN(media.volume)) {
+            this.setVolume(media.volume);
+        }
         const pres = formatMediaPresentation(this._connected ? media : null);
         this._beatBars?.setPlayback(pres.isPlaying, pres.hasPlayer, media?.audioLevels);
         if (this._titleLabel) {
@@ -540,6 +658,10 @@ export class MediaView {
         this._quickTogglesRow = null;
         this._playerSwitcherBtn = null;
         this._playerSwitcherLabel = null;
+        this._volTrack = null;
+        this._volFill = null;
+        this._volDownBtn = null;
+        this._volUpBtn = null;
         ++this._artGeneration;
         this._artCancellable?.cancel();
         this._artCancellable = null;

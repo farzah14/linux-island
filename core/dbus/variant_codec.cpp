@@ -16,6 +16,7 @@ QVariantMap toMediaVariantMap(const MediaState &state) {
     map[QStringLiteral("canPrevious")] = state.canPrevious;
     map[QStringLiteral("canSeek")] = state.canSeek;
     map[QStringLiteral("rate")] = state.rate;
+    map[QStringLiteral("volume")] = state.volume;
     map[QStringLiteral("revision")] = QVariant::fromValue<quint64>(state.revision);
     return map;
 }

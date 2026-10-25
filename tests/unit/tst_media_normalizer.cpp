@@ -16,6 +16,7 @@ private slots:
     void testAlbumArtUriFiltering();
     void testRateValidation();
     void testCapabilitiesFlags();
+    void testVolumeValidation();
 };
 
 void TestMediaNormalizer::testNoPlayer() {
@@ -135,6 +136,20 @@ void TestMediaNormalizer::testCapabilitiesFlags() {
     QCOMPARE(s.canNext, false);
     QCOMPARE(s.canPrevious, true);
     QCOMPARE(s.canSeek, true);
+}
+
+void TestMediaNormalizer::testVolumeValidation() {
+    QVariantMap props = {{QStringLiteral("Volume"), 0.75}};
+    MediaState s = normalizeMpris(QStringLiteral("org.mpris.MediaPlayer2.test"), {}, props);
+    QCOMPARE(s.volume, 0.75);
+
+    QVariantMap propsHigh = {{QStringLiteral("Volume"), 1.8}};
+    MediaState sHigh = normalizeMpris(QStringLiteral("org.mpris.MediaPlayer2.test"), {}, propsHigh);
+    QCOMPARE(sHigh.volume, 1.0);
+
+    QVariantMap propsLow = {{QStringLiteral("Volume"), -0.2}};
+    MediaState sLow = normalizeMpris(QStringLiteral("org.mpris.MediaPlayer2.test"), {}, propsLow);
+    QCOMPARE(sLow.volume, 0.0);
 }
 
 QTEST_MAIN(TestMediaNormalizer)

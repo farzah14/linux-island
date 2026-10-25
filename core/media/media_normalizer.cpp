@@ -108,7 +108,13 @@ MediaState normalizeMpris(const QString &service, const QVariantMap &metadata, c
     state.playbackStatus = sanitizePlaybackStatus(properties.value(QStringLiteral("PlaybackStatus")));
     state.positionUs = sanitizeMicroseconds(properties.value(QStringLiteral("Position")));
     state.rate = sanitizeRate(properties.value(QStringLiteral("Rate")));
-
+    if (properties.contains(QStringLiteral("Volume"))) {
+        bool ok = false;
+        double vol = properties.value(QStringLiteral("Volume")).toDouble(&ok);
+        if (ok && !std::isnan(vol)) {
+            state.volume = std::max(0.0, std::min(1.0, vol));
+        }
+    }
     if (properties.contains(QStringLiteral("CanPlay")) && properties.value(QStringLiteral("CanPlay")).typeId() == QMetaType::Bool) {
         state.canPlay = properties.value(QStringLiteral("CanPlay")).toBool();
     }

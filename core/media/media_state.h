@@ -18,5 +18,6 @@ struct MediaState {
     bool canPrevious = false;
     bool canSeek = false;
     double rate = 1.0;
+    double volume = 1.0;
     quint64 revision = 0;
 };
