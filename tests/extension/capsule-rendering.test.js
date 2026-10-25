@@ -173,6 +173,10 @@ for (const actor of [capsule._mediaView._titleLabel, capsule._mediaView._artistL
     ...capsule._beatBars._bars]) {
     assert.doesNotMatch(actor.style, /(?:color|background-color):\s*#/, 'inline colors must not override live theme');
 }
+capsule.setAvailablePlayers(['org.mpris.MediaPlayer2.spotify', 'org.mpris.MediaPlayer2.firefox']);
+assert.equal(capsule._mediaView._playerSwitcherBtn.visible, true, 'switcher button visible when multiple players active');
+capsule.setAvailablePlayers(['org.mpris.MediaPlayer2.spotify']);
+assert.equal(capsule._mediaView._playerSwitcherBtn.visible, false, 'switcher button hidden when single player active');
 capsule.applyState('PREVIEW');
 assert.equal(capsule._widget.classes.has('linux-island__capsule'), true,
     'hover must retain compact padding so the pointer hitbox does not shrink');

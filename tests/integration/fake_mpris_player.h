@@ -71,6 +71,9 @@ public slots:
     void Next() {}
     void Previous() {}
     void Stop() { m_player->setPlaybackStatus(QStringLiteral("Stopped")); }
+    void Seek(qint64 offset) {
+        m_player->seekTo(m_player->m_position + offset);
+    }
 
 private:
     FakeMprisPlayer *m_player;

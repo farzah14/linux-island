@@ -110,11 +110,13 @@ export class CoreProxy {
      * @param {Function} [options.onStateChanged]
      * @param {Object} [options.gio] - Mock or injected Gio
      */
-    constructor({onStateChanged, gio} = {}) {
+    constructor({onStateChanged, onPlayersChanged, gio} = {}) {
         this._gio = gio ?? Gio;
         this._onStateChanged = onStateChanged ?? (() => {});
+        this._onPlayersChanged = onPlayersChanged ?? (() => {});
         this._isDestroyed = false;
         this._handlers = [];
+        this._availablePlayers = [];
 
         this._state = {
             connected: false,
@@ -141,6 +143,10 @@ export class CoreProxy {
 
     get isDestroyed() {
         return this._isDestroyed;
+    }
+
+    get availablePlayers() {
+        return [...this._availablePlayers];
     }
 
     _setState(nextState) {
@@ -355,6 +361,67 @@ export class CoreProxy {
                 }
             );
         });
+    }
+
+    async setActivePlayer(playerId) {
+        if (this._isDestroyed || !this._proxy || !this._proxy.g_name_owner || !playerId) {
+            return false;
+        }
+
+        return new Promise(resolve => {
+            const params = GLib ? new GLib.Variant('(s)', [String(playerId)]) : null;
+            if (!params) {
+                resolve(false);
+                return;
+            }
+
+            this._proxy.call(
+                'SetActivePlayer',
+                params,
+                this._gio.DBusCallFlags.NONE,
+                -1,
+                this._cancellable,
+                (proxy, res) => {
+                    if (this._isDestroyed) {
+                        resolve(false);
+                        return;
+                    }
+                    try {
+                        const reply = proxy.call_finish(res);
+                        const [accepted] = reply.deepUnpack();
+                        resolve(Boolean(accepted));
+                    } catch (err) {
+                        console.error('SetActivePlayer error:', err);
+                        resolve(false);
+                    }
+                }
+            );
+        });
+    }
+
+    queryAvailablePlayers() {
+        if (this._isDestroyed || !this._gio?.DBus?.session) return;
+        this._gio.DBus.session.call(
+            'org.freedesktop.DBus',
+            '/org/freedesktop/DBus',
+            'org.freedesktop.DBus',
+            'ListNames',
+            null,
+            null,
+            this._gio.DBusCallFlags.NONE,
+            -1,
+            this._cancellable,
+            (conn, res) => {
+                if (this._isDestroyed) return;
+                try {
+                    const reply = conn.call_finish(res);
+                    const [names] = reply.deepUnpack();
+                    const players = names.filter(n => n.startsWith('org.mpris.MediaPlayer2.')).sort();
+                    this._availablePlayers = players;
+                    this._onPlayersChanged(this._availablePlayers);
+                } catch (_) {}
+            }
+        );
     }
 
 

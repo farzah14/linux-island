@@ -16,6 +16,7 @@ export default class LinuxIslandExtension extends Extension {
             onInteractionEvent: event => this._controller?.dispatch(event),
             onMediaOpen: () => this._coreProxy?.refreshMedia(),
             onUpdateSettings: patch => this._coreProxy?.updateSettings(patch),
+            onSetActivePlayer: id => this._coreProxy?.setActivePlayer(id),
         });
         let controller = null;
         let coreProxy = null;
@@ -43,6 +44,9 @@ export default class LinuxIslandExtension extends Extension {
             coreProxy = new CoreProxy({
                 onStateChanged: coreState => {
                     this._onCoreStateChanged(coreState);
+                },
+                onPlayersChanged: players => {
+                    this._capsule?.setAvailablePlayers(players);
                 },
             });
             this._coreProxy = coreProxy;

@@ -41,6 +41,8 @@ add_executable(tst_mpris_flow
     ${CMAKE_SOURCE_DIR}/core/media/media_state.h
     ${CMAKE_SOURCE_DIR}/core/media/media_normalizer.h
     ${CMAKE_SOURCE_DIR}/core/media/media_normalizer.cpp
+    ${CMAKE_SOURCE_DIR}/core/media/mpris_controller.h
+    ${CMAKE_SOURCE_DIR}/core/media/mpris_controller.cpp
 )
 target_include_directories(tst_mpris_flow PRIVATE ${CMAKE_SOURCE_DIR}/core)
 target_link_libraries(tst_mpris_flow PRIVATE Qt6::Core Qt6::DBus Qt6::Test)

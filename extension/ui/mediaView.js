@@ -28,6 +28,16 @@ if (typeof process === 'undefined') {
         GLib = (await import('gi://GLib')).default;
     } catch (_) {}
 }
+function formatPlayerName(playerId) {
+    if (!playerId) return 'Player';
+    const prefix = 'org.mpris.MediaPlayer2.';
+    if (playerId.startsWith(prefix)) {
+        const name = playerId.slice(prefix.length).split('.')[0];
+        if (name) return name.charAt(0).toUpperCase() + name.slice(1);
+    }
+    return playerId;
+}
+
 
 export function formatMediaPresentation(media) {
     if (!media || !media.playerId) {
@@ -84,11 +94,15 @@ export class MediaView {
      * @param {Function} [options.onDismiss] - () => void
      * @param {Function} [options.artworkLoader] - async validated local icon loader
      */
-    constructor({onControlAction, onDismiss, onThemeToggle, artworkLoader = loadLocalArtwork,
+    constructor({onControlAction, onDismiss, onThemeToggle, onSetActivePlayer, artworkLoader = loadLocalArtwork,
         clock = () => GLib ? GLib.get_monotonic_time() : 0, scheduler} = {}) {
         this._onControlAction = onControlAction ?? (() => {});
         this._onDismiss = onDismiss ?? (() => {});
         this._onThemeToggle = onThemeToggle ?? (() => {});
+        this._onSetActivePlayer = onSetActivePlayer ?? (() => {});
+        this._availablePlayers = [];
+        this._playerSwitcherBtn = null;
+        this._playerSwitcherLabel = null;
         this._titleLabel = null;
         this._artistLabel = null;
         this._playPauseBtn = null;
@@ -186,21 +200,65 @@ export class MediaView {
         this._beatBars = new BeatBars();
         titleRow.add_child(this._beatBars.actor);
         textCol.add_child(titleRow);
-        textCol.add_child(this._artistLabel);
+
+        const artistRow = new St.BoxLayout({style: 'spacing: 6px;', x_expand: true, y_align: Clutter.ActorAlign.CENTER});
+        artistRow.add_child(this._artistLabel);
+
+        this._playerSwitcherBtn = new St.Button({
+            style_class: 'linux-island__player-badge',
+            reactive: true,
+            can_focus: true,
+            visible: false,
+            accessible_name: 'Switch active player',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._playerSwitcherLabel = new St.Label({
+            text: 'Player ▾',
+            style: 'font-size: 10px;',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._playerSwitcherBtn.set_child(this._playerSwitcherLabel);
+        this._playerSwitcherBtn.connect('clicked', () => this._cyclePlayer());
+        artistRow.add_child(this._playerSwitcherBtn);
+        textCol.add_child(artistRow);
+
         trackRow.add_child(textCol);
         this._actor.add_child(trackRow);
 
         this._progressTrack = new St.Bin({
-            style: 'height: 4px; border-radius: 2px;',
-            style_class: 'linux-island__progress-track', x_expand: true,
+            style: 'height: 6px; border-radius: 3px;',
+            style_class: 'linux-island__progress-track',
+            x_expand: true,
+            reactive: true,
+            track_hover: true,
         });
         this._progressFill = new St.Widget({
-            style: 'height: 4px; border-radius: 2px;',
+            style: 'height: 6px; border-radius: 3px;',
             style_class: 'linux-island__progress-fill',
             x_align: Clutter.ActorAlign.START, y_align: Clutter.ActorAlign.CENTER,
+            reactive: false,
         });
         this._progressTrack.set_child(this._progressFill);
         this._progressTrack.connect('notify::allocation', () => this._renderProgress());
+        this._progressTrack.connect('button-press-event', (_actor, event) => {
+            if (!this._progressMedia || !this._progressMedia.canSeek || !this._progressMedia.durationUs) {
+                return Clutter.EVENT_PROPAGATE;
+            }
+            let clickX = 0;
+            if (typeof event.get_coords === 'function') {
+                const [x] = event.get_coords();
+                const [stageX] = this._progressTrack.get_transformed_position?.() ?? [0];
+                clickX = x - stageX;
+            }
+            const width = this._progressTrack.width;
+            if (width > 0) {
+                const ratio = Math.max(0, Math.min(1, clickX / width));
+                const targetUs = Math.round(ratio * this._progressMedia.durationUs);
+                this._onControlAction(`SeekTo:${targetUs}`);
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
         this._actor.add_child(this._progressTrack);
 
         // Playback controls row: [  ⏮  ]   [   ▶   ]   [  ⏭  ]
@@ -273,6 +331,33 @@ export class MediaView {
 
     setTheme(theme) {
         this._quickTogglesRow?.setTheme(theme);
+    }
+
+    _cyclePlayer() {
+        if (!this._availablePlayers || this._availablePlayers.length <= 1) return;
+        const current = this._progressMedia?.playerId || '';
+        let nextIdx = 0;
+        const idx = this._availablePlayers.indexOf(current);
+        if (idx >= 0) {
+            nextIdx = (idx + 1) % this._availablePlayers.length;
+        }
+        const nextPlayer = this._availablePlayers[nextIdx];
+        this._onSetActivePlayer(nextPlayer);
+    }
+
+    setAvailablePlayers(players) {
+        this._availablePlayers = Array.isArray(players) ? [...players] : [];
+        if (this._playerSwitcherBtn) {
+            const hasMultiple = this._availablePlayers.length > 1;
+            this._playerSwitcherBtn.visible = hasMultiple;
+            if (hasMultiple) {
+                const current = this._progressMedia?.playerId || '';
+                const name = formatPlayerName(current);
+                if (this._playerSwitcherLabel) {
+                    this._playerSwitcherLabel.text = `${name} ▾`;
+                }
+            }
+        }
     }
 
     setCapsuleSize(size) {
@@ -383,6 +468,8 @@ export class MediaView {
         this._metricsRow = null;
         this._quickTogglesRow?.destroy();
         this._quickTogglesRow = null;
+        this._playerSwitcherBtn = null;
+        this._playerSwitcherLabel = null;
         ++this._artGeneration;
         this._artCancellable?.cancel();
         this._artCancellable = null;

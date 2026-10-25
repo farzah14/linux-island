@@ -2,6 +2,7 @@
 #include <QDBusConnection>
 #include <QSignalSpy>
 #include "media/player_registry.h"
+#include "media/mpris_controller.h"
 #include "fake_mpris_player.h"
 
 class TestMprisFlow : public QObject {
@@ -13,6 +14,7 @@ private slots:
     void testPlayerExitCleansState();
     void testMultiplePlayersPreference();
     void testSeekUpdatesPosition();
+    void testMprisControllerSeeking();
 };
 
 void TestMprisFlow::initTestCase() {
@@ -32,6 +34,31 @@ void TestMprisFlow::testSeekUpdatesPosition() {
     QTRY_COMPARE_WITH_TIMEOUT(registry.activeMediaState().positionUs, 42000000, 2000);
     fake.seekTo(-100);
     QTRY_COMPARE_WITH_TIMEOUT(registry.activeMediaState().positionUs, 0, 2000);
+    fake.stop();
+}
+
+void TestMprisFlow::testMprisControllerSeeking() {
+    PlayerRegistry registry;
+    FakeMprisPlayer fake(QStringLiteral("org.mpris.MediaPlayer2.LinuxIslandSeeker"));
+    QVERIFY(fake.start());
+    QTRY_COMPARE_WITH_TIMEOUT(registry.activeMediaState().positionUs, 1000000, 2000);
+    MprisController controller(QDBusConnection::sessionBus());
+
+    // 1. SeekTo absolute position
+    auto res = controller.perform(QStringLiteral("SeekTo:30000000"), fake.serviceName(), registry.activeMediaState());
+    QVERIFY(res.accepted);
+    QTRY_COMPARE_WITH_TIMEOUT(registry.activeMediaState().positionUs, 30000000, 2000);
+
+    // 2. SeekForward +10s
+    res = controller.perform(QStringLiteral("SeekForward"), fake.serviceName(), registry.activeMediaState());
+    QVERIFY(res.accepted);
+    QTRY_COMPARE_WITH_TIMEOUT(registry.activeMediaState().positionUs, 40000000, 2000);
+
+    // 3. SeekBackward -10s
+    res = controller.perform(QStringLiteral("SeekBackward"), fake.serviceName(), registry.activeMediaState());
+    QVERIFY(res.accepted);
+    QTRY_COMPARE_WITH_TIMEOUT(registry.activeMediaState().positionUs, 30000000, 2000);
+
     fake.stop();
 }
 

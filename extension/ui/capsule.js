@@ -8,11 +8,12 @@ import {MediaView, CAPSULE_SIZES} from './mediaView.js';
 import {BeatBars} from './beatBars.js';
 
 export class Capsule {
-    constructor({onControlAction, onInteractionEvent, onMediaOpen, onUpdateSettings} = {}) {
+    constructor({onControlAction, onInteractionEvent, onMediaOpen, onUpdateSettings, onSetActivePlayer} = {}) {
         this._onControlAction = onControlAction ?? (() => {});
         this._onInteractionEvent = onInteractionEvent ?? (() => {});
         this._onMediaOpen = onMediaOpen ?? (() => {});
         this._onUpdateSettings = onUpdateSettings ?? (() => {});
+        this._onSetActivePlayer = onSetActivePlayer ?? (() => {});
         this._currentState = 'COMPACT';
         this._animationEnabled = true;
         this._connected = true;
@@ -65,6 +66,7 @@ export class Capsule {
             onControlAction: this._onControlAction,
             onDismiss: () => this._onInteractionEvent('DISMISS'),
             onThemeToggle: () => this.cycleTheme(),
+            onSetActivePlayer: this._onSetActivePlayer,
         });
         if (this._mediaView.actor) {
             this._mediaView.actor.visible = false;
@@ -248,6 +250,10 @@ export class Capsule {
         this._themePreference = theme;
         this._applyTheme();
         this._mediaView?.setTheme(theme);
+    }
+
+    setAvailablePlayers(players) {
+        this._mediaView?.setAvailablePlayers(players);
     }
 
     cycleTheme() {
