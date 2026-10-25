@@ -30,7 +30,7 @@ export class QuickToggle {
 
     _build() {
         this.actor = new St.Button({
-            style: 'width: 38px; height: 38px; border-radius: 19px; padding: 0;',
+            style: 'width: 28px; height: 28px; border-radius: 14px; padding: 0;',
             style_class: 'linux-island__quick-toggle',
             reactive: true,
             can_focus: true,
@@ -42,7 +42,7 @@ export class QuickToggle {
         this._icon = new St.Icon({
             icon_name: this._iconName,
             fallback_icon_name: this._iconName,
-            icon_size: 16,
+            icon_size: 14,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
         });
@@ -143,12 +143,11 @@ export class QuickTogglesRow {
 
     _build() {
         this.actor = new St.BoxLayout({
-            style: 'spacing: 16px; padding-top: 6px;',
-            x_align: Clutter.ActorAlign.CENTER,
+            vertical: true,
+            style: 'spacing: 4px;',
+            x_align: Clutter.ActorAlign.END,
             y_align: Clutter.ActorAlign.CENTER,
-            x_expand: true,
         });
-
         if (this._themeToggle.actor) this.actor.add_child(this._themeToggle.actor);
         if (this._dndToggle.actor) this.actor.add_child(this._dndToggle.actor);
         if (this._nightToggle.actor) this.actor.add_child(this._nightToggle.actor);

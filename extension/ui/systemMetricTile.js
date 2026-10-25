@@ -30,11 +30,10 @@ export class SystemMetricTile {
     _build() {
         this.actor = new St.BoxLayout({
             vertical: true,
-            style: 'padding: 2px 4px; spacing: 3px;',
+            style: 'padding: 1px 0; spacing: 2px;',
             style_class: 'linux-island__metric-tile',
             x_expand: true,
         });
-
         const headerRow = new St.BoxLayout({
             style: 'spacing: 6px;',
             x_expand: true,
@@ -133,12 +132,21 @@ export class SystemMetricsRow {
         this._collector = collector ?? new SystemMetricsCollector();
         this._timerId = null;
         this._destroyed = false;
-        this._scheduler = scheduler ?? {
-            add: (ms, fn) => GLib ? GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
-                fn();
-                return GLib.SOURCE_CONTINUE;
-            }) : null,
-            remove: (id) => { if (GLib && id) GLib.source_remove(id); },
+        const rawSched = scheduler ?? {};
+        this._scheduler = {
+            add: (ms, fn) => {
+                if (typeof rawSched.add === 'function') return rawSched.add(ms, fn);
+                if (typeof rawSched.repeat === 'function') return rawSched.repeat(fn, ms);
+                return GLib ? GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
+                    fn();
+                    return GLib.SOURCE_CONTINUE;
+                }) : null;
+            },
+            remove: (id) => {
+                if (typeof rawSched.remove === 'function') return rawSched.remove(id);
+                if (typeof rawSched.cancel === 'function') return rawSched.cancel(id);
+                if (GLib && id) GLib.source_remove(id);
+            },
         };
 
         this.actor = null;
@@ -155,8 +163,9 @@ export class SystemMetricsRow {
     _build() {
         this.actor = new St.BoxLayout({
             vertical: true,
-            style: 'spacing: 8px; padding: 4px 6px;',
+            style: 'spacing: 6px;',
             x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
         });
 
         this._cpuTile = new SystemMetricTile({
@@ -199,13 +208,25 @@ export class SystemMetricsRow {
         }
     }
 
+    start() {
+        if (this._destroyed) return;
+        this.update();
+        if (!this._timerId) {
+            this._timerId = this._scheduler.add(1500, () => this.update());
+        }
+    }
+
+    stop() {
+        this._stopTimer();
+    }
+
     _onMappedChanged() {
         if (this._destroyed || !this.actor) return;
         const isMapped = this.actor.mapped;
         if (isMapped) {
             this.update();
             if (!this._timerId) {
-                this._timerId = this._scheduler.add(2000, () => this.update());
+                this._timerId = this._scheduler.add(1500, () => this.update());
             }
         } else {
             this._stopTimer();

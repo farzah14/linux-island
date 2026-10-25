@@ -162,6 +162,11 @@ assert.ok(capsule._mediaView._carousel, 'media card has slideable features carou
 assert.equal(capsule._mediaView._carousel.pageCount, 2, 'music and system & controls pages');
 assert.equal(capsule._mediaView._mediaSection.children.length, 3, 'track, thin timeline and controls rows in media section');
 assert.equal(capsule._mediaView._systemSection.children.length, 2, 'metrics and quick toggles in system section');
+assert.equal(capsule._mediaView._systemSection.vertical, false, 'system section is horizontal: left metrics, right toggles');
+assert.equal(capsule._mediaView._systemSection.children[0], capsule._mediaView._metricsRow.actor, 'metrics on the left');
+assert.equal(capsule._mediaView._systemSection.children[1], capsule._mediaView._quickTogglesRow.actor, 'quick toggles on the right');
+capsule._mediaView._carousel.setPage(1);
+assert.ok(capsule._mediaView._carousel._track.transitions.length > 0, 'carousel track animates horizontally when sliding');
 assert.match(capsule._mediaView._prevBtn.style, /height: 32px/, 'short playback buttons');
 assert.match(capsule._mediaView._playPauseBtn.style, /height: 32px/);
 assert.doesNotMatch(capsule._mediaView.actor.style, /min-height/, 'no forced empty height');

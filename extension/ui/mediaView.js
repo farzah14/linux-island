@@ -322,11 +322,12 @@ export class MediaView {
         controlsBox.add_child(this._durationLabel);
         this._mediaSection.add_child(controlsBox);
 
-        // Section 2: Pure System & Controls section (CPU, RAM, Battery, and Icon Quick Controls)
+        // Section 2: Pure System & Controls section (CPU, RAM, Battery on LEFT, and Icon Quick Controls on RIGHT)
         this._systemSection = new St.BoxLayout({
-            vertical: true,
-            style: 'spacing: 8px; padding: 2px 2px;',
+            vertical: false,
+            style: 'spacing: 12px; padding: 2px 4px; height: 98px;',
             x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
         });
 
         this._metricsRow = new SystemMetricsRow({scheduler: this._scheduler});
@@ -343,8 +344,20 @@ export class MediaView {
         this._carousel = new FeatureCarousel({
             pages: [
                 { id: 'media', actor: this._mediaSection, label: 'Music' },
-                { id: 'system', actor: this._systemSection, label: 'System & Controls' },
+                {
+                    id: 'system',
+                    actor: this._systemSection,
+                    label: 'System & Controls',
+                    onActivate: () => this._metricsRow?.start(),
+                },
             ],
+            onPageChanged: (idx) => {
+                if (idx === 1) {
+                    this._metricsRow?.start();
+                } else {
+                    this._metricsRow?.stop();
+                }
+            },
         });
         if (this._carousel.actor) {
             this._actor.add_child(this._carousel.actor);
@@ -386,6 +399,18 @@ export class MediaView {
         if (!Object.hasOwn(CAPSULE_SIZES, size) || !this._actor) return;
         const preset = CAPSULE_SIZES[size];
         this._actor.style = `width: ${preset.width}px; padding: 8px 14px; spacing: 6px;`;
+        const contentWidth = preset.width - 28;
+        if (this._mediaSection) {
+            this._mediaSection.style = `width: ${contentWidth}px; spacing: 6px;`;
+            this._mediaSection.width = contentWidth;
+        }
+        if (this._systemSection) {
+            this._systemSection.style = `width: ${contentWidth}px; height: 98px; spacing: 12px; padding: 2px 4px;`;
+            this._systemSection.width = contentWidth;
+        }
+        if (this._carousel) {
+            this._carousel.setPageWidth(contentWidth);
+        }
         this._artBox.style = `width: ${preset.artwork}px; height: ${preset.artwork}px; border-radius: 12px;`;
         this._artIcon.icon_size = preset.artwork;
         this._titleLabel.style = `font-size: ${preset.title}px; font-weight: bold;`;

@@ -1,13 +1,11 @@
 // System metrics collector (CPU, RAM, Battery) for Linux Island (v0.2)
 // Uses passive /proc and /sys file reads via GLib in GJS, with fallback for pure logic tests.
 
-let GLibModule = null;
-try {
-    if (typeof imports !== 'undefined' && imports.gi && imports.gi.GLib) {
-        GLibModule = imports.gi.GLib;
-    }
-} catch {
-    // Node.js or environment without global imports
+let GLib = null;
+if (typeof process === 'undefined') {
+    try {
+        GLib = (await import('gi://GLib')).default;
+    } catch (_) {}
 }
 
 export function parseCpuStat(content) {
@@ -118,9 +116,9 @@ export function getBatteryIconName(percent, isCharging) {
 }
 
 function defaultReadFile(filePath) {
-    if (GLibModule) {
+    if (GLib) {
         try {
-            const [ok, bytes] = GLibModule.file_get_contents(filePath);
+            const [ok, bytes] = GLib.file_get_contents(filePath);
             if (!ok || !bytes) return null;
             return new TextDecoder().decode(bytes);
         } catch {
@@ -134,24 +132,25 @@ export class SystemMetricsCollector {
     constructor({ readFile = defaultReadFile } = {}) {
         this._readFile = readFile;
         this._lastCpuSample = null;
-        this._batteryPath = null;
-        this._detectBatteryPath();
+        this._batteryPaths = [];
+        this._detectBatteryPaths();
     }
 
-    _detectBatteryPath() {
-        for (const name of ['BAT0', 'BAT1', 'macsmc-battery']) {
-            const path = `/sys/class/power_supply/${name}/capacity`;
+    _detectBatteryPaths() {
+        const candidates = ['BAT0', 'BAT1', 'BAT2', 'macsmc-battery'];
+        const found = [];
+        for (const name of candidates) {
+            const path = `/sys/class/power_supply/${name}`;
             try {
-                const res = this._readFile(path);
+                const res = this._readFile(`${path}/capacity`);
                 if (res !== null && !isNaN(parseInt(res.trim(), 10))) {
-                    this._batteryPath = `/sys/class/power_supply/${name}`;
-                    return;
+                    found.push(path);
                 }
             } catch {
                 // Next path
             }
         }
-        this._batteryPath = null;
+        this._batteryPaths = found;
     }
 
     collect() {
@@ -204,21 +203,62 @@ export class SystemMetricsCollector {
 
         // Battery
         let batData = null;
-        if (this._batteryPath) {
+        if (this._batteryPaths.length > 0) {
             try {
-                const capStr = this._readFile(`${this._batteryPath}/capacity`);
-                const statusStr = this._readFile(`${this._batteryPath}/status`);
-                const bat = parseBattery(capStr, statusStr);
-                if (bat) {
-                    batData = {
-                        percent: bat.percent,
-                        status: bat.status,
-                        isCharging: bat.isCharging,
-                        iconName: getBatteryIconName(bat.percent, bat.isCharging),
-                        device: 'Battery',
-                        text: bat.isCharging ? `${bat.percent}% ⚡` : `${bat.percent}%`,
-                    };
+                let totalNow = 0;
+                let totalFull = 0;
+                let isCharging = false;
+                let totalPctSum = 0;
+                let validCount = 0;
+                let statusStr = 'Discharging';
+
+                for (const bPath of this._batteryPaths) {
+                    const capStr = this._readFile(`${bPath}/capacity`);
+                    const stat = this._readFile(`${bPath}/status`);
+                    const s = stat ? stat.trim() : '';
+                    if (s === 'Charging') {
+                        isCharging = true;
+                        statusStr = 'Charging';
+                    } else if (s === 'Full' && statusStr !== 'Charging') {
+                        statusStr = 'Full';
+                    }
+
+                    let enow = null;
+                    let efull = null;
+                    try {
+                        enow = this._readFile(`${bPath}/energy_now`) || this._readFile(`${bPath}/charge_now`);
+                        efull = this._readFile(`${bPath}/energy_full`) || this._readFile(`${bPath}/charge_full`);
+                    } catch (_) {}
+                    if (enow && efull && parseInt(efull, 10) > 0) {
+                        totalNow += parseInt(enow, 10);
+                        totalFull += parseInt(efull, 10);
+                    }
+
+                    if (capStr) {
+                        const c = parseInt(capStr.trim(), 10);
+                        if (!isNaN(c)) {
+                            totalPctSum += c;
+                            validCount++;
+                        }
+                    }
                 }
+
+                let finalPct = 0;
+                if (totalFull > 0) {
+                    finalPct = Math.round((totalNow / totalFull) * 100);
+                } else if (validCount > 0) {
+                    finalPct = Math.round(totalPctSum / validCount);
+                }
+
+                finalPct = Math.max(0, Math.min(100, finalPct));
+                batData = {
+                    percent: finalPct,
+                    status: statusStr,
+                    isCharging,
+                    iconName: getBatteryIconName(finalPct, isCharging),
+                    device: 'Battery Device',
+                    text: isCharging ? `${finalPct}% ⚡` : `${finalPct}%`,
+                };
             } catch {
                 batData = null;
             }

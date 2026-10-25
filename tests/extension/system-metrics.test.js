@@ -108,7 +108,7 @@ Cached:          4194304 kB`;
     const collector = new SystemMetricsCollector({
         readFile: (path) => {
             if (mockFiles[path]) return mockFiles[path]();
-            throw new Error(`File not found: ${path}`);
+            return null;
         },
     });
 
@@ -120,7 +120,7 @@ Cached:          4194304 kB`;
     assert(m1.battery);
     assertEqual(m1.battery.percent, 92);
     assertEqual(m1.battery.iconName, 'battery-full-symbolic');
-    assertEqual(m1.battery.device, 'Battery');
+    assertEqual(m1.battery.device, 'Battery Device');
     assert(m1.cpu);
 
     // Second collect calculates delta CPU

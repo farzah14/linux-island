@@ -83,7 +83,9 @@ export class FeatureCarousel {
         this.actor = null;
         this._dotsBox = null;
         this._dots = [];
-        this._container = null;
+        this._viewport = null;
+        this._track = null;
+        this._pageWidth = 300;
 
         if (St && Clutter) {
             this._build();
@@ -106,20 +108,35 @@ export class FeatureCarousel {
             reactive: true,
         });
 
-        // Page container
-        this._container = new St.BoxLayout({
-            vertical: true,
+        // Viewport with overflow clipping
+        this._viewport = new St.Widget({
+            style: 'overflow: hidden;',
+            clip_to_allocation: true,
+            x_expand: true,
+            reactive: true,
+        });
+
+        // Horizontal track containing pages side by side
+        this._track = new St.BoxLayout({
+            vertical: false,
             x_expand: true,
         });
 
         for (let i = 0; i < this._pages.length; ++i) {
             const page = this._pages[i];
             if (page.actor) {
-                page.actor.visible = (i === this._model.currentPage);
-                this._container.add_child(page.actor);
+                this._track.add_child(page.actor);
             }
         }
-        this.actor.add_child(this._container);
+        this._viewport.add_child(this._track);
+        this.actor.add_child(this._viewport);
+
+        this._viewport.connect('notify::allocation', () => {
+            const w = this._viewport.width;
+            if (w > 0 && w !== this._pageWidth) {
+                this.setPageWidth(w);
+            }
+        });
 
         // Dot indicators
         if (this._pages.length > 1) {
@@ -168,9 +185,9 @@ export class FeatureCarousel {
             const coords = typeof event.get_coords === 'function' ? event.get_coords() : [0, 0];
             const dx = coords[0] - startX;
             const dy = coords[1] - startY;
-            if (this._model.handleDrag(dx, dy, 35)) {
+            if (this._model.handleDrag(dx, dy, 30)) {
                 hasSwiped = true;
-                this._syncView();
+                this._syncView(true);
                 this._onPageChanged(this._model.currentPage);
                 return Clutter.EVENT_STOP;
             }
@@ -203,35 +220,62 @@ export class FeatureCarousel {
         });
     }
 
+    setPageWidth(w) {
+        if (w <= 0) return;
+        this._pageWidth = w;
+        for (const page of this._pages) {
+            if (page.actor) {
+                page.actor.width = w;
+                page.actor.set_width?.(w);
+            }
+        }
+        this._syncView(false);
+    }
+
     setPage(index) {
         if (this._model.setPage(index)) {
-            this._syncView();
+            this._syncView(true);
             this._onPageChanged(this._model.currentPage);
         }
     }
 
     nextPage() {
         if (this._model.nextPage()) {
-            this._syncView();
+            this._syncView(true);
             this._onPageChanged(this._model.currentPage);
         }
     }
 
     prevPage() {
         if (this._model.prevPage()) {
-            this._syncView();
+            this._syncView(true);
             this._onPageChanged(this._model.currentPage);
         }
     }
 
-    _syncView() {
+    _syncView(animate = true) {
         if (this._destroyed) return;
         const current = this._model.currentPage;
+        const targetX = -(current * this._pageWidth);
+
+        if (this._track) {
+            const enableAnim = animate && (St?.Settings?.get()?.enable_animations !== false);
+            if (enableAnim && typeof this._track.ease === 'function') {
+                this._track.remove_all_transitions();
+                this._track.ease({
+                    translation_x: targetX,
+                    duration: 220,
+                    mode: Clutter?.AnimationMode?.EASE_OUT_CUBIC ?? 1,
+                });
+            } else {
+                this._track.translation_x = targetX;
+            }
+        }
 
         for (let i = 0; i < this._pages.length; ++i) {
             const page = this._pages[i];
-            if (page.actor) {
-                page.actor.visible = (i === current);
+            if (i === current && typeof page.onActivate === 'function') {
+                page.onActivate();
             }
         }
 
@@ -248,6 +292,10 @@ export class FeatureCarousel {
     destroy() {
         this._destroyed = true;
         this._dots = [];
+        if (this._track) {
+            this._track.remove_all_transitions?.();
+            this._track = null;
+        }
         if (this.actor) {
             this.actor.destroy();
             this.actor = null;
