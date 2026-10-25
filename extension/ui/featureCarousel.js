@@ -51,8 +51,6 @@ export class CarouselModel {
     }
 
     handleScroll(direction) {
-        // Handle numeric Clutter directions or string directions
-        // Clutter.ScrollDirection: UP=0, DOWN=1, LEFT=2, RIGHT=3
         if (direction === 1 || direction === 3 || direction === 'DOWN' || direction === 'RIGHT') {
             return this.nextPage();
         } else if (direction === 0 || direction === 2 || direction === 'UP' || direction === 'LEFT') {
@@ -61,7 +59,7 @@ export class CarouselModel {
         return false;
     }
 
-    handleDrag(dx, dy, threshold = 35) {
+    handleDrag(dx, dy, threshold = 25) {
         if (Math.abs(dx) > threshold && Math.abs(dx) > Math.abs(dy)) {
             if (dx < 0) {
                 return this.nextPage();
@@ -83,9 +81,7 @@ export class FeatureCarousel {
         this.actor = null;
         this._dotsBox = null;
         this._dots = [];
-        this._viewport = null;
-        this._track = null;
-        this._pageWidth = 300;
+        this._container = null;
 
         if (St && Clutter) {
             this._build();
@@ -108,40 +104,22 @@ export class FeatureCarousel {
             reactive: true,
         });
 
-        // Viewport with overflow clipping
-        this._viewport = new St.Widget({
-            style: 'overflow: hidden;',
-            clip_to_allocation: true,
+        // St.Bin gives full, proper allocation to the active page
+        this._container = new St.Bin({
             x_expand: true,
-            reactive: true,
+            y_expand: true,
         });
+        this.actor.add_child(this._container);
 
-        // Horizontal track containing pages side by side
-        this._track = new St.BoxLayout({
-            vertical: false,
-            x_expand: true,
-        });
-
-        for (let i = 0; i < this._pages.length; ++i) {
-            const page = this._pages[i];
-            if (page.actor) {
-                this._track.add_child(page.actor);
-            }
+        const initial = this._pages[this._model.currentPage];
+        if (initial?.actor) {
+            this._container.set_child(initial.actor);
         }
-        this._viewport.add_child(this._track);
-        this.actor.add_child(this._viewport);
-
-        this._viewport.connect('notify::allocation', () => {
-            const w = this._viewport.width;
-            if (w > 0 && w !== this._pageWidth) {
-                this.setPageWidth(w);
-            }
-        });
 
         // Dot indicators
         if (this._pages.length > 1) {
             this._dotsBox = new St.BoxLayout({
-                style: 'spacing: 4px; padding-top: 2px;',
+                style: 'spacing: 6px; padding-top: 2px;',
                 x_align: Clutter.ActorAlign.CENTER,
                 y_align: Clutter.ActorAlign.CENTER,
             });
@@ -185,9 +163,9 @@ export class FeatureCarousel {
             const coords = typeof event.get_coords === 'function' ? event.get_coords() : [0, 0];
             const dx = coords[0] - startX;
             const dy = coords[1] - startY;
-            if (this._model.handleDrag(dx, dy, 30)) {
+            if (this._model.handleDrag(dx, dy, 25)) {
                 hasSwiped = true;
-                this._syncView(true);
+                this._syncView(dx < 0 ? 1 : -1);
                 this._onPageChanged(this._model.currentPage);
                 return Clutter.EVENT_STOP;
             }
@@ -204,7 +182,6 @@ export class FeatureCarousel {
         // Scroll wheel event for sliding left/right
         this.actor.connect('scroll-event', (_actor, event) => {
             const now = GLib ? GLib.get_monotonic_time() : Date.now() * 1000;
-            // Debounce 250ms
             if (now - this._lastScrollTime < 250000) {
                 return Clutter.EVENT_STOP;
             }
@@ -220,61 +197,56 @@ export class FeatureCarousel {
         });
     }
 
-    setPageWidth(w) {
-        if (w <= 0) return;
-        this._pageWidth = w;
-        for (const page of this._pages) {
-            if (page.actor) {
-                page.actor.width = w;
-                page.actor.set_width?.(w);
-            }
-        }
-        this._syncView(false);
-    }
-
     setPage(index) {
+        const prev = this._model.currentPage;
         if (this._model.setPage(index)) {
-            this._syncView(true);
+            const direction = index >= prev ? 1 : -1;
+            this._syncView(direction);
             this._onPageChanged(this._model.currentPage);
         }
     }
 
     nextPage() {
         if (this._model.nextPage()) {
-            this._syncView(true);
+            this._syncView(1);
             this._onPageChanged(this._model.currentPage);
         }
     }
 
     prevPage() {
         if (this._model.prevPage()) {
-            this._syncView(true);
+            this._syncView(-1);
             this._onPageChanged(this._model.currentPage);
         }
     }
 
-    _syncView(animate = true) {
-        if (this._destroyed) return;
+    _syncView(direction = 1) {
+        if (this._destroyed || !this._container) return;
         const current = this._model.currentPage;
-        const targetX = -(current * this._pageWidth);
+        const page = this._pages[current];
 
-        if (this._track) {
-            const enableAnim = animate && (St?.Settings?.get()?.enable_animations !== false);
-            if (enableAnim && typeof this._track.ease === 'function') {
-                this._track.remove_all_transitions();
-                this._track.ease({
-                    translation_x: targetX,
-                    duration: 220,
+        if (page?.actor) {
+            const actor = page.actor;
+            const enableAnim = St?.Settings?.get()?.enable_animations !== false;
+
+            if (enableAnim && typeof actor.ease === 'function') {
+                actor.remove_all_transitions();
+                actor.translation_x = direction * 35;
+                actor.opacity = 60;
+                this._container.set_child(actor);
+                actor.ease({
+                    translation_x: 0,
+                    opacity: 255,
+                    duration: 200,
                     mode: Clutter?.AnimationMode?.EASE_OUT_CUBIC ?? 1,
                 });
             } else {
-                this._track.translation_x = targetX;
+                actor.translation_x = 0;
+                actor.opacity = 255;
+                this._container.set_child(actor);
             }
-        }
 
-        for (let i = 0; i < this._pages.length; ++i) {
-            const page = this._pages[i];
-            if (i === current && typeof page.onActivate === 'function') {
+            if (typeof page.onActivate === 'function') {
                 page.onActivate();
             }
         }
@@ -292,9 +264,9 @@ export class FeatureCarousel {
     destroy() {
         this._destroyed = true;
         this._dots = [];
-        if (this._track) {
-            this._track.remove_all_transitions?.();
-            this._track = null;
+        if (this._container) {
+            this._container.set_child(null);
+            this._container = null;
         }
         if (this.actor) {
             this.actor.destroy();

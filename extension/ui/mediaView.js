@@ -132,6 +132,7 @@ export class MediaView {
             this._actor.connect('notify::mapped', () => {
                 this._renderProgress();
                 this._syncProgressTimer();
+                this._syncVolFill();
             });
             this.setMedia(null);
         }
@@ -547,7 +548,7 @@ export class MediaView {
             this._metricsRow.setWidth(contentWidth - 46);
         }
         if (this._carousel) {
-            this._carousel.setPageWidth(contentWidth);
+            this._carousel.setPageWidth?.(contentWidth);
         }
         this._artBox.style = `width: ${preset.artwork}px; height: ${preset.artwork}px; border-radius: 12px;`;
         this._artIcon.icon_size = preset.artwork;
