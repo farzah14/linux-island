@@ -30,16 +30,11 @@ export class QuickToggle {
 
     _build() {
         this.actor = new St.Button({
-            style: 'height: 32px; padding: 4px 10px; border-radius: 10px;',
+            style: 'width: 38px; height: 38px; border-radius: 19px; padding: 0;',
             style_class: 'linux-island__quick-toggle',
             reactive: true,
             can_focus: true,
             accessible_name: this._label,
-            x_expand: true,
-        });
-
-        const box = new St.BoxLayout({
-            style: 'spacing: 6px;',
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
         });
@@ -47,19 +42,12 @@ export class QuickToggle {
         this._icon = new St.Icon({
             icon_name: this._iconName,
             fallback_icon_name: this._iconName,
-            icon_size: 14,
+            icon_size: 16,
+            x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
         });
-        box.add_child(this._icon);
 
-        this._labelWidget = new St.Label({
-            text: this._label,
-            style_class: 'linux-island__quick-toggle-label',
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        box.add_child(this._labelWidget);
-
-        this.actor.set_child(box);
+        this.actor.set_child(this._icon);
         this.actor.connect('clicked', () => this._onToggle());
         this._syncStyle();
     }
@@ -155,7 +143,9 @@ export class QuickTogglesRow {
 
     _build() {
         this.actor = new St.BoxLayout({
-            style: 'spacing: 8px;',
+            style: 'spacing: 16px; padding-top: 6px;',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
             x_expand: true,
         });
 
@@ -167,6 +157,7 @@ export class QuickTogglesRow {
     _sync(state) {
         if (this._destroyed || !state) return;
         this._dndToggle.setActive(state.dnd);
+        this._dndToggle.setIcon(state.dnd ? 'notifications-disabled-symbolic' : 'preferences-system-notifications-symbolic');
         this._nightToggle.setActive(state.nightLight);
         if (!this._currentTheme || this._currentTheme === 'system') {
             this._darkToggle.setActive(state.darkMode);

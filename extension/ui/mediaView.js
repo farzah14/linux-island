@@ -145,6 +145,13 @@ export class MediaView {
             reactive: true,
         });
 
+        // Section 1: Pure Media Player section
+        this._mediaSection = new St.BoxLayout({
+            vertical: true,
+            style: 'spacing: 6px;',
+            x_expand: true,
+        });
+
         // Track info row: Album art box on left, Title + Artist on right
         const trackRow = new St.BoxLayout({
             style: 'spacing: 10px;',
@@ -223,7 +230,7 @@ export class MediaView {
         textCol.add_child(artistRow);
 
         trackRow.add_child(textCol);
-        this._actor.add_child(trackRow);
+        this._mediaSection.add_child(trackRow);
 
         this._progressTrack = new St.Bin({
             style: 'height: 6px; border-radius: 3px;',
@@ -259,7 +266,7 @@ export class MediaView {
             }
             return Clutter.EVENT_PROPAGATE;
         });
-        this._actor.add_child(this._progressTrack);
+        this._mediaSection.add_child(this._progressTrack);
 
         // Playback controls row: [  ⏮  ]   [   ▶   ]   [  ⏭  ]
         const controlsBox = new St.BoxLayout({
@@ -313,15 +320,30 @@ export class MediaView {
         controlsBox.add_child(this._playPauseBtn);
         controlsBox.add_child(this._nextBtn);
         controlsBox.add_child(this._durationLabel);
-        this._actor.add_child(controlsBox);
+        this._mediaSection.add_child(controlsBox);
+
+        // Section 2: Pure System & Controls section (CPU, RAM, Battery, and Icon Quick Controls)
+        this._systemSection = new St.BoxLayout({
+            vertical: true,
+            style: 'spacing: 8px; padding: 2px 2px;',
+            x_expand: true,
+        });
 
         this._metricsRow = new SystemMetricsRow({scheduler: this._scheduler});
-        this._quickTogglesRow = new QuickTogglesRow({onThemeToggle: this._onThemeToggle});
+        if (this._metricsRow.actor) {
+            this._systemSection.add_child(this._metricsRow.actor);
+        }
 
+        this._quickTogglesRow = new QuickTogglesRow({onThemeToggle: this._onThemeToggle});
+        if (this._quickTogglesRow.actor) {
+            this._systemSection.add_child(this._quickTogglesRow.actor);
+        }
+
+        // Slideable Carousel between Music section and System/Controls section
         this._carousel = new FeatureCarousel({
             pages: [
-                { id: 'metrics', actor: this._metricsRow.actor, label: 'System Metrics' },
-                { id: 'settings', actor: this._quickTogglesRow.actor, label: 'Quick Settings & Theme' },
+                { id: 'media', actor: this._mediaSection, label: 'Music' },
+                { id: 'system', actor: this._systemSection, label: 'System & Controls' },
             ],
         });
         if (this._carousel.actor) {

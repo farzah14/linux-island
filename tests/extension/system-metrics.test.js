@@ -116,9 +116,11 @@ Cached:          4194304 kB`;
     const m1 = collector.collect();
     assert(m1.ram);
     assertEqual(m1.ram.percent, 50.0);
-    assertEqual(m1.ram.text, '8.0/16.0G');
+    assertEqual(m1.ram.text, '8.0/16.0 GB');
     assert(m1.battery);
     assertEqual(m1.battery.percent, 92);
+    assertEqual(m1.battery.iconName, 'battery-full-symbolic');
+    assertEqual(m1.battery.device, 'Battery');
     assert(m1.cpu);
 
     // Second collect calculates delta CPU

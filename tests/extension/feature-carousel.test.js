@@ -51,6 +51,16 @@ function assertEqual(actual, expected, message) {
     assertEqual(model.currentPage, 1);
     assert(model.handleScroll('LEFT'));
     assertEqual(model.currentPage, 0);
+
+    // Drag / swipe mapping
+    assert(!model.handleDrag(-10, 0, 35), 'drag under threshold ignored');
+    assertEqual(model.currentPage, 0);
+    assert(model.handleDrag(-50, 5, 35), 'swipe left advances page');
+    assertEqual(model.currentPage, 1);
+    assert(model.handleDrag(50, 5, 35), 'swipe right goes back');
+    assertEqual(model.currentPage, 0);
+    assert(!model.handleDrag(50, 80, 35), 'vertical gesture ignored');
+    assertEqual(model.currentPage, 0);
 }
 
 // 2. Presentation test of FeatureCarousel

@@ -106,6 +106,17 @@ export function parseBattery(capacityContent, statusContent) {
     };
 }
 
+export function getBatteryIconName(percent, isCharging) {
+    if (isCharging) {
+        return 'battery-charging-symbolic';
+    }
+    const p = Number(percent) || 0;
+    if (p >= 90) return 'battery-full-symbolic';
+    if (p >= 60) return 'battery-good-symbolic';
+    if (p >= 30) return 'battery-low-symbolic';
+    return 'battery-caution-symbolic';
+}
+
 function defaultReadFile(filePath) {
     if (GLibModule) {
         try {
@@ -154,11 +165,15 @@ export class SystemMetricsCollector {
                     const pct = computeCpuPercent(this._lastCpuSample, currCpu);
                     cpuData = {
                         percent: pct,
+                        iconName: 'preferences-system-performance-symbolic',
+                        label: 'CPU',
                         text: `${Math.round(pct)}%`,
                     };
                 } else {
                     cpuData = {
                         percent: 0,
+                        iconName: 'preferences-system-performance-symbolic',
+                        label: 'CPU',
                         text: '...%',
                     };
                 }
@@ -176,9 +191,11 @@ export class SystemMetricsCollector {
             if (mem) {
                 ramData = {
                     percent: mem.percent,
+                    iconName: 'drive-harddisk-symbolic',
+                    label: 'RAM',
                     usedGb: mem.usedGb,
                     totalGb: mem.totalGb,
-                    text: `${mem.usedGb.toFixed(1)}/${mem.totalGb.toFixed(1)}G`,
+                    text: `${mem.usedGb.toFixed(1)}/${mem.totalGb.toFixed(1)} GB`,
                 };
             }
         } catch {
@@ -197,7 +214,9 @@ export class SystemMetricsCollector {
                         percent: bat.percent,
                         status: bat.status,
                         isCharging: bat.isCharging,
-                        text: `${bat.percent}%`,
+                        iconName: getBatteryIconName(bat.percent, bat.isCharging),
+                        device: 'Battery',
+                        text: bat.isCharging ? `${bat.percent}% ⚡` : `${bat.percent}%`,
                     };
                 }
             } catch {

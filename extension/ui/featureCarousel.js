@@ -60,6 +60,17 @@ export class CarouselModel {
         }
         return false;
     }
+
+    handleDrag(dx, dy, threshold = 35) {
+        if (Math.abs(dx) > threshold && Math.abs(dx) > Math.abs(dy)) {
+            if (dx < 0) {
+                return this.nextPage();
+            } else {
+                return this.prevPage();
+            }
+        }
+        return false;
+    }
 }
 
 export class FeatureCarousel {
@@ -134,6 +145,44 @@ export class FeatureCarousel {
             }
             this.actor.add_child(this._dotsBox);
         }
+
+        // Mouse drag gesture to slide horizontally
+        let startX = 0;
+        let startY = 0;
+        let isPressed = false;
+        let hasSwiped = false;
+
+        this.actor.connect('button-press-event', (_actor, event) => {
+            if (typeof event.get_button === 'function' && event.get_button() === 1) {
+                isPressed = true;
+                hasSwiped = false;
+                const coords = typeof event.get_coords === 'function' ? event.get_coords() : [0, 0];
+                startX = coords[0];
+                startY = coords[1];
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        this.actor.connect('motion-event', (_actor, event) => {
+            if (!isPressed || hasSwiped) return Clutter.EVENT_PROPAGATE;
+            const coords = typeof event.get_coords === 'function' ? event.get_coords() : [0, 0];
+            const dx = coords[0] - startX;
+            const dy = coords[1] - startY;
+            if (this._model.handleDrag(dx, dy, 35)) {
+                hasSwiped = true;
+                this._syncView();
+                this._onPageChanged(this._model.currentPage);
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        this.actor.connect('button-release-event', () => {
+            const consumed = hasSwiped;
+            isPressed = false;
+            hasSwiped = false;
+            return consumed ? Clutter.EVENT_STOP : Clutter.EVENT_PROPAGATE;
+        });
 
         // Scroll wheel event for sliding left/right
         this.actor.connect('scroll-event', (_actor, event) => {

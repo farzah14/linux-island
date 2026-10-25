@@ -12,9 +12,12 @@ if (typeof process === 'undefined') {
 }
 
 export class SystemMetricTile {
-    constructor({label = 'METRIC'} = {}) {
+    constructor({label = 'METRIC', iconName = ''} = {}) {
         this._label = label;
+        this._iconName = iconName;
         this.actor = null;
+        this._icon = null;
+        this._nameLabel = null;
         this._valueLabel = null;
         this._fill = null;
         this._track = null;
@@ -27,7 +30,7 @@ export class SystemMetricTile {
     _build() {
         this.actor = new St.BoxLayout({
             vertical: true,
-            style: 'padding: 6px 10px; spacing: 4px; border-radius: 10px;',
+            style: 'padding: 2px 4px; spacing: 3px;',
             style_class: 'linux-island__metric-tile',
             x_expand: true,
         });
@@ -38,13 +41,23 @@ export class SystemMetricTile {
             y_align: Clutter.ActorAlign.CENTER,
         });
 
-        const nameLabel = new St.Label({
+        if (this._iconName) {
+            this._icon = new St.Icon({
+                icon_name: this._iconName,
+                fallback_icon_name: this._iconName,
+                icon_size: 14,
+                style_class: 'linux-island__metric-icon',
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            headerRow.add_child(this._icon);
+        }
+
+        this._nameLabel = new St.Label({
             text: this._label,
             style_class: 'linux-island__metric-label',
             y_align: Clutter.ActorAlign.CENTER,
         });
-        headerRow.add_child(nameLabel);
-
+        headerRow.add_child(this._nameLabel);
         const spacer = new St.Widget({x_expand: true});
         headerRow.add_child(spacer);
 
@@ -71,6 +84,22 @@ export class SystemMetricTile {
         this._track.set_child(this._fill);
         this._track.connect('notify::allocation', () => this._syncFill());
         this.actor.add_child(this._track);
+    }
+
+    setIcon(iconName) {
+        this._iconName = iconName;
+        if (this._icon) {
+            this._icon.icon_name = iconName;
+            this._icon.fallback_icon_name = iconName;
+            this._icon.visible = Boolean(iconName);
+        }
+    }
+
+    setLabel(label) {
+        this._label = label;
+        if (this._nameLabel) {
+            this._nameLabel.text = label;
+        }
     }
 
     setValue(text, percent) {
@@ -125,20 +154,30 @@ export class SystemMetricsRow {
 
     _build() {
         this.actor = new St.BoxLayout({
-            style: 'spacing: 8px;',
+            vertical: true,
+            style: 'spacing: 8px; padding: 4px 6px;',
             x_expand: true,
         });
 
-        this._cpuTile = new SystemMetricTile({label: 'CPU'});
+        this._cpuTile = new SystemMetricTile({
+            label: 'CPU',
+            iconName: 'preferences-system-performance-symbolic',
+        });
         if (this._cpuTile.actor) this.actor.add_child(this._cpuTile.actor);
 
-        this._ramTile = new SystemMetricTile({label: 'RAM'});
+        this._ramTile = new SystemMetricTile({
+            label: 'Memory',
+            iconName: 'drive-harddisk-symbolic',
+        });
         if (this._ramTile.actor) this.actor.add_child(this._ramTile.actor);
 
-        // Check if system has a battery
+        // Check if system has a battery device
         const initial = this._collector.collect();
         if (initial.battery) {
-            this._batTile = new SystemMetricTile({label: 'BAT'});
+            this._batTile = new SystemMetricTile({
+                label: 'Battery Device',
+                iconName: initial.battery.iconName || 'battery-good-symbolic',
+            });
             if (this._batTile.actor) this.actor.add_child(this._batTile.actor);
         }
     }
@@ -154,6 +193,8 @@ export class SystemMetricsRow {
             this._ramTile.setValue(metrics.ram.text, metrics.ram.percent);
         }
         if (metrics.battery && this._batTile) {
+            this._batTile.setIcon(metrics.battery.iconName || 'battery-good-symbolic');
+            this._batTile.setLabel(metrics.battery.device || 'Battery Device');
             this._batTile.setValue(metrics.battery.text, metrics.battery.percent);
         }
     }
