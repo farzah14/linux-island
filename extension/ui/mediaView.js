@@ -132,7 +132,7 @@ export class MediaView {
             this._actor.connect('notify::mapped', () => {
                 this._renderProgress();
                 this._syncProgressTimer();
-                this._syncVolFill();
+                this._syncSystemVolume();
             });
             this.setMedia(null);
         }
@@ -152,7 +152,7 @@ export class MediaView {
         // Section 1: Pure Media Player section
         this._mediaSection = new St.BoxLayout({
             vertical: true,
-            style: 'width: 300px; height: 114px; spacing: 4px;',
+            style: 'width: 300px; height: 122px; spacing: 2px;',
             x_expand: true,
         });
 
@@ -272,19 +272,40 @@ export class MediaView {
         });
         this._mediaSection.add_child(this._progressTrack);
 
-        // Playback controls row: [  ⏮  ]   [   ▶   ]   [  ⏭  ]
-        const controlsBox = new St.BoxLayout({
-            style: 'spacing: 4px; height: 32px;',
+        // Time labels row: [0:00] ----------------------------- [2:33]
+        const timeRow = new St.BoxLayout({
+            style: 'height: 12px; margin-top: 1px;',
             y_align: Clutter.ActorAlign.CENTER,
             x_expand: true,
         });
         this._elapsedLabel = new St.Label({
             text: '0:00',
             y_align: Clutter.ActorAlign.CENTER,
-            style: 'font-size: 10px; min-width: 36px; max-width: 44px;',
+            style: 'font-size: 10px;',
             style_class: 'linux-island__progress-time',
         });
-        const leftSpacer = new St.Widget({x_expand: true});
+        const timeSpacer = new St.Widget({x_expand: true});
+        this._durationLabel = new St.Label({
+            text: '--:--',
+            x_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.CENTER,
+            style: 'font-size: 10px; text-align: right;',
+            style_class: 'linux-island__progress-time',
+        });
+        this._elapsedLabel.clutter_text?.set_ellipsize(3);
+        this._durationLabel.clutter_text?.set_ellipsize(3);
+        timeRow.add_child(this._elapsedLabel);
+        timeRow.add_child(timeSpacer);
+        timeRow.add_child(this._durationLabel);
+        this._mediaSection.add_child(timeRow);
+
+        // Playback controls row: [  ⏮  ]   [   ▶   ]   [  ⏭  ] (Centered)
+        const controlsBox = new St.BoxLayout({
+            style: 'spacing: 16px; height: 32px;',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+        });
 
         this._prevBtn = new St.Button({
             style: 'width: 32px; height: 32px; padding: 0; border-radius: 12px; font-size: 15px;',
@@ -317,32 +338,9 @@ export class MediaView {
         this._nextBtn.set_child(new St.Icon({icon_name: 'media-skip-forward-symbolic', icon_size: 14}));
         this._nextBtn.connect('clicked', () => this._onControlAction('Next'));
 
-        const centerButtons = new St.BoxLayout({
-            style: 'spacing: 12px;',
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        centerButtons.add_child(this._prevBtn);
-        centerButtons.add_child(this._playPauseBtn);
-        centerButtons.add_child(this._nextBtn);
-
-        const rightSpacer = new St.Widget({x_expand: true});
-
-        this._durationLabel = new St.Label({
-            text: '--:--',
-            x_align: Clutter.ActorAlign.END,
-            y_align: Clutter.ActorAlign.CENTER,
-            style: 'font-size: 10px; min-width: 36px; max-width: 44px; text-align: right;',
-            style_class: 'linux-island__progress-time',
-        });
-        this._elapsedLabel.clutter_text?.set_ellipsize(3);
-        this._durationLabel.clutter_text?.set_ellipsize(3);
-
-        controlsBox.add_child(this._elapsedLabel);
-        controlsBox.add_child(leftSpacer);
-        controlsBox.add_child(centerButtons);
-        controlsBox.add_child(rightSpacer);
-        controlsBox.add_child(this._durationLabel);
+        controlsBox.add_child(this._prevBtn);
+        controlsBox.add_child(this._playPauseBtn);
+        controlsBox.add_child(this._nextBtn);
         this._mediaSection.add_child(controlsBox);
 
         // Volume slider row: [ 🔈 ]  [ ======------ ]  [ 🔊 ]
@@ -366,10 +364,14 @@ export class MediaView {
             style_class: 'linux-island__metric-icon',
             y_align: Clutter.ActorAlign.CENTER,
         });
-        this._volDownBtn.set_child(this._volDownIcon);
         this._volDownBtn.connect('clicked', () => {
             this.setVolume(0.0);
-            this._onControlAction('Volume:0.0');
+            this._onControlAction('Volume:0.00');
+            if (GLib) {
+                try {
+                    GLib.spawn_command_line_async('wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.00');
+                } catch (_) {}
+            }
         });
 
         this._volTrack = new St.Bin({
@@ -402,6 +404,11 @@ export class MediaView {
                 const vol = Math.max(0.0, Math.min(1.0, clickX / width));
                 this.setVolume(vol);
                 this._onControlAction(`Volume:${vol.toFixed(2)}`);
+                if (GLib) {
+                    try {
+                        GLib.spawn_command_line_async(`wpctl set-volume @DEFAULT_AUDIO_SINK@ ${vol.toFixed(2)}`);
+                    } catch (_) {}
+                }
                 return Clutter.EVENT_STOP;
             }
             return Clutter.EVENT_PROPAGATE;
@@ -432,7 +439,12 @@ export class MediaView {
         this._volUpBtn.set_child(this._volUpIcon);
         this._volUpBtn.connect('clicked', () => {
             this.setVolume(1.0);
-            this._onControlAction('Volume:1.0');
+            this._onControlAction('Volume:1.00');
+            if (GLib) {
+                try {
+                    GLib.spawn_command_line_async('wpctl set-volume @DEFAULT_AUDIO_SINK@ 1.00');
+                } catch (_) {}
+            }
         });
 
         volumeBox.add_child(this._volDownBtn);
@@ -443,14 +455,14 @@ export class MediaView {
         // Section 2: Pure System & Controls section (CPU, RAM, Battery on LEFT, and Icon Quick Controls on RIGHT)
         this._systemSection = new St.BoxLayout({
             vertical: false,
-            style: 'width: 300px; height: 114px; spacing: 12px; padding: 2px 0;',
+            style: 'width: 300px; height: 122px; spacing: 14px; padding: 0 4px;',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
 
         this._metricsRow = new SystemMetricsRow({scheduler: this._scheduler});
         if (this._metricsRow.actor) {
-            this._metricsRow.setWidth(254);
+            this._metricsRow.setWidth(248);
             this._systemSection.add_child(this._metricsRow.actor);
         }
 
@@ -489,6 +501,25 @@ export class MediaView {
 
     setVolume(vol) {
         this._volume = (typeof vol === 'number' && !isNaN(vol)) ? Math.max(0.0, Math.min(1.0, vol)) : 1.0;
+        this._syncVolFill();
+    }
+
+    _syncSystemVolume() {
+        if (GLib) {
+            try {
+                const [ok, out] = GLib.spawn_command_line_sync('wpctl get-volume @DEFAULT_AUDIO_SINK@');
+                if (ok && out) {
+                    const match = new TextDecoder().decode(out).match(/Volume:\s+([0-9.]+)/);
+                    if (match) {
+                        const v = parseFloat(match[1]);
+                        if (!isNaN(v)) {
+                            this.setVolume(v);
+                            return;
+                        }
+                    }
+                }
+            } catch (_) {}
+        }
         this._syncVolFill();
     }
 
@@ -537,15 +568,15 @@ export class MediaView {
         this._actor.style = `width: ${preset.width}px; padding: 8px 14px; spacing: 6px;`;
         const contentWidth = preset.width - 28;
         if (this._mediaSection) {
-            this._mediaSection.style = `width: ${contentWidth}px; height: 114px; spacing: 4px;`;
+            this._mediaSection.style = `width: ${contentWidth}px; height: 122px; spacing: 2px;`;
             this._mediaSection.width = contentWidth;
         }
         if (this._systemSection) {
-            this._systemSection.style = `width: ${contentWidth}px; height: 114px; spacing: 12px; padding: 2px 0;`;
+            this._systemSection.style = `width: ${contentWidth}px; height: 122px; spacing: 14px; padding: 0 4px;`;
             this._systemSection.width = contentWidth;
         }
         if (this._metricsRow) {
-            this._metricsRow.setWidth(contentWidth - 46);
+            this._metricsRow.setWidth(contentWidth - 52);
         }
         if (this._carousel) {
             this._carousel.setPageWidth?.(contentWidth);

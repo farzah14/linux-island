@@ -160,7 +160,7 @@ assert.ok(capsule._beatBars, 'compact title needs beat bars');
 assert.match(capsule._mediaView.actor.style, /width: 328px/, 'wide card content width');
 assert.ok(capsule._mediaView._carousel, 'media card has slideable features carousel');
 assert.equal(capsule._mediaView._carousel.pageCount, 2, 'music and system & controls pages');
-assert.equal(capsule._mediaView._mediaSection.children.length, 4, 'track, timeline, controls, and volume rows in media section');
+assert.equal(capsule._mediaView._mediaSection.children.length, 5, 'track, progress, time labels, controls, and volume rows in media section');
 assert.ok(capsule._mediaView._volTrack, 'volume track exists in media section');
 capsule.setMedia({playerId: 'test', title: 'Test volume', playbackStatus: 'Playing', volume: 0.65});
 assert.equal(capsule._mediaView._volume, 0.65, 'media volume reaches volume slider');

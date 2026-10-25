@@ -2,6 +2,8 @@
 #include <QDBusInterface>
 #include <QDBusPendingCall>
 #include <QSet>
+#include <QProcess>
+#include <algorithm>
 
 MprisController::MprisController(const QDBusConnection &bus, QObject *parent)
     : QObject(parent),
@@ -121,6 +123,11 @@ ControlResult MprisController::perform(const QString &action, const QString &pla
                 << QStringLiteral("Volume")
                 << QVariant::fromValue(QDBusVariant(vol));
             m_bus.send(msg);
+            QProcess::startDetached(QStringLiteral("wpctl"), {
+                QStringLiteral("set-volume"),
+                QStringLiteral("@DEFAULT_AUDIO_SINK@"),
+                QString::number(vol, 'f', 2)
+            });
         }
     } else {
         QDBusMessage msg = QDBusMessage::createMethodCall(

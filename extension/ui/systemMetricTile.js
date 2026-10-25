@@ -29,14 +29,9 @@ export class SystemMetricTile {
 
     _build() {
         this.actor = new St.BoxLayout({
-            vertical: true,
-            style: 'padding: 1px 0; spacing: 2px;',
+            vertical: false,
+            style: 'spacing: 8px; height: 26px;',
             style_class: 'linux-island__metric-tile',
-            x_expand: true,
-        });
-
-        const headerRow = new St.BoxLayout({
-            style: 'spacing: 6px;',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
@@ -49,7 +44,7 @@ export class SystemMetricTile {
                 style_class: 'linux-island__metric-icon',
                 y_align: Clutter.ActorAlign.CENTER,
             });
-            headerRow.add_child(this._icon);
+            this.actor.add_child(this._icon);
         }
 
         this._nameLabel = new St.Label({
@@ -57,35 +52,24 @@ export class SystemMetricTile {
             style_class: 'linux-island__metric-label',
             y_align: Clutter.ActorAlign.CENTER,
         });
-        headerRow.add_child(this._nameLabel);
+        this.actor.add_child(this._nameLabel);
 
         const spacer = new St.Widget({x_expand: true});
-        headerRow.add_child(spacer);
+        this.actor.add_child(spacer);
 
         this._valueLabel = new St.Label({
-            text: '--',
+            text: '--%',
             style_class: 'linux-island__metric-value',
             x_align: Clutter.ActorAlign.END,
             y_align: Clutter.ActorAlign.CENTER,
         });
-        headerRow.add_child(this._valueLabel);
-        this.actor.add_child(headerRow);
+        this.actor.add_child(this._valueLabel);
+    }
 
-        this._track = new St.Bin({
-            style: 'height: 3px; border-radius: 2px;',
-            style_class: 'linux-island__metric-track',
-            x_expand: true,
-        });
-
-        this._fill = new St.Widget({
-            style: 'height: 3px; border-radius: 2px;',
-            style_class: 'linux-island__metric-fill',
-            x_align: Clutter.ActorAlign.START,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        this._track.set_child(this._fill);
-        this._track.connect('notify::allocation', () => this._syncFill());
-        this.actor.add_child(this._track);
+    setWidth(w) {
+        if (!this.actor || w <= 0) return;
+        this.actor.style = `width: ${w}px; spacing: 8px; height: 26px;`;
+        this.actor.width = w;
     }
 
     setWidth(w) {
@@ -117,24 +101,15 @@ export class SystemMetricTile {
 
     setValue(text, percent) {
         if (this._valueLabel) {
-            this._valueLabel.text = text ? String(text) : '--';
+            this._valueLabel.text = text ? String(text) : '--%';
         }
         this._percent = (typeof percent === 'number' && !isNaN(percent))
             ? Math.max(0, Math.min(100, percent))
             : 0;
-        this._syncFill();
     }
 
     _syncFill() {
-        if (!this._fill || !this._track) return;
-        const totalW = this._track.width;
-        if (totalW <= 0) return;
-        const fillW = Math.max(0, Math.round((totalW * (this._percent || 0)) / 100));
-        if (typeof this._fill.set_width === 'function') {
-            this._fill.set_width(fillW);
-        } else {
-            this._fill.width = fillW;
-        }
+        // Line rectangles removed per user request: percentage only
     }
 
     destroy() {
@@ -181,7 +156,7 @@ export class SystemMetricsRow {
     _build() {
         this.actor = new St.BoxLayout({
             vertical: true,
-            style: 'spacing: 6px;',
+            style: 'spacing: 4px;',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
