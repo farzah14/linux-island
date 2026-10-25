@@ -3,6 +3,7 @@
 import {loadLocalArtwork} from '../lib/localArtwork.js';
 import {BeatBars} from './beatBars.js';
 import {estimateTimeline, formatTime} from '../lib/mediaTimeline.js';
+import {SystemMetricsRow} from './systemMetricTile.js';
 
 export const CAPSULE_SIZES = Object.freeze({
     small: {width: 268, artwork: 40, button: 28, play: 36, icon: 12,
@@ -253,6 +254,11 @@ export class MediaView {
         controlsBox.add_child(this._nextBtn);
         controlsBox.add_child(this._durationLabel);
         this._actor.add_child(controlsBox);
+
+        this._metricsRow = new SystemMetricsRow({scheduler: this._scheduler});
+        if (this._metricsRow.actor) {
+            this._actor.add_child(this._metricsRow.actor);
+        }
     }
 
     setCapsuleSize(size) {
@@ -357,6 +363,8 @@ export class MediaView {
         if (this._progressTimer !== null) this._scheduler.cancel(this._progressTimer);
         this._progressTimer = null;
         this._beatBars?.destroy();
+        this._metricsRow?.destroy();
+        this._metricsRow = null;
         ++this._artGeneration;
         this._artCancellable?.cancel();
         this._artCancellable = null;

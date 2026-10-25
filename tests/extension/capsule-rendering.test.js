@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {IslandController} from '../../extension/lib/islandController.js';
 import {estimateTimeline, formatTime} from '../../extension/lib/mediaTimeline.js';
+import {SystemMetricsCollector} from '../../extension/lib/systemMetrics.js';
 
 class Actor {
     constructor(props = {}) {
@@ -64,6 +65,7 @@ globalThis.renderTest = {
         EVENT_STOP: 1, EVENT_PROPAGATE: 0, KEY_Escape: 27},
     Main: {layoutManager: {primaryMonitor: {x: 0, y: 0, width: 1366},
         addTopChrome() {}, removeChrome() {}, connectObject() {}, disconnectObject() {}}},
+    SystemMetricsCollector,
 };
 const load = source => import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 const beatSource = (await readFile(new URL('../../extension/ui/beatBars.js', import.meta.url), 'utf8'))
@@ -71,11 +73,18 @@ const beatSource = (await readFile(new URL('../../extension/ui/beatBars.js', imp
     .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
 const {BeatBars} = await load(beatSource);
 globalThis.renderTest.BeatBars = BeatBars;
+let metricTileSource = (await readFile(new URL('../../extension/ui/systemMetricTile.js', import.meta.url), 'utf8'))
+    .replace(/^import .*systemMetrics.*;$/gm, 'const {SystemMetricsCollector} = globalThis.renderTest;')
+    .replace('let St = null;', 'let St = globalThis.renderTest.St;')
+    .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
+const {SystemMetricsRow} = await load(metricTileSource);
+globalThis.renderTest.SystemMetricsRow = SystemMetricsRow;
 let mediaSource = await readFile(new URL('../../extension/ui/mediaView.js', import.meta.url), 'utf8');
 mediaSource = mediaSource.replace('let St = null;', 'let St = globalThis.renderTest.St;')
     .replace(/^import .*localArtwork.*;$/gm, 'const {loadLocalArtwork} = globalThis.renderTest;')
     .replace(/^import .*beatBars.*;$/gm, 'const {BeatBars} = globalThis.renderTest;')
     .replace(/^import .*mediaTimeline.*;$/gm, 'const {estimateTimeline, formatTime} = globalThis.renderTest;')
+    .replace(/^import .*systemMetricTile.*;$/gm, 'const {SystemMetricsRow} = globalThis.renderTest;')
     .replace('let Gio = null;', 'let Gio = globalThis.renderTest.Gio;')
     .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
 const {MediaView, CAPSULE_SIZES} = await load(mediaSource);
@@ -134,7 +143,7 @@ capsule.setCapsuleSize('medium');
 capsule.applyState('COMPACT');
 assert.ok(capsule._beatBars, 'compact title needs beat bars');
 assert.match(capsule._mediaView.actor.style, /width: 328px/, 'wide card content width');
-assert.equal(capsule._mediaView.actor.children.length, 3, 'track, thin timeline and controls rows');
+assert.equal(capsule._mediaView.actor.children.length, 4, 'track, thin timeline, controls and metrics rows');
 assert.match(capsule._mediaView._prevBtn.style, /height: 32px/, 'short playback buttons');
 assert.match(capsule._mediaView._playPauseBtn.style, /height: 32px/);
 assert.doesNotMatch(capsule._mediaView.actor.style, /min-height/, 'no forced empty height');

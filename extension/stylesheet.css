@@ -14,6 +14,11 @@
 .linux-island__label { font-size: 13px; font-weight: 600; }
 .linux-island__artwork { border: 1px solid transparent; }
 .linux-island__media-button { border: 0; }
+.linux-island__metric-tile { border-radius: 10px; border: 1px solid transparent; }
+.linux-island__metric-label { font-size: 10px; font-weight: 600; }
+.linux-island__metric-value { font-size: 11px; font-weight: bold; }
+.linux-island__metric-track { border-radius: 2px; }
+.linux-island__metric-fill { border-radius: 2px; }
 
 .linux-island--dark.linux-island__capsule {
     background-color: #191816;
@@ -83,6 +88,27 @@
     color: #C8C0B5;
 }
 
+.linux-island--dark .linux-island__metric-tile {
+    background-color: #302D28;
+    border-color: #575148;
+}
+
+.linux-island--dark .linux-island__metric-label {
+    color: #A69C8F;
+}
+
+.linux-island--dark .linux-island__metric-value {
+    color: #F4F0E9;
+}
+
+.linux-island--dark .linux-island__metric-track {
+    background-color: #575148;
+}
+
+.linux-island--dark .linux-island__metric-fill {
+    background-color: #D8B77F;
+}
+
 .linux-island--light.linux-island__capsule {
     background-color: #FBF8F1;
     color: #292621;
@@ -149,4 +175,25 @@
 
 .linux-island--light .linux-island__progress-time {
     color: #5D554B;
+}
+
+.linux-island--light .linux-island__metric-tile {
+    background-color: #EEE9DF;
+    border-color: #C7BCAE;
+}
+
+.linux-island--light .linux-island__metric-label {
+    color: #665E53;
+}
+
+.linux-island--light .linux-island__metric-value {
+    color: #292621;
+}
+
+.linux-island--light .linux-island__metric-track {
+    background-color: #C7BCAE;
+}
+
+.linux-island--light .linux-island__metric-fill {
+    background-color: #80551F;
 }
