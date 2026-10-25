@@ -194,7 +194,7 @@ export class SystemMetricsCollector {
                     label: 'RAM',
                     usedGb: mem.usedGb,
                     totalGb: mem.totalGb,
-                    text: `${mem.usedGb.toFixed(1)}/${mem.totalGb.toFixed(1)} GB`,
+                    text: `${Math.round(mem.percent)}%`,
                 };
             }
         } catch {
@@ -256,7 +256,7 @@ export class SystemMetricsCollector {
                     status: statusStr,
                     isCharging,
                     iconName: getBatteryIconName(finalPct, isCharging),
-                    device: 'Battery Device',
+                    device: 'BAT',
                     text: isCharging ? `${finalPct}% ⚡` : `${finalPct}%`,
                 };
             } catch {

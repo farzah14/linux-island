@@ -19,7 +19,7 @@
 .linux-island__metric-value { font-size: 11px; font-weight: bold; }
 .linux-island__metric-track { border-radius: 2px; }
 .linux-island__metric-fill { border-radius: 2px; }
-.linux-island__quick-toggle { border-radius: 19px; width: 38px; height: 38px; padding: 0; border: 1px solid transparent; }
+.linux-island__quick-toggle { border-radius: 13px; width: 26px; height: 26px; padding: 0; border: 1px solid transparent; }
 .linux-island__carousel-dot { width: 5px; height: 5px; border-radius: 3px; border: 0; padding: 0; }
 .linux-island__carousel-dot--active { width: 14px; height: 5px; border-radius: 3px; border: 0; padding: 0; }
 .linux-island__player-badge { font-size: 10px; font-weight: 600; border-radius: 6px; padding: 1px 6px; border: 0; }

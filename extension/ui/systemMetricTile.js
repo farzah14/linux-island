@@ -34,6 +34,7 @@ export class SystemMetricTile {
             style_class: 'linux-island__metric-tile',
             x_expand: true,
         });
+
         const headerRow = new St.BoxLayout({
             style: 'spacing: 6px;',
             x_expand: true,
@@ -57,12 +58,14 @@ export class SystemMetricTile {
             y_align: Clutter.ActorAlign.CENTER,
         });
         headerRow.add_child(this._nameLabel);
+
         const spacer = new St.Widget({x_expand: true});
         headerRow.add_child(spacer);
 
         this._valueLabel = new St.Label({
             text: '--',
             style_class: 'linux-island__metric-value',
+            x_align: Clutter.ActorAlign.END,
             y_align: Clutter.ActorAlign.CENTER,
         });
         headerRow.add_child(this._valueLabel);
@@ -83,6 +86,17 @@ export class SystemMetricTile {
         this._track.set_child(this._fill);
         this._track.connect('notify::allocation', () => this._syncFill());
         this.actor.add_child(this._track);
+    }
+
+    setWidth(w) {
+        if (!this.actor || w <= 0) return;
+        this.actor.style = `width: ${w}px; padding: 1px 0; spacing: 2px;`;
+        this.actor.width = w;
+        if (this._track) {
+            this._track.style = `width: ${w}px; height: 3px; border-radius: 2px;`;
+            this._track.width = w;
+            this._syncFill();
+        }
     }
 
     setIcon(iconName) {
@@ -116,7 +130,11 @@ export class SystemMetricTile {
         const totalW = this._track.width;
         if (totalW <= 0) return;
         const fillW = Math.max(0, Math.round((totalW * (this._percent || 0)) / 100));
-        this._fill.set_width(fillW);
+        if (typeof this._fill.set_width === 'function') {
+            this._fill.set_width(fillW);
+        } else {
+            this._fill.width = fillW;
+        }
     }
 
     destroy() {
@@ -175,7 +193,7 @@ export class SystemMetricsRow {
         if (this._cpuTile.actor) this.actor.add_child(this._cpuTile.actor);
 
         this._ramTile = new SystemMetricTile({
-            label: 'Memory',
+            label: 'RAM',
             iconName: 'drive-harddisk-symbolic',
         });
         if (this._ramTile.actor) this.actor.add_child(this._ramTile.actor);
@@ -184,11 +202,20 @@ export class SystemMetricsRow {
         const initial = this._collector.collect();
         if (initial.battery) {
             this._batTile = new SystemMetricTile({
-                label: 'Battery Device',
+                label: 'BAT',
                 iconName: initial.battery.iconName || 'battery-good-symbolic',
             });
             if (this._batTile.actor) this.actor.add_child(this._batTile.actor);
         }
+    }
+
+    setWidth(w) {
+        if (!this.actor || w <= 0) return;
+        this.actor.style = `width: ${w}px; spacing: 6px;`;
+        this.actor.width = w;
+        if (this._cpuTile) this._cpuTile.setWidth(w);
+        if (this._ramTile) this._ramTile.setWidth(w);
+        if (this._batTile) this._batTile.setWidth(w);
     }
 
     update() {
@@ -203,7 +230,7 @@ export class SystemMetricsRow {
         }
         if (metrics.battery && this._batTile) {
             this._batTile.setIcon(metrics.battery.iconName || 'battery-good-symbolic');
-            this._batTile.setLabel(metrics.battery.device || 'Battery Device');
+            this._batTile.setLabel(metrics.battery.device || 'BAT');
             this._batTile.setValue(metrics.battery.text, metrics.battery.percent);
         }
     }

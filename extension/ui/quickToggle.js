@@ -30,7 +30,7 @@ export class QuickToggle {
 
     _build() {
         this.actor = new St.Button({
-            style: 'width: 28px; height: 28px; border-radius: 14px; padding: 0;',
+            style: 'width: 26px; height: 26px; border-radius: 13px; padding: 0;',
             style_class: 'linux-island__quick-toggle',
             reactive: true,
             can_focus: true,
@@ -144,8 +144,8 @@ export class QuickTogglesRow {
     _build() {
         this.actor = new St.BoxLayout({
             vertical: true,
-            style: 'spacing: 4px;',
-            x_align: Clutter.ActorAlign.END,
+            style: 'spacing: 4px; width: 34px;',
+            x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
         });
         if (this._themeToggle.actor) this.actor.add_child(this._themeToggle.actor);

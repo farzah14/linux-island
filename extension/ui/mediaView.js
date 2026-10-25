@@ -270,19 +270,17 @@ export class MediaView {
 
         // Playback controls row: [  ⏮  ]   [   ▶   ]   [  ⏭  ]
         const controlsBox = new St.BoxLayout({
-            style: 'spacing: 8px;',
-            x_align: Clutter.ActorAlign.CENTER,
+            style: 'spacing: 4px; height: 32px;',
             y_align: Clutter.ActorAlign.CENTER,
             x_expand: true,
         });
-        this._elapsedLabel = new St.Label({text: '0:00', x_expand: true,
-            y_align: Clutter.ActorAlign.CENTER, style: 'font-size: 10px; max-width: 64px;',
-            style_class: 'linux-island__progress-time'});
-        this._durationLabel = new St.Label({text: '--:--', x_expand: true,
-            x_align: Clutter.ActorAlign.END, y_align: Clutter.ActorAlign.CENTER,
-            style: 'font-size: 10px; max-width: 64px;', style_class: 'linux-island__progress-time'});
-        this._elapsedLabel.clutter_text?.set_ellipsize(3);
-        this._durationLabel.clutter_text?.set_ellipsize(3);
+        this._elapsedLabel = new St.Label({
+            text: '0:00',
+            y_align: Clutter.ActorAlign.CENTER,
+            style: 'font-size: 10px; min-width: 36px; max-width: 44px;',
+            style_class: 'linux-island__progress-time',
+        });
+        const leftSpacer = new St.Widget({x_expand: true});
 
         this._prevBtn = new St.Button({
             style: 'width: 32px; height: 32px; padding: 0; border-radius: 12px; font-size: 15px;',
@@ -315,23 +313,45 @@ export class MediaView {
         this._nextBtn.set_child(new St.Icon({icon_name: 'media-skip-forward-symbolic', icon_size: 14}));
         this._nextBtn.connect('clicked', () => this._onControlAction('Next'));
 
+        const centerButtons = new St.BoxLayout({
+            style: 'spacing: 12px;',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        centerButtons.add_child(this._prevBtn);
+        centerButtons.add_child(this._playPauseBtn);
+        centerButtons.add_child(this._nextBtn);
+
+        const rightSpacer = new St.Widget({x_expand: true});
+
+        this._durationLabel = new St.Label({
+            text: '--:--',
+            x_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.CENTER,
+            style: 'font-size: 10px; min-width: 36px; max-width: 44px; text-align: right;',
+            style_class: 'linux-island__progress-time',
+        });
+        this._elapsedLabel.clutter_text?.set_ellipsize(3);
+        this._durationLabel.clutter_text?.set_ellipsize(3);
+
         controlsBox.add_child(this._elapsedLabel);
-        controlsBox.add_child(this._prevBtn);
-        controlsBox.add_child(this._playPauseBtn);
-        controlsBox.add_child(this._nextBtn);
+        controlsBox.add_child(leftSpacer);
+        controlsBox.add_child(centerButtons);
+        controlsBox.add_child(rightSpacer);
         controlsBox.add_child(this._durationLabel);
         this._mediaSection.add_child(controlsBox);
 
         // Section 2: Pure System & Controls section (CPU, RAM, Battery on LEFT, and Icon Quick Controls on RIGHT)
         this._systemSection = new St.BoxLayout({
             vertical: false,
-            style: 'spacing: 12px; padding: 2px 4px; height: 98px;',
+            style: 'width: 300px; height: 98px; spacing: 12px; padding: 2px 0;',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
 
         this._metricsRow = new SystemMetricsRow({scheduler: this._scheduler});
         if (this._metricsRow.actor) {
+            this._metricsRow.setWidth(254);
             this._systemSection.add_child(this._metricsRow.actor);
         }
 
@@ -401,12 +421,15 @@ export class MediaView {
         this._actor.style = `width: ${preset.width}px; padding: 8px 14px; spacing: 6px;`;
         const contentWidth = preset.width - 28;
         if (this._mediaSection) {
-            this._mediaSection.style = `width: ${contentWidth}px; spacing: 6px;`;
+            this._mediaSection.style = `width: ${contentWidth}px; height: 98px; spacing: 6px;`;
             this._mediaSection.width = contentWidth;
         }
         if (this._systemSection) {
-            this._systemSection.style = `width: ${contentWidth}px; height: 98px; spacing: 12px; padding: 2px 4px;`;
+            this._systemSection.style = `width: ${contentWidth}px; height: 98px; spacing: 12px; padding: 2px 0;`;
             this._systemSection.width = contentWidth;
+        }
+        if (this._metricsRow) {
+            this._metricsRow.setWidth(contentWidth - 46);
         }
         if (this._carousel) {
             this._carousel.setPageWidth(contentWidth);
