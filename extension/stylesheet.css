@@ -19,6 +19,8 @@
 .linux-island__metric-value { font-size: 11px; font-weight: bold; }
 .linux-island__metric-track { border-radius: 2px; }
 .linux-island__metric-fill { border-radius: 2px; }
+.linux-island__quick-toggle { border-radius: 10px; border: 1px solid transparent; }
+.linux-island__quick-toggle-label { font-size: 11px; font-weight: 600; }
 
 .linux-island--dark.linux-island__capsule {
     background-color: #191816;
@@ -109,6 +111,30 @@
     background-color: #D8B77F;
 }
 
+.linux-island--dark .linux-island__quick-toggle {
+    background-color: #302D28;
+    border-color: #575148;
+    color: #C8C0B5;
+}
+
+.linux-island--dark .linux-island__quick-toggle:hover {
+    background-color: #403B34;
+}
+
+.linux-island--dark .linux-island__quick-toggle--active {
+    background-color: #D8B77F;
+    border-color: #D8B77F;
+    color: #191816;
+}
+
+.linux-island--dark .linux-island__quick-toggle--active:hover {
+    background-color: #E9CEA0;
+}
+
+.linux-island--dark .linux-island__quick-toggle-label {
+    color: inherit;
+}
+
 .linux-island--light.linux-island__capsule {
     background-color: #FBF8F1;
     color: #292621;
@@ -196,4 +222,28 @@
 
 .linux-island--light .linux-island__metric-fill {
     background-color: #80551F;
+}
+
+.linux-island--light .linux-island__quick-toggle {
+    background-color: #EEE9DF;
+    border-color: #C7BCAE;
+    color: #5D554B;
+}
+
+.linux-island--light .linux-island__quick-toggle:hover {
+    background-color: #E5DED3;
+}
+
+.linux-island--light .linux-island__quick-toggle--active {
+    background-color: #80551F;
+    border-color: #80551F;
+    color: #FBF8F1;
+}
+
+.linux-island--light .linux-island__quick-toggle--active:hover {
+    background-color: #6B471B;
+}
+
+.linux-island--light .linux-island__quick-toggle-label {
+    color: inherit;
 }

@@ -4,6 +4,7 @@ import {loadLocalArtwork} from '../lib/localArtwork.js';
 import {BeatBars} from './beatBars.js';
 import {estimateTimeline, formatTime} from '../lib/mediaTimeline.js';
 import {SystemMetricsRow} from './systemMetricTile.js';
+import {QuickTogglesRow} from './quickToggle.js';
 
 export const CAPSULE_SIZES = Object.freeze({
     small: {width: 268, artwork: 40, button: 28, play: 36, icon: 12,
@@ -259,6 +260,11 @@ export class MediaView {
         if (this._metricsRow.actor) {
             this._actor.add_child(this._metricsRow.actor);
         }
+
+        this._quickTogglesRow = new QuickTogglesRow();
+        if (this._quickTogglesRow.actor) {
+            this._actor.add_child(this._quickTogglesRow.actor);
+        }
     }
 
     setCapsuleSize(size) {
@@ -365,6 +371,8 @@ export class MediaView {
         this._beatBars?.destroy();
         this._metricsRow?.destroy();
         this._metricsRow = null;
+        this._quickTogglesRow?.destroy();
+        this._quickTogglesRow = null;
         ++this._artGeneration;
         this._artCancellable?.cancel();
         this._artCancellable = null;
