@@ -107,7 +107,7 @@ globalThis.renderTest.MediaView = MediaView;
 globalThis.renderTest.CAPSULE_SIZES = CAPSULE_SIZES;
 let capsuleSource = await readFile(new URL('../../extension/ui/capsule.js', import.meta.url), 'utf8');
 capsuleSource = capsuleSource.replace(/^import .*;$/gm, '');
-const {Capsule} = await load(`const {St, Clutter, Gio, Main, MediaView, CAPSULE_SIZES, GrabHelper, BeatBars} = globalThis.renderTest;\n${capsuleSource}`);
+const {Capsule} = await load(`const {St, Clutter, Gio, Main, MediaView, CAPSULE_SIZES, GrabHelper, BeatBars, loadLocalArtwork} = globalThis.renderTest;\n${capsuleSource}`);
 
 const capsule = new Capsule();
 assert.equal(typeof capsule.setTheme, 'function', 'renderer needs live theme switching');
@@ -160,10 +160,8 @@ assert.ok(capsule._beatBars, 'compact title needs beat bars');
 assert.match(capsule._mediaView.actor.style, /width: 328px/, 'wide card content width');
 assert.ok(capsule._mediaView._carousel, 'media card has slideable features carousel');
 assert.equal(capsule._mediaView._carousel.pageCount, 2, 'music and system & controls pages');
-assert.equal(capsule._mediaView._mediaSection.children.length, 5, 'track, progress, time labels, controls, and volume rows in media section');
-assert.ok(capsule._mediaView._volTrack, 'volume track exists in media section');
-capsule.setMedia({playerId: 'test', title: 'Test volume', playbackStatus: 'Playing', volume: 0.65});
-assert.equal(capsule._mediaView._volume, 0.65, 'media volume reaches volume slider');
+assert.equal(capsule._mediaView._mediaSection.children.length, 3, 'track, duration progress line, and controls rows in media section');
+assert.ok(capsule._mediaView._mediaSection.children.includes(capsule._mediaView._progressTrack), 'duration line is restored in media section');
 assert.equal(capsule._mediaView._systemSection.children.length, 2, 'metrics and quick toggles in system section');
 assert.equal(capsule._mediaView._systemSection.vertical, false, 'system section is horizontal: left metrics, right toggles');
 assert.equal(capsule._mediaView._systemSection.children[0], capsule._mediaView._metricsRow.actor, 'metrics on the left');
@@ -404,4 +402,210 @@ assert.equal(pendingArtwork[3].cancellable.cancelled, true);
 pendingArtwork[3].resolve({name: 'E'});
 await Promise.resolve();
 assert.equal(settings.listeners.size, 0, 'all beat settings listeners removed on destroy');
+
+// Idle 10s Circle Island & Media Thumbnail tests
+const {Clutter} = globalThis.renderTest;
+class MockScheduler {
+    constructor() {
+        this.timers = new Map();
+        this.nextId = 0;
+    }
+    setTimeout(fn, ms) {
+        const id = ++this.nextId;
+        this.timers.set(id, {fn, ms});
+        return id;
+    }
+    clearTimeout(id) {
+        this.timers.delete(id);
+    }
+    advance(ms) {
+        for (const [id, timer] of Array.from(this.timers.entries())) {
+            timer.ms -= ms;
+            if (timer.ms <= 0) {
+                this.timers.delete(id);
+                timer.fn();
+            }
+        }
+    }
+    get count() {
+        return this.timers.size;
+    }
+}
+
+const idleScheduler = new MockScheduler();
+const interactionEvents = [];
+const circleArtworkRequests = [];
+const circleCapsule = new Capsule({
+    scheduler: idleScheduler,
+    artworkLoader: (uri, cancellable) =>
+        new Promise(resolve => circleArtworkRequests.push({uri, cancellable, resolve})),
+    onInteractionEvent: event => {
+        interactionEvents.push(event);
+        if (event === 'HOVER_ENTER') circleCapsule.applyState('PREVIEW');
+        else if (event === 'HOVER_LEAVE') circleCapsule.applyState('COMPACT');
+        else if (event === 'CLICK') circleCapsule.applyState('EXPANDED');
+        else if (event === 'DISMISS') circleCapsule.applyState('COMPACT');
+    },
+    idleTimeoutMs: 10000,
+});
+
+// 1. Initial COMPACT starts as rectangle pill; after 10s idle without media transitions to circle
+assert.equal(circleCapsule._currentState, 'COMPACT');
+assert.equal(circleCapsule._isIdleCircle, false, 'initially pill is rectangle');
+assert.equal(circleCapsule._widget.classes.has('linux-island__capsule--circle'), false);
+assert.equal(circleCapsule._label.visible, true);
+assert.equal(circleCapsule._icon.visible, true);
+assert.equal(circleCapsule._icon.text, '🏝️');
+assert.equal(circleCapsule._circleArtBox.visible, false);
+assert.equal(idleScheduler.count, 1, 'initial 10s idle timer scheduled');
+
+idleScheduler.advance(9999);
+assert.equal(circleCapsule._isIdleCircle, false, 'stays rectangle at 9999ms');
+idleScheduler.advance(1);
+assert.equal(circleCapsule._isIdleCircle, true, 'transitions to circle after 10s idle');
+assert.equal(circleCapsule._widget.classes.has('linux-island__capsule--circle'), true, 'has circle CSS class');
+assert.match(circleCapsule._widget.style, /width: 36px/, 'circle widget width is 36px');
+assert.match(circleCapsule._widget.style, /height: 36px/, 'circle widget height is 36px');
+assert.equal(circleCapsule._label.visible, false, 'label hidden in circle mode');
+assert.equal(circleCapsule._beatBars.actor.visible, false, 'beat bars hidden in circle mode');
+assert.equal(circleCapsule._icon.visible, true, 'island icon visible');
+assert.equal(circleCapsule._icon.text, '🏝️', 'island icon text is palm island');
+assert.equal(circleCapsule._circleArtBox.visible, false, 'circle artwork box hidden when not playing');
+assert.equal(circleCapsule._widget.position[0], 665, 'centered horizontally on screen for 36px circle');
+
+// 3. Hovering the circle wakes it from circle mode and triggers PREVIEW
+interactionEvents.length = 0;
+circleCapsule._widget.hover = true;
+circleCapsule._widget.handlers['notify::hover']();
+assert.equal(circleCapsule._isIdleCircle, false, 'hover exits circle mode immediately');
+assert.equal(circleCapsule._widget.classes.has('linux-island__capsule--circle'), false);
+assert.equal(circleCapsule._label.visible, true);
+assert.deepEqual(interactionEvents, ['HOVER_ENTER']);
+assert.equal(circleCapsule._currentState, 'PREVIEW');
+
+// 4. Pointer leaving preview returns to COMPACT and restarts 10s timer
+interactionEvents.length = 0;
+circleCapsule._widget.hover = false;
+circleCapsule._widget.handlers['notify::hover']();
+assert.deepEqual(interactionEvents, ['HOVER_LEAVE']);
+assert.equal(circleCapsule._currentState, 'COMPACT');
+assert.equal(circleCapsule._isIdleCircle, false);
+assert.equal(idleScheduler.count, 1, 'idle timer rescheduled after leaving PREVIEW');
+
+// 5. Clicking the circle wakes it from circle mode and triggers EXPANDED
+idleScheduler.advance(10000);
+assert.equal(circleCapsule._isIdleCircle, true, 're-entered circle mode after 10s');
+interactionEvents.length = 0;
+circleCapsule._compactRow.handlers['button-press-event']();
+assert.equal(circleCapsule._isIdleCircle, false, 'clicking exits circle mode');
+assert.equal(circleCapsule._widget.classes.has('linux-island__capsule--circle'), false);
+assert.deepEqual(interactionEvents, ['CLICK']);
+assert.equal(circleCapsule._currentState, 'EXPANDED');
+assert.equal(idleScheduler.count, 0, 'idle timer stopped while EXPANDED');
+// Clicking the expanded island toggles it back to COMPACT
+interactionEvents.length = 0;
+circleCapsule._widget.handlers['button-press-event'](circleCapsule._widget, {get_source: () => circleCapsule._widget});
+assert.deepEqual(interactionEvents, ['DISMISS']);
+assert.equal(circleCapsule._currentState, 'COMPACT');
+assert.equal(idleScheduler.count, 1, 'idle timer restarted after click dismissal');
+
+// Re-expand to test keyboard Escape dismissal
+circleCapsule._compactRow.handlers['button-press-event']();
+assert.equal(circleCapsule._currentState, 'EXPANDED');
+
+// 6. Escape / dismissal of EXPANDED returns to COMPACT and restarts 10s timer
+circleCapsule._widget.handlers['key-press-event'](circleCapsule._widget, {get_key_symbol: () => Clutter.KEY_Escape});
+assert.equal(circleCapsule._currentState, 'COMPACT');
+assert.equal(circleCapsule._isIdleCircle, false);
+assert.equal(idleScheduler.count, 1, 'idle timer restarted after dismissal of EXPANDED');
+
+// 2. When media with playbackStatus: 'Playing' is active, after 10s idle transitions to circle displaying music thumbnail artwork
+circleCapsule.setMedia({
+    playerId: 'spotify',
+    title: 'Midnight City',
+    playbackStatus: 'Playing',
+    albumArtUri: 'file:///home/user/art.png',
+});
+assert.equal(circleCapsule._isIdleCircle, false);
+assert.equal(circleCapsule._icon.text, '🎵');
+idleScheduler.advance(10000);
+assert.equal(circleCapsule._isIdleCircle, true, 'entered circle mode with active music');
+assert.equal(circleCapsule._icon.visible, false, 'island icon hidden when playing');
+assert.equal(circleCapsule._circleArtBox.visible, true, 'circle artwork thumbnail box visible');
+assert.equal(circleArtworkRequests.length, 1);
+assert.equal(circleArtworkRequests[0].uri, 'file:///home/user/art.png');
+const mockGIcon = {name: 'album-art-gicon'};
+circleArtworkRequests[0].resolve(mockGIcon);
+await Promise.resolve();
+assert.equal(circleCapsule._circleArtIcon.gicon, mockGIcon, 'circle thumbnail icon receives loaded artwork');
+
+// 7. Continuous audioLevels updates do not reset the idle timer or knock capsule out of circle mode
+circleCapsule.setMedia({
+    playerId: 'spotify',
+    title: 'Midnight City',
+    playbackStatus: 'Playing',
+    albumArtUri: 'file:///home/user/art.png',
+    audioLevels: [0.3, 0.6, 0.9],
+});
+assert.equal(circleCapsule._isIdleCircle, true, 'continuous audio levels keep capsule in circle mode');
+assert.equal(circleCapsule._circleArtBox.visible, true);
+assert.equal(circleCapsule._beatBars.actor.visible, false, 'beat bars remain hidden in circle mode');
+
+// Verify audio levels do not reset the idle timer before entering circle mode
+circleCapsule._widget.hover = true;
+circleCapsule._widget.handlers['notify::hover']();
+circleCapsule._widget.hover = false;
+circleCapsule._widget.handlers['notify::hover']();
+assert.equal(circleCapsule._isIdleCircle, false, 'woken up to rectangle');
+idleScheduler.advance(5000);
+circleCapsule.setMedia({
+    playerId: 'spotify',
+    title: 'Midnight City',
+    playbackStatus: 'Playing',
+    albumArtUri: 'file:///home/user/art.png',
+    audioLevels: [0.4, 0.7, 0.2],
+});
+assert.equal(circleCapsule._isIdleCircle, false, 'halfway through idle timer');
+idleScheduler.advance(5000);
+assert.equal(circleCapsule._isIdleCircle, true, 'audio levels did not delay 10s circle transition');
+
+// 8. Pausing music while in circle mode updates the circle to display '🏝️'
+circleCapsule.setMedia({
+    playerId: 'spotify',
+    title: 'Midnight City',
+    playbackStatus: 'Paused',
+    albumArtUri: 'file:///home/user/art.png',
+});
+assert.equal(circleCapsule._isIdleCircle, true, 'pausing music keeps capsule in circle mode');
+assert.equal(circleCapsule._circleArtBox.visible, false, 'thumbnail hidden when paused');
+assert.equal(circleCapsule._icon.visible, true, 'island icon visible when paused');
+assert.equal(circleCapsule._icon.text, '🏝️', 'island icon displays palm tree');
+
+// Resuming music restores thumbnail
+circleCapsule.setMedia({
+    playerId: 'spotify',
+    title: 'Midnight City',
+    playbackStatus: 'Playing',
+    albumArtUri: 'file:///home/user/art.png',
+});
+assert.equal(circleCapsule._isIdleCircle, true);
+assert.equal(circleCapsule._circleArtBox.visible, true, 'thumbnail restored on resume');
+assert.equal(circleCapsule._icon.visible, false);
+
+// 9. Destroy clears pending timers and cancels pending artwork loaders
+circleCapsule.setMedia({
+    playerId: 'spotify',
+    title: 'New Track',
+    playbackStatus: 'Playing',
+    albumArtUri: 'file:///home/user/art2.png',
+});
+assert.equal(circleArtworkRequests.length, 2);
+const pendingCancellable = circleArtworkRequests[1].cancellable;
+assert.equal(pendingCancellable.cancelled, undefined);
+assert.ok(idleScheduler.count >= 0);
+circleCapsule.destroy();
+assert.equal(idleScheduler.count, 0, 'destroy clears pending idle timer');
+assert.equal(pendingCancellable.cancelled, true, 'destroy cancels pending artwork loader');
+assert.equal(circleCapsule._circleArtIcon, null);
+assert.equal(circleCapsule._circleArtBox, null);
 console.log('PASS: media rendering, offline recovery, interrupted transitions, reduced motion, fullscreen and cleanup');

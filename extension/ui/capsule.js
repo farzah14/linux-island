@@ -6,18 +6,40 @@ import Gio from 'gi://Gio';
 import * as GrabHelper from 'resource:///org/gnome/shell/ui/grabHelper.js';
 import {MediaView, CAPSULE_SIZES} from './mediaView.js';
 import {BeatBars} from './beatBars.js';
+import {loadLocalArtwork} from '../lib/localArtwork.js';
 
 export class Capsule {
-    constructor({onControlAction, onInteractionEvent, onMediaOpen, onUpdateSettings, onSetActivePlayer} = {}) {
+    constructor({
+        onControlAction,
+        onInteractionEvent,
+        onMediaOpen,
+        onUpdateSettings,
+        onSetActivePlayer,
+        scheduler,
+        artworkLoader,
+        idleTimeoutMs = 10000,
+    } = {}) {
         this._onControlAction = onControlAction ?? (() => {});
         this._onInteractionEvent = onInteractionEvent ?? (() => {});
         this._onMediaOpen = onMediaOpen ?? (() => {});
         this._onUpdateSettings = onUpdateSettings ?? (() => {});
         this._onSetActivePlayer = onSetActivePlayer ?? (() => {});
+        this._scheduler = scheduler ?? {
+            setTimeout: (fn, ms) => setTimeout(fn, ms),
+            clearTimeout: id => clearTimeout(id),
+        };
+        this._loadArtwork = artworkLoader ?? (typeof loadLocalArtwork !== 'undefined' ? loadLocalArtwork : async () => null);
+        this._idleTimeoutMs = idleTimeoutMs;
+        this._idleTimer = null;
+        this._isIdleCircle = false;
+        this._circleArtKey = null;
+        this._circleArtCancellable = null;
+        this._circleArtGeneration = 0;
         this._currentState = 'COMPACT';
         this._animationEnabled = true;
         this._connected = true;
         this._hoverPreviewEnabled = true;
+        this._lastMedia = null;
 
         // Root floating island widget
         this._widget = new St.BoxLayout({
@@ -40,6 +62,8 @@ export class Capsule {
             style: 'spacing: 8px;',
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.CENTER,
+            y_expand: true,
+            x_expand: true,
             reactive: true,
         });
 
@@ -47,7 +71,25 @@ export class Capsule {
             text: '🏝️',
             style: 'font-size: 13px;',
             y_align: Clutter.ActorAlign.CENTER,
+            x_align: Clutter.ActorAlign.CENTER,
         });
+
+        this._circleArtBox = new St.BoxLayout({
+            style: 'width: 32px; height: 32px; border-radius: 999px;',
+            style_class: 'linux-island__artwork linux-island__circle-thumbnail',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            reactive: false,
+        });
+        this._circleArtIcon = new St.Icon({
+            icon_name: 'audio-x-generic-symbolic',
+            fallback_icon_name: 'audio-x-generic-symbolic',
+            icon_size: 28,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._circleArtBox.add_child(this._circleArtIcon);
+        this._circleArtBox.visible = false;
 
         this._label = new St.Label({
             text: 'Island',
@@ -56,6 +98,7 @@ export class Capsule {
         });
 
         this._compactRow.add_child(this._icon);
+        this._compactRow.add_child(this._circleArtBox);
         this._compactRow.add_child(this._label);
         this._beatBars = new BeatBars();
         this._compactRow.add_child(this._beatBars.actor);
@@ -76,17 +119,46 @@ export class Capsule {
 
         // Hover handling
         this._widget.connect('notify::hover', () => {
-            if (!this._hoverPreviewEnabled || this._currentState === 'EXPANDED') return;
             const isHovered = this._widget.hover;
-            this._onInteractionEvent(isHovered ? 'HOVER_ENTER' : 'HOVER_LEAVE');
+            if (isHovered) {
+                this._clearIdleTimer();
+                if (this._isIdleCircle)
+                    this._exitIdleCircle();
+                if (this._hoverPreviewEnabled && this._currentState !== 'EXPANDED')
+                    this._onInteractionEvent('HOVER_ENTER');
+            } else {
+                if (this._currentState === 'COMPACT')
+                    this._scheduleIdleTimer();
+                if (this._hoverPreviewEnabled && this._currentState !== 'EXPANDED')
+                    this._onInteractionEvent('HOVER_LEAVE');
+            }
         });
 
-        // Click on compact pill expands it
-        this._compactRow.connect('button-press-event', () => {
-            if (this._currentState !== 'EXPANDED') {
+        // Click on compact/circle expands it; click on expanded collapses it
+        const handleClick = () => {
+            this._clearIdleTimer();
+            if (this._isIdleCircle)
+                this._exitIdleCircle();
+            if (this._currentState === 'EXPANDED') {
+                this._onInteractionEvent('DISMISS');
+            } else {
                 this._onInteractionEvent('CLICK');
             }
             return Clutter.EVENT_STOP;
+        };
+        this._compactRow.connect('button-press-event', handleClick);
+        this._widget.connect('button-press-event', (_actor, event) => {
+            if (this._currentState === 'COMPACT' || this._currentState === 'PREVIEW') {
+                return handleClick();
+            }
+            if (this._currentState === 'EXPANDED') {
+                const source = event?.get_source?.();
+                if (source && source !== this._widget) {
+                    return Clutter.EVENT_PROPAGATE;
+                }
+                return handleClick();
+            }
+            return Clutter.EVENT_PROPAGATE;
         });
 
         // Keyboard Escape key dismiss
@@ -99,12 +171,131 @@ export class Capsule {
         });
 
         this._widget.connect('notify::allocation', () => this._relayout());
+        this._scheduleIdleTimer();
+    }
+
+    _scheduleIdleTimer() {
+        this._clearIdleTimer();
+        if (this._currentState !== 'COMPACT' || this._idleTimeoutMs <= 0)
+            return;
+        this._idleTimer = this._scheduler.setTimeout(() => {
+            this._idleTimer = null;
+            this._enterIdleCircle();
+        }, this._idleTimeoutMs);
+    }
+
+    _clearIdleTimer() {
+        if (this._idleTimer !== null) {
+            this._scheduler.clearTimeout(this._idleTimer);
+            this._idleTimer = null;
+        }
+    }
+
+    _enterIdleCircle() {
+        if (this._currentState !== 'COMPACT' || this._isIdleCircle)
+            return;
+        this._isIdleCircle = true;
+        this._widget?.add_style_class_name('linux-island__capsule--circle');
+        if (this._label) this._label.visible = false;
+        if (this._beatBars?.actor) this._beatBars.actor.visible = false;
+
+        const isPlaying = this._lastMedia?.playbackStatus === 'Playing' && this._connected;
+        if (isPlaying) {
+            if (this._icon) this._icon.visible = false;
+            if (this._circleArtBox) this._circleArtBox.visible = true;
+            this._updateCircleArtwork(this._lastMedia);
+        } else {
+            if (this._circleArtBox) this._circleArtBox.visible = false;
+            if (this._icon) {
+                this._icon.visible = true;
+                this._icon.text = '🏝️';
+            }
+        }
+
+        this._applySize();
+        this._relayout();
+
+        if (this._animationEnabled && St.Settings.get().enable_animations && this._widget) {
+            this._widget.scale_x = 0.92;
+            this._widget.scale_y = 0.92;
+            this._widget.ease({
+                scale_x: 1,
+                scale_y: 1,
+                duration: 220,
+                mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+            });
+        }
+    }
+
+    _exitIdleCircle() {
+        if (!this._isIdleCircle)
+            return;
+        this._isIdleCircle = false;
+        this._widget?.remove_style_class_name('linux-island__capsule--circle');
+        if (this._circleArtBox) this._circleArtBox.visible = false;
+        if (this._label) this._label.visible = true;
+        if (this._icon) this._icon.visible = true;
+        if (this._beatBars?.actor) {
+            this._beatBars.actor.visible = Boolean(this._lastMedia?.playbackStatus === 'Playing' && this._connected);
+        }
+        if (this._icon) {
+            const isPlaying = Boolean(this._lastMedia?.playbackStatus === 'Playing' && this._connected);
+            this._icon.text = isPlaying ? '🎵' : '🏝️';
+        }
+
+        this._applySize();
+        this._relayout();
+
+        if (this._animationEnabled && St.Settings.get().enable_animations && this._widget) {
+            this._widget.scale_x = 0.96;
+            this._widget.scale_y = 0.96;
+            this._widget.ease({
+                scale_x: 1,
+                scale_y: 1,
+                duration: 220,
+                mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+            });
+        }
+    }
+
+    _updateCircleArtwork(media) {
+        const uri = media?.albumArtUri ?? '';
+        const key = JSON.stringify([media?.playerId, media?.title, uri]);
+        if (key === this._circleArtKey || !this._circleArtIcon) return;
+        this._circleArtKey = key;
+        const generation = ++this._circleArtGeneration;
+        this._circleArtCancellable?.cancel();
+        this._circleArtCancellable = null;
+        this._circleArtIcon.gicon = null;
+        this._circleArtIcon.icon_name = 'audio-x-generic-symbolic';
+        if (this._circleArtBox) {
+            this._circleArtBox.style = 'width: 32px; height: 32px; border-radius: 999px;';
+        }
+        if (!uri || !Gio) return;
+        this._circleArtCancellable = new Gio.Cancellable();
+        this._loadArtwork(uri, this._circleArtCancellable).then(icon => {
+            if (generation === this._circleArtGeneration && this._circleArtIcon && icon) {
+                this._circleArtIcon.icon_name = null;
+                this._circleArtIcon.gicon = icon;
+                this._circleArtIcon.visible = true;
+                if (this._circleArtBox) {
+                    this._circleArtBox.visible = true;
+                }
+            }
+        }).catch(() => {});
     }
 
     _relayout() {
         const monitor = Main.layoutManager.primaryMonitor;
         if (!monitor || !this._widget)
             return;
+
+        if (this._isIdleCircle && this._currentState === 'COMPACT') {
+            const x = Math.round(monitor.x + (monitor.width - 36) / 2);
+            const y = monitor.y + 8;
+            this._widget.set_position(x, y);
+            return;
+        }
 
         let width = this._widget.width;
         if (width <= 0) {
@@ -140,6 +331,16 @@ export class Capsule {
         this._currentState = state;
         if (!this._widget)
             return;
+
+        if (state === 'COMPACT') {
+            if (previousState !== 'COMPACT') {
+                this._exitIdleCircle();
+                this._scheduleIdleTimer();
+            }
+        } else {
+            this._clearIdleTimer();
+            this._exitIdleCircle();
+        }
 
         if (state !== 'EXPANDED')
             this._grabHelper.ungrab();
@@ -235,14 +436,28 @@ export class Capsule {
         this._sizePreset = CAPSULE_SIZES[size];
         this._mediaView.setCapsuleSize(size);
         this._applySize();
-        this.setMedia(this._lastMedia);
+        this.setMedia(this._lastMedia, true);
     }
 
     _applySize() {
+        if (!this._widget) return;
+        if (this._isIdleCircle && this._currentState === 'COMPACT') {
+            this._widget.style = 'width: 36px; height: 36px; min-width: 36px; min-height: 36px; max-width: 36px; max-height: 36px; padding: 0;';
+            if (this._compactRow) {
+                this._compactRow.style = 'spacing: 0; width: 36px; height: 36px;';
+            }
+            if (this._icon) {
+                this._icon.style = 'font-size: 18px; text-align: center; margin: 0; padding: 0;';
+            }
+            return;
+        }
         const compact = this._currentState === 'COMPACT' || this._currentState === 'PREVIEW';
         this._widget.style = compact ? `padding: ${this._sizePreset.padding};` : '';
-        this._label.style = `font-size: ${this._sizePreset.compactFont}px;`;
-        this._icon.style = `font-size: ${this._sizePreset.compactFont}px;`;
+        if (this._compactRow) {
+            this._compactRow.style = 'spacing: 8px;';
+        }
+        if (this._label) this._label.style = `font-size: ${this._sizePreset.compactFont}px;`;
+        if (this._icon) this._icon.style = `font-size: ${this._sizePreset.compactFont}px; text-align: center;`;
     }
 
     setTheme(theme) {
@@ -296,14 +511,29 @@ export class Capsule {
             this._beatBars.setPlayback(false, false);
             this._label.text = 'Core offline';
             this._icon.text = '🏝️';
+            if (this._isIdleCircle) {
+                if (this._circleArtBox) this._circleArtBox.visible = false;
+                if (this._icon) {
+                    this._icon.visible = true;
+                    this._icon.text = '🏝️';
+                }
+            }
         }
     }
 
-    setMedia(media) {
+    setMedia(media, force = false) {
         if (!this._connected)
             media = null;
+        const trackChanged = force || (media?.playerId !== this._lastMedia?.playerId ||
+            media?.title !== this._lastMedia?.title ||
+            media?.artist !== this._lastMedia?.artist ||
+            media?.albumArtUri !== this._lastMedia?.albumArtUri ||
+            media?.playbackStatus !== this._lastMedia?.playbackStatus);
         this._lastMedia = media;
         this._beatBars.setPlayback(media?.playbackStatus === 'Playing', Boolean(media?.playerId), media?.audioLevels);
+        if (this._isIdleCircle && this._beatBars?.actor) {
+            this._beatBars.actor.visible = false;
+        }
         if (this._label) {
             if (media && media.title && media.title.trim().length > 0) {
                 const title = media.title.trim();
@@ -312,21 +542,45 @@ export class Capsule {
                 const characters = Array.from(fullText);
                 const limit = this._sizePreset.limit;
                 this._label.text = characters.length > limit ? characters.slice(0, limit - 1).join('') + '…' : fullText;
-                if (this._icon) {
-                    this._icon.text = (media.playbackStatus === 'Playing') ? '🎵' : '⏸️';
+                if (this._icon && !this._isIdleCircle) {
+                    this._icon.text = (media.playbackStatus === 'Playing') ? '🎵' : '🏝️';
                 }
             } else {
                 this._label.text = this._connected ? 'Island' : 'Core offline';
-                if (this._icon) {
+                if (this._icon && !this._isIdleCircle) {
                     this._icon.text = '🏝️';
                 }
             }
         }
+
+        if (this._isIdleCircle) {
+            if (media?.playbackStatus === 'Playing') {
+                if (this._icon) this._icon.visible = false;
+                if (this._circleArtBox) this._circleArtBox.visible = true;
+                this._updateCircleArtwork(media);
+            } else {
+                if (this._circleArtBox) this._circleArtBox.visible = false;
+                if (this._icon) {
+                    this._icon.visible = true;
+                    this._icon.text = '🏝️';
+                }
+            }
+        } else if (this._currentState === 'COMPACT' && trackChanged) {
+            this._scheduleIdleTimer();
+        }
+
         this._mediaView?.setMedia(media);
-        this._relayout();
+        if (trackChanged || this._isIdleCircle) {
+            this._relayout();
+        }
     }
 
     destroy() {
+        this._clearIdleTimer();
+        this._circleArtCancellable?.cancel();
+        this._circleArtCancellable = null;
+        this._circleArtIcon = null;
+        this._circleArtBox = null;
         this._systemSettings.disconnect(this._themeSettingsId);
         this._grabHelper.ungrab();
         this._beatBars.destroy();

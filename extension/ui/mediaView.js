@@ -465,8 +465,8 @@ export class MediaView {
         const trackChanged = (media?.playerId !== prevMedia?.playerId ||
             media?.title !== prevMedia?.title ||
             media?.artist !== prevMedia?.artist ||
+            media?.albumArtUri !== prevMedia?.albumArtUri ||
             media?.playbackStatus !== prevMedia?.playbackStatus);
-
         if (trackChanged || !prevMedia) {
             this._renderProgress();
             this._syncProgressTimer();
@@ -536,8 +536,11 @@ export class MediaView {
         if (!uri || !Gio) return;
         this._artCancellable = new Gio.Cancellable();
         this._loadArtwork(uri, this._artCancellable).then(icon => {
-            if (generation === this._artGeneration && this._artIcon && icon)
+            if (generation === this._artGeneration && this._artIcon && icon) {
+                this._artIcon.icon_name = null;
                 this._artIcon.gicon = icon;
+                this._artIcon.visible = true;
+            }
         }).catch(() => {});
     }
 

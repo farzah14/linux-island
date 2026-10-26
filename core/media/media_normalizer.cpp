@@ -39,6 +39,9 @@ static QString sanitizeArtUrl(const QVariant &var) {
     if (uri.startsWith(QStringLiteral("file://"))) {
         return uri;
     }
+    if (uri.startsWith(QLatin1Char('/'))) {
+        return QStringLiteral("file://") + uri;
+    }
     return QString();
 }
 
