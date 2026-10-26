@@ -456,46 +456,60 @@ export class MediaView {
     }
 
     setMedia(media) {
+        if (!this._actor) return;
+        const prevMedia = this._progressMedia;
         this._progressMedia = this._connected ? media : null;
-        this._renderProgress();
-        this._syncProgressTimer();
-        this._setArtwork(this._connected && media?.playerId ? media : null);
         const pres = formatMediaPresentation(this._connected ? media : null);
         this._beatBars?.setPlayback(pres.isPlaying, pres.hasPlayer, media?.audioLevels);
-        if (this._titleLabel) {
-            this._titleLabel.text = this._connected ? pres.title : 'Core offline';
-        }
-        if (this._artistLabel) {
-            this._artistLabel.text = pres.artist;
-            this._artistLabel.visible = pres.hasPlayer;
-        }
-        if (this._playPauseBtn) {
-            this._playIcon.icon_name = pres.isPlaying ? 'media-playback-pause-symbolic' : 'media-playback-start-symbolic';
-            this._playPauseBtn.accessible_name = pres.isPlaying ? 'Pause' : 'Play';
-            this._playPauseBtn.reactive = pres.canPlayPause;
-            this._playPauseBtn.can_focus = pres.canPlayPause;
-            this._playPauseBtn.opacity = pres.canPlayPause ? 255 : 102;
-        }
-        if (this._nextBtn) {
-            this._nextBtn.reactive = pres.canNext;
-            this._nextBtn.can_focus = pres.canNext;
-            this._nextBtn.opacity = pres.canNext ? 255 : 102;
-        }
-        if (this._prevBtn) {
-            this._prevBtn.reactive = pres.canPrevious;
-            this._prevBtn.can_focus = pres.canPrevious;
-            this._prevBtn.opacity = pres.canPrevious ? 255 : 102;
+
+        const trackChanged = (media?.playerId !== prevMedia?.playerId ||
+            media?.title !== prevMedia?.title ||
+            media?.artist !== prevMedia?.artist ||
+            media?.playbackStatus !== prevMedia?.playbackStatus);
+
+        if (trackChanged || !prevMedia) {
+            this._renderProgress();
+            this._syncProgressTimer();
+            this._setArtwork(this._connected && media?.playerId ? media : null);
+            if (this._titleLabel) {
+                this._titleLabel.text = this._connected ? pres.title : 'Core offline';
+            }
+            if (this._artistLabel) {
+                this._artistLabel.text = pres.artist;
+                this._artistLabel.visible = pres.hasPlayer;
+            }
+            if (this._playPauseBtn) {
+                this._playIcon.icon_name = pres.isPlaying ? 'media-playback-pause-symbolic' : 'media-playback-start-symbolic';
+                this._playPauseBtn.accessible_name = pres.isPlaying ? 'Pause' : 'Play';
+                this._playPauseBtn.reactive = pres.canPlayPause;
+                this._playPauseBtn.can_focus = pres.canPlayPause;
+                this._playPauseBtn.opacity = pres.canPlayPause ? 255 : 102;
+            }
+            if (this._nextBtn) {
+                this._nextBtn.reactive = pres.canNext;
+                this._nextBtn.can_focus = pres.canNext;
+                this._nextBtn.opacity = pres.canNext ? 255 : 102;
+            }
+            if (this._prevBtn) {
+                this._prevBtn.reactive = pres.canPrevious;
+                this._prevBtn.can_focus = pres.canPrevious;
+                this._prevBtn.opacity = pres.canPrevious ? 255 : 102;
+            }
         }
     }
 
     _renderProgress() {
-        if (!this._actor || !this._progressTrack) return;
-        const timeline = estimateTimeline(this._progressMedia, this._clock());
-        this._elapsedLabel.text = formatTime(timeline.positionUs);
-        this._durationLabel.text = timeline.durationUs > 0 ? formatTime(timeline.durationUs) : '--:--';
-        this._progressTrack.visible = timeline.durationUs > 0;
-        this._progressFill.visible = timeline.progress > 0;
-        this._progressFill.width = Math.round(Math.max(0, Number(this._progressTrack.width) || 0) * timeline.progress);
+        if (!this._actor || !this._progressTrack || !this._elapsedLabel || !this._durationLabel) return;
+        try {
+            const timeline = estimateTimeline(this._progressMedia, this._clock());
+            if (this._elapsedLabel)
+                this._elapsedLabel.text = formatTime(timeline.positionUs);
+            if (this._durationLabel)
+                this._durationLabel.text = timeline.durationUs > 0 ? formatTime(timeline.durationUs) : '--:--';
+            this._progressTrack.visible = timeline.durationUs > 0;
+            this._progressFill.visible = timeline.progress > 0;
+            this._progressFill.width = Math.round(Math.max(0, Number(this._progressTrack.width) || 0) * timeline.progress);
+        } catch (_) {}
     }
 
     _syncProgressTimer() {
@@ -549,6 +563,10 @@ export class MediaView {
             } catch (_) {}
             this._actor = null;
         }
+        this._elapsedLabel = null;
+        this._durationLabel = null;
+        this._progressTrack = null;
+        this._progressFill = null;
         this._titleLabel = null;
         this._artistLabel = null;
         this._playPauseBtn = null;

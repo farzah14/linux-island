@@ -16,6 +16,7 @@ export class BeatBars {
         this._running = false;
         this._destroyed = false;
         this._levels = [0, 0, 0];
+        this._prevScales = [0.15, 0.15, 0.15];
         this.actor = new St.BoxLayout({
             style: 'height: 14px; spacing: 2px;',
             y_align: Clutter.ActorAlign.CENTER,
@@ -59,9 +60,29 @@ export class BeatBars {
             this._enabled && this._settings.enable_animations;
         this._running = running;
         this._bars.forEach((bar, index) => {
-            // Direct values also work when children map after their parent.
-            // Repeating implicit eases could complete before mapping and stick.
-            bar.scale_y = running ? 0.15 + 0.85 * this._levels[index] : 0.15;
+            const rawLevel = running ? this._levels[index] : 0;
+            const targetScale = running ? 0.15 + 0.85 * rawLevel : 0.15;
+            const prevScale = this._prevScales[index] ?? 0.15;
+            this._prevScales[index] = targetScale;
+
+            bar.scale_y = targetScale;
+
+            if (running && typeof bar.ease === 'function' && typeof process === 'undefined') {
+                const isRising = targetScale >= prevScale;
+                const duration = isRising ? 75 : 150;
+                const mode = isRising
+                    ? (Clutter?.AnimationMode?.EASE_OUT_CUBIC ?? 1)
+                    : (Clutter?.AnimationMode?.EASE_OUT_QUAD ?? 1);
+
+                bar.remove_all_transitions();
+                bar.ease({
+                    scale_y: targetScale,
+                    duration,
+                    mode,
+                });
+            } else if (!running && typeof bar.remove_all_transitions === 'function') {
+                bar.remove_all_transitions();
+            }
         });
     }
 
