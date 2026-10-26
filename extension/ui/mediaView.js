@@ -103,9 +103,6 @@ export class MediaView {
         this._availablePlayers = [];
         this._playerSwitcherBtn = null;
         this._playerSwitcherLabel = null;
-        this._volume = 1.0;
-        this._volTrack = null;
-        this._volFill = null;
         this._titleLabel = null;
         this._artistLabel = null;
         this._playPauseBtn = null;
@@ -132,7 +129,6 @@ export class MediaView {
             this._actor.connect('notify::mapped', () => {
                 this._renderProgress();
                 this._syncProgressTimer();
-                this._syncSystemVolume();
             });
             this.setMedia(null);
         }
@@ -152,7 +148,7 @@ export class MediaView {
         // Section 1: Pure Media Player section
         this._mediaSection = new St.BoxLayout({
             vertical: true,
-            style: 'width: 300px; height: 114px; spacing: 8px;',
+            style: 'width: 300px; height: 98px; spacing: 4px;',
             x_expand: true,
         });
 
@@ -270,40 +266,21 @@ export class MediaView {
             }
             return Clutter.EVENT_PROPAGATE;
         });
-        // Duration line removed per user request: track, controls, and volume only
-        // Time labels row: [0:00] ----------------------------- [2:33]
-        const timeRow = new St.BoxLayout({
-            style: 'height: 12px; margin-top: 1px;',
+        this._mediaSection.add_child(this._progressTrack);
+
+        // Playback controls row: [ 0:19 ]   [  ⏮  ]   [   ▶   ]   [  ⏭  ]   [ 2:33 ]
+        const controlsBox = new St.BoxLayout({
+            style: 'spacing: 4px; height: 32px;',
             y_align: Clutter.ActorAlign.CENTER,
             x_expand: true,
         });
         this._elapsedLabel = new St.Label({
             text: '0:00',
             y_align: Clutter.ActorAlign.CENTER,
-            style: 'font-size: 10px;',
+            style: 'font-size: 10px; min-width: 36px;',
             style_class: 'linux-island__progress-time',
         });
-        const timeSpacer = new St.Widget({x_expand: true});
-        this._durationLabel = new St.Label({
-            text: '--:--',
-            x_align: Clutter.ActorAlign.END,
-            y_align: Clutter.ActorAlign.CENTER,
-            style: 'font-size: 10px; text-align: right;',
-            style_class: 'linux-island__progress-time',
-        });
-        this._elapsedLabel.clutter_text?.set_ellipsize(3);
-        this._durationLabel.clutter_text?.set_ellipsize(3);
-        timeRow.add_child(this._elapsedLabel);
-        timeRow.add_child(timeSpacer);
-        timeRow.add_child(this._durationLabel);
-        // Duration labels row removed from visible layout
-        // Playback controls row: [  ⏮  ]   [   ▶   ]   [  ⏭  ] (Centered)
-        const controlsBox = new St.BoxLayout({
-            style: 'spacing: 16px; height: 32px;',
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER,
-            x_expand: true,
-        });
+        const leftSpacer = new St.Widget({x_expand: true});
 
         this._prevBtn = new St.Button({
             style: 'width: 32px; height: 32px; padding: 0; border-radius: 12px; font-size: 15px;',
@@ -336,128 +313,41 @@ export class MediaView {
         this._nextBtn.set_child(new St.Icon({icon_name: 'media-skip-forward-symbolic', icon_size: 14}));
         this._nextBtn.connect('clicked', () => this._onControlAction('Next'));
 
-        controlsBox.add_child(this._prevBtn);
-        controlsBox.add_child(this._playPauseBtn);
-        controlsBox.add_child(this._nextBtn);
+        const centerButtons = new St.BoxLayout({
+            style: 'spacing: 12px;',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        centerButtons.add_child(this._prevBtn);
+        centerButtons.add_child(this._playPauseBtn);
+        centerButtons.add_child(this._nextBtn);
+
+        const rightSpacer = new St.Widget({x_expand: true});
+
+        this._durationLabel = new St.Label({
+            text: '--:--',
+            x_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.CENTER,
+            style: 'font-size: 10px; min-width: 36px; text-align: right;',
+            style_class: 'linux-island__progress-time',
+        });
+        this._elapsedLabel.clutter_text?.set_ellipsize(3);
+        this._durationLabel.clutter_text?.set_ellipsize(3);
+
+        controlsBox.add_child(this._elapsedLabel);
+        controlsBox.add_child(leftSpacer);
+        controlsBox.add_child(centerButtons);
+        controlsBox.add_child(rightSpacer);
+        controlsBox.add_child(this._durationLabel);
         this._mediaSection.add_child(controlsBox);
-
-        // Volume slider row: [ 🔈 ]  [ ======------ ]  [ 🔊 ]
-        const volumeBox = new St.BoxLayout({
-            style: 'spacing: 8px; height: 16px;',
-            y_align: Clutter.ActorAlign.CENTER,
-            x_expand: true,
-        });
-
-        this._volDownBtn = new St.Button({
-            style: 'padding: 0; border: 0; background-color: transparent;',
-            reactive: true,
-            can_focus: true,
-            accessible_name: 'Mute',
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        this._volDownIcon = new St.Icon({
-            icon_name: 'audio-volume-low-symbolic',
-            fallback_icon_name: 'audio-volume-low-symbolic',
-            icon_size: 12,
-            style_class: 'linux-island__metric-icon',
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        this._volDownBtn.connect('clicked', () => {
-            this.setVolume(0.0);
-            this._onControlAction('Volume:0.00');
-            if (GLib) {
-                try {
-                    GLib.spawn_command_line_async('wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.00');
-                } catch (_) {}
-            }
-        });
-
-        this._volTrack = new St.Bin({
-            style: 'height: 4px; border-radius: 2px;',
-            style_class: 'linux-island__progress-track',
-            x_expand: true,
-            reactive: true,
-            track_hover: true,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        this._volFill = new St.Widget({
-            style: 'height: 4px; border-radius: 2px;',
-            style_class: 'linux-island__progress-fill',
-            x_align: Clutter.ActorAlign.START,
-            y_align: Clutter.ActorAlign.CENTER,
-            reactive: false,
-        });
-        this._volTrack.set_child(this._volFill);
-        this._volTrack.connect('notify::allocation', () => this._syncVolFill());
-
-        const handleVolClick = (event) => {
-            let clickX = 0;
-            if (typeof event.get_coords === 'function') {
-                const [x] = event.get_coords();
-                const [stageX] = this._volTrack.get_transformed_position?.() ?? [0];
-                clickX = x - stageX;
-            }
-            const width = this._volTrack.width;
-            if (width > 0) {
-                const vol = Math.max(0.0, Math.min(1.0, clickX / width));
-                this.setVolume(vol);
-                this._onControlAction(`Volume:${vol.toFixed(2)}`);
-                if (GLib) {
-                    try {
-                        GLib.spawn_command_line_async(`wpctl set-volume @DEFAULT_AUDIO_SINK@ ${vol.toFixed(2)}`);
-                    } catch (_) {}
-                }
-                return Clutter.EVENT_STOP;
-            }
-            return Clutter.EVENT_PROPAGATE;
-        };
-
-        this._volTrack.connect('button-press-event', (_actor, event) => handleVolClick(event));
-        this._volTrack.connect('motion-event', (_actor, event) => {
-            if (typeof event.get_state === 'function' && (event.get_state() & (Clutter.ModifierType?.BUTTON1_MASK ?? 256))) {
-                return handleVolClick(event);
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
-
-        this._volUpBtn = new St.Button({
-            style: 'padding: 0; border: 0; background-color: transparent;',
-            reactive: true,
-            can_focus: true,
-            accessible_name: 'Max volume',
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        this._volUpIcon = new St.Icon({
-            icon_name: 'audio-volume-high-symbolic',
-            fallback_icon_name: 'audio-volume-high-symbolic',
-            icon_size: 12,
-            style_class: 'linux-island__metric-icon',
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        this._volUpBtn.set_child(this._volUpIcon);
-        this._volUpBtn.connect('clicked', () => {
-            this.setVolume(1.0);
-            this._onControlAction('Volume:1.00');
-            if (GLib) {
-                try {
-                    GLib.spawn_command_line_async('wpctl set-volume @DEFAULT_AUDIO_SINK@ 1.00');
-                } catch (_) {}
-            }
-        });
-
-        volumeBox.add_child(this._volDownBtn);
-        volumeBox.add_child(this._volTrack);
-        volumeBox.add_child(this._volUpBtn);
-        this._mediaSection.add_child(volumeBox);
 
         // Section 2: Pure System & Controls section (CPU, RAM, Battery on LEFT, and Icon Quick Controls on RIGHT)
         this._systemSection = new St.BoxLayout({
             vertical: false,
-            style: 'width: 300px; height: 114px; spacing: 14px; padding: 0 4px;',
+            style: 'width: 300px; height: 98px; spacing: 14px; padding: 0 4px;',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
-
         this._metricsRow = new SystemMetricsRow({scheduler: this._scheduler});
         if (this._metricsRow.actor) {
             this._metricsRow.setWidth(248);
@@ -497,42 +387,6 @@ export class MediaView {
         this._quickTogglesRow?.setTheme(theme);
     }
 
-    setVolume(vol) {
-        this._volume = (typeof vol === 'number' && !isNaN(vol)) ? Math.max(0.0, Math.min(1.0, vol)) : 1.0;
-        this._syncVolFill();
-    }
-
-    _syncSystemVolume() {
-        if (GLib) {
-            try {
-                const [ok, out] = GLib.spawn_command_line_sync('wpctl get-volume @DEFAULT_AUDIO_SINK@');
-                if (ok && out) {
-                    const match = new TextDecoder().decode(out).match(/Volume:\s+([0-9.]+)/);
-                    if (match) {
-                        const v = parseFloat(match[1]);
-                        if (!isNaN(v)) {
-                            this.setVolume(v);
-                            return;
-                        }
-                    }
-                }
-            } catch (_) {}
-        }
-        this._syncVolFill();
-    }
-
-    _syncVolFill() {
-        if (!this._volFill || !this._volTrack) return;
-        const totalW = this._volTrack.width;
-        if (totalW <= 0) return;
-        const fillW = Math.max(0, Math.round((totalW * (this._volume ?? 1.0))));
-        if (typeof this._volFill.set_width === 'function') {
-            this._volFill.set_width(fillW);
-        } else {
-            this._volFill.width = fillW;
-        }
-    }
-
     _cyclePlayer() {
         if (!this._availablePlayers || this._availablePlayers.length <= 1) return;
         const current = this._progressMedia?.playerId || '';
@@ -566,11 +420,11 @@ export class MediaView {
         this._actor.style = `width: ${preset.width}px; padding: 8px 14px; spacing: 6px;`;
         const contentWidth = preset.width - 28;
         if (this._mediaSection) {
-            this._mediaSection.style = `width: ${contentWidth}px; height: 114px; spacing: 8px;`;
+            this._mediaSection.style = `width: ${contentWidth}px; height: 98px; spacing: 4px;`;
             this._mediaSection.width = contentWidth;
         }
         if (this._systemSection) {
-            this._systemSection.style = `width: ${contentWidth}px; height: 114px; spacing: 14px; padding: 0 4px;`;
+            this._systemSection.style = `width: ${contentWidth}px; height: 98px; spacing: 14px; padding: 0 4px;`;
             this._systemSection.width = contentWidth;
         }
         if (this._metricsRow) {
@@ -606,9 +460,6 @@ export class MediaView {
         this._renderProgress();
         this._syncProgressTimer();
         this._setArtwork(this._connected && media?.playerId ? media : null);
-        if (typeof media?.volume === 'number' && !isNaN(media.volume)) {
-            this.setVolume(media.volume);
-        }
         const pres = formatMediaPresentation(this._connected ? media : null);
         this._beatBars?.setPlayback(pres.isPlaying, pres.hasPlayer, media?.audioLevels);
         if (this._titleLabel) {
@@ -688,10 +539,6 @@ export class MediaView {
         this._quickTogglesRow = null;
         this._playerSwitcherBtn = null;
         this._playerSwitcherLabel = null;
-        this._volTrack = null;
-        this._volFill = null;
-        this._volDownBtn = null;
-        this._volUpBtn = null;
         ++this._artGeneration;
         this._artCancellable?.cancel();
         this._artCancellable = null;
