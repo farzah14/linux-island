@@ -152,7 +152,7 @@ export class MediaView {
         // Section 1: Pure Media Player section
         this._mediaSection = new St.BoxLayout({
             vertical: true,
-            style: 'width: 300px; height: 122px; spacing: 2px;',
+            style: 'width: 300px; height: 114px; spacing: 8px;',
             x_expand: true,
         });
 
@@ -270,8 +270,7 @@ export class MediaView {
             }
             return Clutter.EVENT_PROPAGATE;
         });
-        this._mediaSection.add_child(this._progressTrack);
-
+        // Duration line removed per user request: track, controls, and volume only
         // Time labels row: [0:00] ----------------------------- [2:33]
         const timeRow = new St.BoxLayout({
             style: 'height: 12px; margin-top: 1px;',
@@ -297,8 +296,7 @@ export class MediaView {
         timeRow.add_child(this._elapsedLabel);
         timeRow.add_child(timeSpacer);
         timeRow.add_child(this._durationLabel);
-        this._mediaSection.add_child(timeRow);
-
+        // Duration labels row removed from visible layout
         // Playback controls row: [  ⏮  ]   [   ▶   ]   [  ⏭  ] (Centered)
         const controlsBox = new St.BoxLayout({
             style: 'spacing: 16px; height: 32px;',
@@ -455,7 +453,7 @@ export class MediaView {
         // Section 2: Pure System & Controls section (CPU, RAM, Battery on LEFT, and Icon Quick Controls on RIGHT)
         this._systemSection = new St.BoxLayout({
             vertical: false,
-            style: 'width: 300px; height: 122px; spacing: 14px; padding: 0 4px;',
+            style: 'width: 300px; height: 114px; spacing: 14px; padding: 0 4px;',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
@@ -568,11 +566,11 @@ export class MediaView {
         this._actor.style = `width: ${preset.width}px; padding: 8px 14px; spacing: 6px;`;
         const contentWidth = preset.width - 28;
         if (this._mediaSection) {
-            this._mediaSection.style = `width: ${contentWidth}px; height: 122px; spacing: 2px;`;
+            this._mediaSection.style = `width: ${contentWidth}px; height: 114px; spacing: 8px;`;
             this._mediaSection.width = contentWidth;
         }
         if (this._systemSection) {
-            this._systemSection.style = `width: ${contentWidth}px; height: 122px; spacing: 14px; padding: 0 4px;`;
+            this._systemSection.style = `width: ${contentWidth}px; height: 114px; spacing: 14px; padding: 0 4px;`;
             this._systemSection.width = contentWidth;
         }
         if (this._metricsRow) {
