@@ -1,0 +1,14 @@
+[Unit]
+Description=Linux Island Cross-DE Overlay UI
+PartOf=graphical-session.target
+After=graphical-session.target linux-island-core.service
+Wants=linux-island-core.service
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/linux-island-launch --systemd-ui
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

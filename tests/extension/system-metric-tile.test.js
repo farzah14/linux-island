@@ -31,6 +31,7 @@ function assertEqual(actual, expected, message) {
                 cpu: { text: '15%', percent: 15 },
                 ram: { text: '4.2/16.0G', percent: 26 },
                 battery: { text: '95%', percent: 95, status: 'Discharging' },
+                network: { text: '1.2 MB/s', iconName: 'network-transmit-receive-symbolic', label: 'NET' },
             };
         },
     };
@@ -55,6 +56,10 @@ function assertEqual(actual, expected, message) {
 
     row.update();
     assert(updates >= 1, 'collector called on update');
+    if (row._netTile) {
+        assertEqual(row._netTile._label, 'NET');
+        assertEqual(row._netTile._iconName, 'network-transmit-receive-symbolic');
+    }
 
     row.destroy();
     assert(row._destroyed, 'row should be marked destroyed');

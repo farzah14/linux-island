@@ -1,4 +1,5 @@
 #include "settings_proxy.h"
+#include <algorithm>
 #include <QDBusInterface>
 #include <QDBusPendingCall>
 #include <QDBusPendingCallWatcher>
@@ -134,6 +135,10 @@ void SettingsProxy::applySettingsMap(const QVariantMap &settings) {
         m_smartAdaptiveEnabled = settings.value(QStringLiteral("smartAdaptiveEnabled")).toBool();
         emit smartAdaptiveEnabledChanged();
     }
+    if (settings.contains(QStringLiteral("whatsappIntegrationEnabled")) && m_whatsappIntegrationEnabled != settings.value(QStringLiteral("whatsappIntegrationEnabled")).toBool()) {
+        m_whatsappIntegrationEnabled = settings.value(QStringLiteral("whatsappIntegrationEnabled")).toBool();
+        emit whatsappIntegrationEnabledChanged();
+    }
     if (settings.contains(QStringLiteral("preferredPlayerId")) && m_preferredPlayerId != settings.value(QStringLiteral("preferredPlayerId")).toString()) {
         m_preferredPlayerId = settings.value(QStringLiteral("preferredPlayerId")).toString();
         emit preferredPlayerIdChanged();
@@ -141,6 +146,14 @@ void SettingsProxy::applySettingsMap(const QVariantMap &settings) {
     if (settings.contains(QStringLiteral("displayMode")) && m_displayMode != settings.value(QStringLiteral("displayMode")).toString()) {
         m_displayMode = settings.value(QStringLiteral("displayMode")).toString();
         emit displayModeChanged();
+    }
+    if (settings.contains(QStringLiteral("verticalOffset")) && m_verticalOffset != settings.value(QStringLiteral("verticalOffset")).toInt()) {
+        m_verticalOffset = settings.value(QStringLiteral("verticalOffset")).toInt();
+        emit verticalOffsetChanged();
+    }
+    if (settings.contains(QStringLiteral("horizontalOffset")) && m_horizontalOffset != settings.value(QStringLiteral("horizontalOffset")).toInt()) {
+        m_horizontalOffset = settings.value(QStringLiteral("horizontalOffset")).toInt();
+        emit horizontalOffsetChanged();
     }
 }
 
@@ -216,9 +229,39 @@ void SettingsProxy::setSmartAdaptiveEnabled(bool enabled) {
     }
 }
 
+void SettingsProxy::setWhatsappIntegrationEnabled(bool enabled) {
+    if (m_whatsappIntegrationEnabled != enabled) {
+        sendPatch({{QStringLiteral("whatsappIntegrationEnabled"), enabled}});
+    }
+}
+
 void SettingsProxy::setPreferredPlayerId(const QString &id) {
     if (m_preferredPlayerId != id) {
         sendPatch({{QStringLiteral("preferredPlayerId"), id}});
+    }
+}
+
+void SettingsProxy::setVerticalOffset(int val) {
+    int clamped = std::clamp(val, 0, 120);
+    if (m_verticalOffset != clamped) {
+        m_verticalOffset = clamped;
+        emit verticalOffsetChanged();
+        sendPatch({{QStringLiteral("verticalOffset"), clamped}});
+    }
+}
+
+void SettingsProxy::setHorizontalOffset(int val) {
+    int clamped = std::clamp(val, -500, 500);
+    if (m_horizontalOffset != clamped) {
+        m_horizontalOffset = clamped;
+        emit horizontalOffsetChanged();
+        sendPatch({{QStringLiteral("horizontalOffset"), clamped}});
+    }
+}
+
+void SettingsProxy::setDisplayMode(const QString &mode) {
+    if (m_displayMode != mode) {
+        sendPatch({{QStringLiteral("displayMode"), mode}});
     }
 }
 

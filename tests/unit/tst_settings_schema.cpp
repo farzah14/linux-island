@@ -10,7 +10,7 @@ private slots:
     void testUnknownKeyRejected();
     void testWrongTypeRejected();
     void testInvalidEnumRejected();
-    void testFloatingModeRejected();
+    void testDisplayModesValidation();
     void testLongPlayerIdRejected();
     void testOversizedPayloadRejected();
     void testTooManyEntriesRejected();
@@ -27,6 +27,9 @@ void TestSettingsSchema::testDefaultSettings() {
     QCOMPARE(defaults.value(QStringLiteral("smartAdaptiveEnabled")).toBool(), true);
     QCOMPARE(defaults.value(QStringLiteral("preferredPlayerId")).toString(), QStringLiteral(""));
     QCOMPARE(defaults.value(QStringLiteral("displayMode")).toString(), QStringLiteral("dynamic"));
+    QCOMPARE(defaults.value(QStringLiteral("whatsappIntegrationEnabled")).toBool(), false);
+    QCOMPARE(defaults.value(QStringLiteral("verticalOffset")).toInt(), 8);
+    QCOMPARE(defaults.value(QStringLiteral("horizontalOffset")).toInt(), 0);
 }
 
 void TestSettingsSchema::testValidPatch() {
@@ -34,7 +37,8 @@ void TestSettingsSchema::testValidPatch() {
     QVariantMap patch = {
         {QStringLiteral("theme"), QStringLiteral("dark")},
         {QStringLiteral("capsuleSize"), QStringLiteral("large")},
-        {QStringLiteral("notificationPeekEnabled"), true}
+        {QStringLiteral("notificationPeekEnabled"), true},
+        {QStringLiteral("whatsappIntegrationEnabled"), true}
     };
     ValidationResult res = validateSettingsPatch(current, patch);
     QVERIFY(res.ok);
@@ -43,8 +47,26 @@ void TestSettingsSchema::testValidPatch() {
     QCOMPARE(res.effective.value(QStringLiteral("capsuleSize")).toString(), QStringLiteral("large"));
     QCOMPARE(res.effective.value(QStringLiteral("notificationPeekEnabled")).toBool(), true);
     QCOMPARE(res.effective.value(QStringLiteral("animationEnabled")).toBool(), true);
-}
+    QCOMPARE(res.effective.value(QStringLiteral("whatsappIntegrationEnabled")).toBool(), true);
 
+    QVariantMap circlePatch = {
+        {QStringLiteral("capsuleSize"), QStringLiteral("circle")}
+    };
+    ValidationResult circleRes = validateSettingsPatch(current, circlePatch);
+    QVERIFY(circleRes.ok);
+    QVERIFY(circleRes.error.isEmpty());
+    QCOMPARE(circleRes.effective.value(QStringLiteral("capsuleSize")).toString(), QStringLiteral("circle"));
+
+    QVariantMap offsetPatch = {
+        {QStringLiteral("verticalOffset"), 24},
+        {QStringLiteral("horizontalOffset"), -50}
+    };
+    ValidationResult offsetRes = validateSettingsPatch(current, offsetPatch);
+    QVERIFY(offsetRes.ok);
+    QVERIFY(offsetRes.error.isEmpty());
+    QCOMPARE(offsetRes.effective.value(QStringLiteral("verticalOffset")).toInt(), 24);
+    QCOMPARE(offsetRes.effective.value(QStringLiteral("horizontalOffset")).toInt(), -50);
+}
 void TestSettingsSchema::testUnknownKeyRejected() {
     QVariantMap current = defaultSettings();
     QVariantMap patch = {
@@ -70,6 +92,20 @@ void TestSettingsSchema::testWrongTypeRejected() {
     };
     ValidationResult res2 = validateSettingsPatch(current, patch2);
     QVERIFY(!res2.ok);
+
+    // String instead of int
+    QVariantMap patch3 = {
+        {QStringLiteral("verticalOffset"), QStringLiteral("20")}
+    };
+    ValidationResult res3 = validateSettingsPatch(current, patch3);
+    QVERIFY(!res3.ok);
+
+    // Bool instead of int
+    QVariantMap patch4 = {
+        {QStringLiteral("horizontalOffset"), false}
+    };
+    ValidationResult res4 = validateSettingsPatch(current, patch4);
+    QVERIFY(!res4.ok);
 }
 
 void TestSettingsSchema::testInvalidEnumRejected() {
@@ -81,16 +117,46 @@ void TestSettingsSchema::testInvalidEnumRejected() {
     ValidationResult res = validateSettingsPatch(current, patch);
     QVERIFY(!res.ok);
     QVERIFY(!res.error.isEmpty());
+
+    // Out of bounds offsets
+    QVariantMap patchBounds1 = {
+        {QStringLiteral("verticalOffset"), -1}
+    };
+    QVERIFY(!validateSettingsPatch(current, patchBounds1).ok);
+
+    QVariantMap patchBounds2 = {
+        {QStringLiteral("verticalOffset"), 121}
+    };
+    QVERIFY(!validateSettingsPatch(current, patchBounds2).ok);
+
+    QVariantMap patchBounds3 = {
+        {QStringLiteral("horizontalOffset"), -501}
+    };
+    QVERIFY(!validateSettingsPatch(current, patchBounds3).ok);
+
+    QVariantMap patchBounds4 = {
+        {QStringLiteral("horizontalOffset"), 501}
+    };
+    QVERIFY(!validateSettingsPatch(current, patchBounds4).ok);
 }
 
-void TestSettingsSchema::testFloatingModeRejected() {
+void TestSettingsSchema::testDisplayModesValidation() {
     QVariantMap current = defaultSettings();
-    QVariantMap patch = {
-        {QStringLiteral("displayMode"), QStringLiteral("floating")}
-    };
-    ValidationResult res = validateSettingsPatch(current, patch);
-    QVERIFY(!res.ok);
-    QVERIFY(!res.error.isEmpty());
+
+    // dynamic, floating, and integrated should all be valid
+    for (const QString &mode : {QStringLiteral("dynamic"), QStringLiteral("floating"), QStringLiteral("integrated")}) {
+        QVariantMap patch = {{QStringLiteral("displayMode"), mode}};
+        ValidationResult res = validateSettingsPatch(current, patch);
+        QVERIFY(res.ok);
+        QVERIFY(res.error.isEmpty());
+        QCOMPARE(res.effective.value(QStringLiteral("displayMode")).toString(), mode);
+    }
+
+    // Unknown display mode should be rejected
+    QVariantMap invalidPatch = {{QStringLiteral("displayMode"), QStringLiteral("unknown_mode")}};
+    ValidationResult invalidRes = validateSettingsPatch(current, invalidPatch);
+    QVERIFY(!invalidRes.ok);
+    QVERIFY(!invalidRes.error.isEmpty());
 }
 
 void TestSettingsSchema::testLongPlayerIdRejected() {

@@ -27,6 +27,14 @@ await (async () => {
     try {
         const icon = await loadLocalArtwork(uri(imagePath), new Gio.Cancellable());
         expect(icon instanceof Gio.FileIcon, 'valid owned PNG must load');
+        const cacheSubdir = GLib.build_filenamev([dir, 'artwork']);
+        GLib.mkdir_with_parents(cacheSubdir, 0o700);
+        const cachedArtPath = GLib.build_filenamev([cacheSubdir, 'a1b2c3d4e5f6.png']);
+        pixbuf.savev(cachedArtPath, 'png', [], []);
+        const cachedIcon = await loadLocalArtwork(uri(cachedArtPath), new Gio.Cancellable());
+        expect(cachedIcon instanceof Gio.FileIcon, 'cached artwork from user directory must load');
+        GLib.unlink(cachedArtPath);
+        GLib.rmdir(cacheSubdir);
         for (const value of ['', 'https://example.com/art.png', 'file://remote/tmp/art.png',
             uri(badPath), uri(bigPath), uri(linkPath), uri(hugePath), uri(dir), uri(dir + '/missing')]) {
             expect(await loadLocalArtwork(value, new Gio.Cancellable()) === null, 'invalid artwork rejected');

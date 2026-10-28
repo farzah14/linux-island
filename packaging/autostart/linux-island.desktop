@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Linux Island
+Comment=Dynamic Island overlay and core service for Linux desktops
+Exec=linux-island-launch --autostart
+Icon=preferences-system
+Terminal=false
+Categories=Utility;DesktopSettings;
+X-GNOME-Autostart-enabled=true
+X-KDE-autostart-after=panel

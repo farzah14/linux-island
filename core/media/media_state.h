@@ -5,6 +5,7 @@
 
 struct MediaState {
     QString playerId;
+    QString trackId;
     QString title;
     QString artist;
     QString albumArtUri;

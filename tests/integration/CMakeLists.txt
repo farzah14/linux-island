@@ -15,6 +15,8 @@ add_executable(tst_core_dbus
     ${CMAKE_SOURCE_DIR}/core/media/player_registry.cpp
     ${CMAKE_SOURCE_DIR}/core/media/mpris_controller.h
     ${CMAKE_SOURCE_DIR}/core/media/mpris_controller.cpp
+    ${CMAKE_SOURCE_DIR}/core/media/artwork_cache.h
+    ${CMAKE_SOURCE_DIR}/core/media/artwork_cache.cpp
     ${CMAKE_SOURCE_DIR}/core/events/revision_clock.h
     ${CMAKE_SOURCE_DIR}/core/events/revision_clock.cpp
     ${CMAKE_SOURCE_DIR}/core/settings/settings_schema.h
@@ -23,7 +25,7 @@ add_executable(tst_core_dbus
     ${CMAKE_SOURCE_DIR}/core/settings/settings_store.cpp
 )
 target_include_directories(tst_core_dbus PRIVATE ${CMAKE_SOURCE_DIR}/core)
-target_link_libraries(tst_core_dbus PRIVATE Qt6::Core Qt6::DBus Qt6::Test)
+target_link_libraries(tst_core_dbus PRIVATE Qt6::Core Qt6::DBus Qt6::Network Qt6::Test)
 
 find_program(DBUS_RUN_SESSION dbus-run-session)
 if(DBUS_RUN_SESSION)

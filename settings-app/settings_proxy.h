@@ -13,8 +13,11 @@ class SettingsProxy : public QObject {
     Q_PROPERTY(bool hoverPreviewEnabled READ hoverPreviewEnabled WRITE setHoverPreviewEnabled NOTIFY hoverPreviewEnabledChanged)
     Q_PROPERTY(bool notificationPeekEnabled READ notificationPeekEnabled WRITE setNotificationPeekEnabled NOTIFY notificationPeekEnabledChanged)
     Q_PROPERTY(bool smartAdaptiveEnabled READ smartAdaptiveEnabled WRITE setSmartAdaptiveEnabled NOTIFY smartAdaptiveEnabledChanged)
+    Q_PROPERTY(bool whatsappIntegrationEnabled READ whatsappIntegrationEnabled WRITE setWhatsappIntegrationEnabled NOTIFY whatsappIntegrationEnabledChanged)
     Q_PROPERTY(QString preferredPlayerId READ preferredPlayerId WRITE setPreferredPlayerId NOTIFY preferredPlayerIdChanged)
-    Q_PROPERTY(QString displayMode READ displayMode NOTIFY displayModeChanged)
+    Q_PROPERTY(QString displayMode READ displayMode WRITE setDisplayMode NOTIFY displayModeChanged)
+    Q_PROPERTY(int verticalOffset READ verticalOffset WRITE setVerticalOffset NOTIFY verticalOffsetChanged)
+    Q_PROPERTY(int horizontalOffset READ horizontalOffset WRITE setHorizontalOffset NOTIFY horizontalOffsetChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY errorMessageChanged)
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
@@ -30,8 +33,11 @@ public:
     bool hoverPreviewEnabled() const { return m_hoverPreviewEnabled; }
     bool notificationPeekEnabled() const { return m_notificationPeekEnabled; }
     bool smartAdaptiveEnabled() const { return m_smartAdaptiveEnabled; }
+    bool whatsappIntegrationEnabled() const { return m_whatsappIntegrationEnabled; }
     QString preferredPlayerId() const { return m_preferredPlayerId; }
     QString displayMode() const { return m_displayMode; }
+    int verticalOffset() const { return m_verticalOffset; }
+    int horizontalOffset() const { return m_horizontalOffset; }
     bool busy() const { return m_busy; }
     QString errorMessage() const { return m_errorMessage; }
     bool connected() const { return m_connected; }
@@ -44,7 +50,11 @@ public:
     Q_INVOKABLE void setHoverPreviewEnabled(bool enabled);
     Q_INVOKABLE void setNotificationPeekEnabled(bool enabled);
     Q_INVOKABLE void setSmartAdaptiveEnabled(bool enabled);
+    Q_INVOKABLE void setWhatsappIntegrationEnabled(bool enabled);
     Q_INVOKABLE void setPreferredPlayerId(const QString &id);
+    Q_INVOKABLE void setVerticalOffset(int val);
+    Q_INVOKABLE void setHorizontalOffset(int val);
+    Q_INVOKABLE void setDisplayMode(const QString &mode);
     Q_INVOKABLE void refresh();
 
 signals:
@@ -54,8 +64,11 @@ signals:
     void hoverPreviewEnabledChanged();
     void notificationPeekEnabledChanged();
     void smartAdaptiveEnabledChanged();
+    void whatsappIntegrationEnabledChanged();
     void preferredPlayerIdChanged();
     void displayModeChanged();
+    void verticalOffsetChanged();
+    void horizontalOffsetChanged();
     void busyChanged();
     void errorMessageChanged();
     void connectedChanged();
@@ -78,8 +91,11 @@ private:
     bool m_hoverPreviewEnabled = true;
     bool m_notificationPeekEnabled = false;
     bool m_smartAdaptiveEnabled = true;
+    bool m_whatsappIntegrationEnabled = false;
     QString m_preferredPlayerId;
     QString m_displayMode = QStringLiteral("dynamic");
+    int m_verticalOffset = 8;
+    int m_horizontalOffset = 0;
     bool m_busy = false;
     QString m_errorMessage;
     bool m_connected = false;

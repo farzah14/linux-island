@@ -50,6 +50,9 @@ function assertEqual(actual, expected, message) {
 
     const row = new QuickTogglesRow({manager: mockManager});
     assert(row);
+    assert(row._settingsToggle, 'Island exposes a Settings launcher');
+    assertEqual(row._settingsToggle._label, 'Settings');
+    assertEqual(row._settingsToggle._iconName, 'preferences-system-symbolic');
 
     // Initial state reflected
     assertEqual(row._dndToggle.isActive, false);

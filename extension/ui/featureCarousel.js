@@ -71,18 +71,30 @@ export class CarouselModel {
     }
 }
 
+export function getPageIcon(page) {
+    if (page?.iconName) return page.iconName;
+    const id = (page?.id || '').toLowerCase();
+    if (id === 'media' || id === 'music') return 'audio-x-generic-symbolic';
+    if (id === 'system' || id === 'controls' || id === 'metrics') return 'preferences-system-symbolic';
+    if (id === 'ai' || id === 'quota' || id === 'ai-quota') return 'applications-science-symbolic';
+    return 'view-more-symbolic';
+}
+
 export class FeatureCarousel {
-    constructor({pages = [], onPageChanged} = {}) {
+    constructor({pages = [], onPageChanged, showTopNav = true, showDots = false} = {}) {
         this._pages = pages.filter(p => Boolean(p));
         this._onPageChanged = onPageChanged ?? (() => {});
+        this._showTopNav = showTopNav;
+        this._showDots = showDots;
         this._model = new CarouselModel({pageCount: Math.max(1, this._pages.length), loop: true});
         this._lastScrollTime = 0;
         this._destroyed = false;
         this.actor = null;
+        this._navBox = null;
+        this._navButtons = [];
         this._dotsBox = null;
         this._dots = [];
         this._container = null;
-
         if (St && Clutter) {
             this._build();
         }
@@ -103,11 +115,52 @@ export class FeatureCarousel {
             x_expand: true,
             reactive: true,
         });
+        // Top section navigation bar
+        if (this._showTopNav && this._pages.length > 1) {
+            this._navBox = new St.BoxLayout({
+                style_class: 'linux-island__section-nav',
+                style: 'spacing: 6px; padding-bottom: 2px;',
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+
+            this._navButtons = [];
+            for (let i = 0; i < this._pages.length; ++i) {
+                const page = this._pages[i];
+                const btn = new St.Button({
+                    style_class: (i === this._model.currentPage)
+                        ? 'linux-island__section-btn linux-island__section-btn--active'
+                        : 'linux-island__section-btn',
+                    reactive: true,
+                    can_focus: true,
+                    track_hover: true,
+                    accessible_name: page.label || page.id,
+                    x_align: Clutter.ActorAlign.CENTER,
+                    y_align: Clutter.ActorAlign.CENTER,
+                });
+                const icon = new St.Icon({
+                    icon_name: getPageIcon(page),
+                    fallback_icon_name: 'view-more-symbolic',
+                    icon_size: 14,
+                    x_align: Clutter.ActorAlign.CENTER,
+                    y_align: Clutter.ActorAlign.CENTER,
+                });
+                btn.set_child(icon);
+                btn.connect('clicked', () => this.setPage(i));
+                this._navButtons.push(btn);
+                this._navBox.add_child(btn);
+            }
+            this.actor.add_child(this._navBox);
+        }
+
 
         // St.Bin gives full, proper allocation to the active page
         this._container = new St.Bin({
             x_expand: true,
             y_expand: true,
+            // Page translations must never paint into the card padding or
+            // outside its rounded background while the page slides in.
+            clip_to_allocation: true,
         });
         this.actor.add_child(this._container);
 
@@ -117,7 +170,7 @@ export class FeatureCarousel {
         }
 
         // Dot indicators
-        if (this._pages.length > 1) {
+        if (this._showDots && this._pages.length > 1) {
             this._dotsBox = new St.BoxLayout({
                 style: 'spacing: 6px; padding-top: 2px;',
                 x_align: Clutter.ActorAlign.CENTER,
@@ -148,7 +201,12 @@ export class FeatureCarousel {
         let hasSwiped = false;
 
         this.actor.connect('button-press-event', (_actor, event) => {
+            if (this._destroyed) return Clutter.EVENT_PROPAGATE;
             if (typeof event.get_button === 'function' && event.get_button() === 1) {
+                if (typeof event.get_source === 'function' && this._isInteractiveControl(event.get_source())) {
+                    isPressed = false;
+                    return Clutter.EVENT_PROPAGATE;
+                }
                 isPressed = true;
                 hasSwiped = false;
                 const coords = typeof event.get_coords === 'function' ? event.get_coords() : [0, 0];
@@ -159,16 +217,30 @@ export class FeatureCarousel {
         });
 
         this.actor.connect('motion-event', (_actor, event) => {
-            if (!isPressed || hasSwiped) return Clutter.EVENT_PROPAGATE;
+            if (this._destroyed || !isPressed || hasSwiped) return Clutter.EVENT_PROPAGATE;
+            if (typeof event.get_state === 'function' && Clutter?.ModifierType?.BUTTON1_MASK) {
+                const state = event.get_state();
+                if ((state & Clutter.ModifierType.BUTTON1_MASK) === 0) {
+                    isPressed = false;
+                    return Clutter.EVENT_PROPAGATE;
+                }
+            }
             const coords = typeof event.get_coords === 'function' ? event.get_coords() : [0, 0];
             const dx = coords[0] - startX;
             const dy = coords[1] - startY;
             if (this._model.handleDrag(dx, dy, 25)) {
                 hasSwiped = true;
+                isPressed = false;
                 this._syncView(dx < 0 ? 1 : -1);
                 this._onPageChanged(this._model.currentPage);
                 return Clutter.EVENT_STOP;
             }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        this.actor.connect('leave-event', () => {
+            isPressed = false;
+            hasSwiped = false;
             return Clutter.EVENT_PROPAGATE;
         });
 
@@ -179,22 +251,72 @@ export class FeatureCarousel {
             return consumed ? Clutter.EVENT_STOP : Clutter.EVENT_PROPAGATE;
         });
 
-        // Scroll wheel event for sliding left/right
+        // Scroll event for sliding left/right: only horizontal scrolling triggers page change
         this.actor.connect('scroll-event', (_actor, event) => {
-            const now = GLib ? GLib.get_monotonic_time() : Date.now() * 1000;
-            if (now - this._lastScrollTime < 250000) {
+            if (this._destroyed) return Clutter.EVENT_PROPAGATE;
+            const dir = typeof event.get_scroll_direction === 'function' ? event.get_scroll_direction() : null;
+            const isRight = dir === Clutter?.ScrollDirection?.RIGHT || dir === 3;
+            const isLeft = dir === Clutter?.ScrollDirection?.LEFT || dir === 2;
+
+            if (isRight || isLeft) {
+                const now = GLib ? GLib.get_monotonic_time() : Date.now() * 1000;
+                if (now - this._lastScrollTime < 250000) {
+                    return Clutter.EVENT_STOP;
+                }
+                this._lastScrollTime = now;
+                if (isRight) {
+                    this.nextPage();
+                } else {
+                    this.prevPage();
+                }
                 return Clutter.EVENT_STOP;
             }
-            this._lastScrollTime = now;
 
-            const dir = event.get_scroll_direction();
-            if (dir === Clutter.ScrollDirection.DOWN || dir === Clutter.ScrollDirection.RIGHT) {
-                this.nextPage();
-            } else if (dir === Clutter.ScrollDirection.UP || dir === Clutter.ScrollDirection.LEFT) {
-                this.prevPage();
+            if (dir === Clutter?.ScrollDirection?.SMOOTH && typeof event.get_scroll_delta === 'function') {
+                const [dx, dy] = event.get_scroll_delta();
+                if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 0.5) {
+                    const now = GLib ? GLib.get_monotonic_time() : Date.now() * 1000;
+                    if (now - this._lastScrollTime < 250000) {
+                        return Clutter.EVENT_STOP;
+                    }
+                    this._lastScrollTime = now;
+                    if (dx > 0) {
+                        this.nextPage();
+                    } else {
+                        this.prevPage();
+                    }
+                    return Clutter.EVENT_STOP;
+                }
             }
-            return Clutter.EVENT_STOP;
+
+            return Clutter.EVENT_PROPAGATE;
         });
+    }
+
+    _isInteractiveControl(source) {
+        if (!source) return false;
+        if (this._navBox) {
+            if (source === this._navBox) return true;
+            if (typeof this._navBox.contains === 'function' && this._navBox.contains(source)) return true;
+            if (Array.isArray(this._navBox.children) && this._navBox.children.includes(source)) return true;
+        }
+        if (Array.isArray(this._navButtons) && this._navButtons.includes(source)) return true;
+        let curr = source;
+        while (curr && curr !== this.actor) {
+            if (curr.classes && (curr.classes.has('linux-island__section-btn') ||
+                curr.classes.has('linux-island__media-button') ||
+                curr.classes.has('linux-island__quick-toggle') ||
+                curr.classes.has('linux-island__player-badge') ||
+                curr.classes.has('linux-island__progress-track') ||
+                curr.classes.has('linux-island__progress-fill') ||
+                curr.classes.has('linux-island__quota-action') ||
+                curr.classes.has('linux-island__quota-row') ||
+                curr.classes.has('linux-island__carousel-dot'))) {
+                return true;
+            }
+            curr = typeof curr.get_parent === 'function' ? curr.get_parent() : null;
+        }
+        return false;
     }
 
     setPage(index) {
@@ -227,10 +349,18 @@ export class FeatureCarousel {
 
         if (page?.actor) {
             const actor = page.actor;
+            const outgoing = this._container.get_child();
+            if (outgoing && outgoing !== actor) {
+                outgoing.remove_all_transitions();
+                outgoing.translation_x = 0;
+                outgoing.opacity = 255;
+            }
+            // Also cancel an interrupted incoming tween when reduced motion
+            // becomes enabled before this page is selected again.
+            actor.remove_all_transitions();
             const enableAnim = St?.Settings?.get()?.enable_animations !== false;
 
             if (enableAnim && typeof actor.ease === 'function') {
-                actor.remove_all_transitions();
                 actor.translation_x = direction * 35;
                 actor.opacity = 60;
                 this._container.set_child(actor);
@@ -251,6 +381,15 @@ export class FeatureCarousel {
             }
         }
 
+        for (let i = 0; i < this._navButtons.length; ++i) {
+            const btn = this._navButtons[i];
+            if (i === current) {
+                btn.add_style_class_name('linux-island__section-btn--active');
+            } else {
+                btn.remove_style_class_name('linux-island__section-btn--active');
+            }
+        }
+
         for (let i = 0; i < this._dots.length; ++i) {
             const dot = this._dots[i];
             if (i === current) {
@@ -263,7 +402,10 @@ export class FeatureCarousel {
 
     destroy() {
         this._destroyed = true;
+        this._navButtons = [];
+        this._navBox = null;
         this._dots = [];
+        this._dotsBox = null;
         if (this._container) {
             this._container.set_child(null);
             this._container = null;

@@ -5,6 +5,7 @@ import {IslandController} from '../../extension/lib/islandController.js';
 import {estimateTimeline, formatTime} from '../../extension/lib/mediaTimeline.js';
 import {SystemMetricsCollector} from '../../extension/lib/systemMetrics.js';
 import {QuickSettingsManager} from '../../extension/lib/quickSettings.js';
+import {AiQuotaCollector} from '../../extension/lib/aiQuota.js';
 
 class Actor {
     constructor(props = {}) {
@@ -23,8 +24,21 @@ class Actor {
     set_pivot_point(x, y) { this.pivot = [x, y]; }
     set_position(x, y) { this.position = [x, y]; }
     get_preferred_width() { return [124, 360]; }
+    get_preferred_height() { return [32, 184]; }
     remove_all_transitions() { this.cancelled++; this.transitions = []; }
-    ease(params) { this.transitions.push(params); }
+    ease(params) {
+        this.transitions.push(params);
+        this.scaleBeforeEase = this.scale_y;
+        if ('scale_y' in params) this.scale_y = params.scale_y;
+        if ('scale_x' in params) this.scale_x = params.scale_x;
+        if ('width' in params) this.width = params.width;
+        if ('x' in params) {
+            this.x = params.x;
+            this.position = [params.x, this.position ? this.position[1] : 8];
+        }
+        if ('opacity' in params) this.opacity = params.opacity;
+        params.onComplete?.();
+    }
     destroy() { this.destroyed = true; }
 }
 const settings = {enable_animations: true, listeners: new Map(), nextId: 0,
@@ -35,13 +49,8 @@ let systemColorScheme = 'prefer-dark';
 class GrabHelperDouble {
     constructor() { this.grabbed = false; }
     grab(params) {
-        if (GrabHelperDouble.failNext) {
-            GrabHelperDouble.failNext = false;
-            return false;
-        }
-        this.params = params;
-        this.grabbed = true;
-        return true;
+        if (GrabHelperDouble.failNext) { GrabHelperDouble.failNext = false; return false; }
+        this.params = params; this.grabbed = true; return true;
     }
     ungrab({isUser = false} = {}) {
         if (!this.grabbed) return;
@@ -49,7 +58,15 @@ class GrabHelperDouble {
         this.params.onUngrab(isUser);
     }
 }
+const stageHandlers = new Map();
+let nextStageId = 0;
+const stage = {
+    connect(name, fn) { const id = ++nextStageId; stageHandlers.set(id, {name, fn}); return id; },
+    disconnect(id) { stageHandlers.delete(id); },
+    emit(event) { return [...stageHandlers.values()].map(({fn}) => fn(stage, event)); },
+};
 globalThis.renderTest = {
+    stage,
     GrabHelper: {GrabHelper: GrabHelperDouble},
     St: {BoxLayout: Actor, Label: Actor, Widget: Actor, Button: Actor, Icon: Actor, Bin: Actor,
         Settings: {get: () => settings}},
@@ -62,16 +79,19 @@ globalThis.renderTest = {
         }},
     loadLocalArtwork: async () => null,
     estimateTimeline, formatTime,
-    Clutter: {ActorAlign: {CENTER: 1}, AnimationMode: {EASE_OUT_CUBIC: 1},
+    Clutter: {ActorAlign: {CENTER: 1}, AnimationMode: {EASE_OUT_CUBIC: 1, EASE_IN_OUT_CUBIC: 2},
+        EventType: {BUTTON_PRESS: 1, TOUCH_BEGIN: 2, KEY_PRESS: 3},
         EVENT_STOP: 1, EVENT_PROPAGATE: 0, KEY_Escape: 27},
     Main: {layoutManager: {primaryMonitor: {x: 0, y: 0, width: 1366},
         addTopChrome() {}, removeChrome() {}, connectObject() {}, disconnectObject() {}}},
     SystemMetricsCollector,
     QuickSettingsManager,
+    AiQuotaCollector,
 };
 const load = source => import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 const beatSource = (await readFile(new URL('../../extension/ui/beatBars.js', import.meta.url), 'utf8'))
     .replace('let St = null;', 'let St = globalThis.renderTest.St;')
+    .replace("&& typeof process === 'undefined'", '')
     .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
 const {BeatBars} = await load(beatSource);
 globalThis.renderTest.BeatBars = BeatBars;
@@ -79,7 +99,10 @@ let metricTileSource = (await readFile(new URL('../../extension/ui/systemMetricT
     .replace(/^import .*systemMetrics.*;$/gm, 'const {SystemMetricsCollector} = globalThis.renderTest;')
     .replace('let St = null;', 'let St = globalThis.renderTest.St;')
     .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
-const {SystemMetricsRow} = await load(metricTileSource);
+const {SystemMetricsRow, SystemMetricTile} = await load(metricTileSource);
+const metric = new SystemMetricTile({label: 'CPU'});
+assert.equal(metric.actor.children[1], metric._valueLabel, 'percentage immediately follows metric text');
+metric.destroy();
 globalThis.renderTest.SystemMetricsRow = SystemMetricsRow;
 let quickToggleSource = (await readFile(new URL('../../extension/ui/quickToggle.js', import.meta.url), 'utf8'))
     .replace(/^import .*quickSettings.*;$/gm, 'const {QuickSettingsManager} = globalThis.renderTest;')
@@ -92,6 +115,13 @@ let carouselSource = (await readFile(new URL('../../extension/ui/featureCarousel
     .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
 const {FeatureCarousel} = await load(carouselSource);
 globalThis.renderTest.FeatureCarousel = FeatureCarousel;
+let aiQuotaSource = (await readFile(new URL('../../extension/ui/aiQuotaView.js', import.meta.url), 'utf8'))
+    .replace(/^import .*aiQuota\.js.*;$/gm, 'const {AiQuotaCollector} = globalThis.renderTest;')
+    .replace('let St = null;', 'let St = globalThis.renderTest.St;')
+    .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
+const {AiQuotaSection, AiQuotaProviderRow} = await load(aiQuotaSource);
+globalThis.renderTest.AiQuotaSection = AiQuotaSection;
+globalThis.renderTest.AiQuotaProviderRow = AiQuotaProviderRow;
 let mediaSource = await readFile(new URL('../../extension/ui/mediaView.js', import.meta.url), 'utf8');
 mediaSource = mediaSource.replace('let St = null;', 'let St = globalThis.renderTest.St;')
     .replace(/^import .*localArtwork.*;$/gm, 'const {loadLocalArtwork} = globalThis.renderTest;')
@@ -100,19 +130,34 @@ mediaSource = mediaSource.replace('let St = null;', 'let St = globalThis.renderT
     .replace(/^import .*systemMetricTile.*;$/gm, 'const {SystemMetricsRow} = globalThis.renderTest;')
     .replace(/^import .*quickToggle.*;$/gm, 'const {QuickTogglesRow} = globalThis.renderTest;')
     .replace(/^import .*featureCarousel.*;$/gm, 'const {FeatureCarousel} = globalThis.renderTest;')
+    .replace(/^import .*aiQuotaView.*;$/gm, 'const {AiQuotaSection} = globalThis.renderTest;')
     .replace('let Gio = null;', 'let Gio = globalThis.renderTest.Gio;')
     .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
 const {MediaView, CAPSULE_SIZES} = await load(mediaSource);
 globalThis.renderTest.MediaView = MediaView;
 globalThis.renderTest.CAPSULE_SIZES = CAPSULE_SIZES;
 let capsuleSource = await readFile(new URL('../../extension/ui/capsule.js', import.meta.url), 'utf8');
-capsuleSource = capsuleSource.replace(/^import .*;$/gm, '');
+capsuleSource = capsuleSource.replace(/^import .*;$/gm, '').replaceAll('global.stage', 'globalThis.renderTest.stage');
 const {Capsule} = await load(`const {St, Clutter, Gio, Main, MediaView, CAPSULE_SIZES, GrabHelper, BeatBars, loadLocalArtwork} = globalThis.renderTest;\n${capsuleSource}`);
 
 const capsule = new Capsule();
 assert.equal(typeof capsule.setTheme, 'function', 'renderer needs live theme switching');
 assert.equal(typeof capsule.setCapsuleSize, 'function', 'renderer needs live capsule sizing');
 assert.equal(typeof capsule.setHoverPreviewEnabled, 'function', 'renderer needs live hover preference');
+assert.equal(typeof capsule.setVerticalOffset, 'function', 'renderer needs live vertical offset');
+assert.equal(typeof capsule.setHorizontalOffset, 'function', 'renderer needs live horizontal offset');
+
+const monitor = globalThis.renderTest.Main.layoutManager.primaryMonitor;
+const [, natW] = capsule._widget.get_preferred_width(-1);
+const expectedCenter = Math.round(monitor.x + (monitor.width - natW) / 2);
+capsule.setVerticalOffset(24);
+assert.equal(capsule._widget.position[1], monitor.y + 24, 'vertical offset updates y position to monitor.y + 24');
+capsule.setHorizontalOffset(40);
+assert.equal(capsule._widget.position[0], expectedCenter + 40, 'horizontal offset updates x position to center + 40');
+capsule.setVerticalOffset(8);
+capsule.setHorizontalOffset(0);
+assert.equal(capsule._widget.position[1], monitor.y + 8, 'reset vertical offset restores monitor.y + 8');
+assert.equal(capsule._widget.position[0], expectedCenter, 'reset horizontal offset restores baseline center');
 capsule.setTheme('light');
 assert.equal(capsule._widget.classes.has('linux-island--light'), true);
 capsule.applyState('EXPANDED');
@@ -159,15 +204,76 @@ capsule.applyState('COMPACT');
 assert.ok(capsule._beatBars, 'compact title needs beat bars');
 assert.match(capsule._mediaView.actor.style, /width: 328px/, 'wide card content width');
 assert.ok(capsule._mediaView._carousel, 'media card has slideable features carousel');
-assert.equal(capsule._mediaView._carousel.pageCount, 2, 'music and system & controls pages');
+assert.equal(capsule._mediaView._carousel.pageCount, 3, 'music, system & controls, and AI quota pages');
+const carousel = capsule._mediaView._carousel;
+assert.ok(carousel._navBox, 'section nav box exists');
+assert.equal(carousel.actor.children[0], carousel._navBox, 'section nav is first child of carousel actor');
+assert.equal(carousel._navButtons.length, 3, 'three section buttons');
+assert.equal(carousel._navButtons[0].child.icon_name, 'audio-x-generic-symbolic', 'music section icon');
+assert.equal(carousel._navButtons[1].child.icon_name, 'preferences-system-symbolic', 'system section icon');
+assert.equal(carousel._navButtons[2].child.icon_name, 'applications-science-symbolic', 'AI quota section icon');
+assert.ok(carousel._navButtons[0].classes.has('linux-island__section-btn--active'), 'page 0 active initially');
+assert.ok(!carousel._navButtons[1].classes.has('linux-island__section-btn--active'), 'page 1 inactive initially');
+assert.ok(!carousel._navButtons[2].classes.has('linux-island__section-btn--active'), 'page 2 inactive initially');
+
+carousel._navButtons[1].handlers['clicked']();
+assert.equal(carousel.currentPage, 1, 'clicking button 1 navigates to page 1');
+assert.ok(carousel._navButtons[1].classes.has('linux-island__section-btn--active'), 'button 1 active');
+assert.ok(!carousel._navButtons[0].classes.has('linux-island__section-btn--active'), 'button 0 inactive');
+carousel._navButtons[2].handlers['clicked']();
+assert.equal(carousel.currentPage, 2, 'clicking button 2 navigates to page 2');
+assert.ok(carousel._navButtons[2].classes.has('linux-island__section-btn--active'), 'button 2 active');
+assert.ok(!carousel._navButtons[0].classes.has('linux-island__section-btn--active'), 'button 0 inactive');
+assert.ok(!carousel._navButtons[1].classes.has('linux-island__section-btn--active'), 'button 1 inactive');
+assert.ok(capsule._mediaView._aiQuotaSection, 'AI quota section exists');
+assert.equal(capsule._mediaView._aiQuotaSection.actor.children.length, 4, 'AI quota section has top bar + 3 provider rows');
+assert.equal(capsule._mediaView._aiQuotaSection._topBar.children.length, 1, 'top bar has only AI Quota title');
+assert.ok(capsule._mediaView._aiQuotaSection._antigravityRow._btn5h, 'row 5h button exists');
+assert.ok(capsule._mediaView._aiQuotaSection._antigravityRow._btnWeekly, 'row weekly button exists');
+assert.equal(capsule._mediaView._aiQuotaSection._antigravityRow._nameLabel.text, 'Antigravity');
+assert.equal(capsule._mediaView._aiQuotaSection._codexRow._nameLabel.text, 'Codex');
+assert.equal(capsule._mediaView._aiQuotaSection._claudeRow._nameLabel.text, 'Claude');
+for (const row of [capsule._mediaView._aiQuotaSection._antigravityRow, capsule._mediaView._aiQuotaSection._codexRow, capsule._mediaView._aiQuotaSection._claudeRow]) {
+    assert.doesNotMatch(row.actor.style, /#[0-9a-fA-F]{3,8}/, 'no inline hex color overrides on quota rows');
+}
+
+
+carousel._navButtons[0].handlers['clicked']();
+assert.equal(carousel.currentPage, 0, 'clicking button 0 navigates to page 0');
+assert.ok(carousel._navButtons[0].classes.has('linux-island__section-btn--active'), 'button 0 active again');
+assert.ok(!carousel._navButtons[1].classes.has('linux-island__section-btn--active'), 'button 1 inactive again');
+assert.ok(!carousel._navButtons[2].classes.has('linux-island__section-btn--active'), 'button 2 inactive again');
 assert.equal(capsule._mediaView._mediaSection.children.length, 3, 'track, duration progress line, and controls rows in media section');
 assert.ok(capsule._mediaView._mediaSection.children.includes(capsule._mediaView._progressTrack), 'duration line is restored in media section');
 assert.equal(capsule._mediaView._systemSection.children.length, 2, 'metrics and quick toggles in system section');
 assert.equal(capsule._mediaView._systemSection.vertical, false, 'system section is horizontal: left metrics, right toggles');
 assert.equal(capsule._mediaView._systemSection.children[0], capsule._mediaView._metricsRow.actor, 'metrics on the left');
 assert.equal(capsule._mediaView._systemSection.children[1], capsule._mediaView._quickTogglesRow.actor, 'quick toggles on the right');
+assert.equal(capsule._mediaView._quickTogglesRow.actor.children.length, 4,
+    'Island shows Theme, DND, Night Light, and Settings launcher controls');
+for (const toggle of [capsule._mediaView._quickTogglesRow._themeToggle,
+    capsule._mediaView._quickTogglesRow._dndToggle, capsule._mediaView._quickTogglesRow._nightToggle,
+    capsule._mediaView._quickTogglesRow._settingsToggle]) {
+    assert.equal(toggle._icon.icon_size, capsule._mediaView._metricsRow._cpuTile._icon.icon_size,
+        'quick setting glyph matches metric icon size');
+    assert.match(toggle.actor.style, /background-color: transparent/, 'no oversized circle behind quick setting icon');
+    assert.match(toggle.actor.style, /border: 0/, 'no circle border around quick setting icon');
+}
 capsule._mediaView._carousel.setPage(1);
 assert.ok(capsule._mediaView._systemSection.transitions.length > 0, 'page animates with horizontal slide transition');
+assert.equal(capsule._mediaView._carousel._container.clip_to_allocation, true,
+    'sliding music and controls must be clipped to the carousel viewport');
+const systemPage = capsule._mediaView._systemSection;
+const cancellations = systemPage.cancelled;
+capsule._mediaView._carousel.setPage(0);
+assert.ok(systemPage.cancelled > cancellations, 'switching back cancels the outgoing page tween');
+assert.equal(systemPage.translation_x, 0, 'detached page has no lingering slide offset');
+assert.equal(capsule._mediaView._quickTogglesRow.actor.children.length, 4,
+    'Quick controls has Settings icon as 4th control');
+assert.equal(capsule._mediaView._quickTogglesRow.actor.children[3],
+    capsule._mediaView._quickTogglesRow._settingsToggle.actor);
+assert.equal(systemPage.opacity, 255, 'detached page has no lingering fade');
+
 assert.match(capsule._mediaView._prevBtn.style, /height: 32px/, 'short playback buttons');
 assert.match(capsule._mediaView._playPauseBtn.style, /height: 32px/);
 assert.doesNotMatch(capsule._mediaView.actor.style, /min-height/, 'no forced empty height');
@@ -199,7 +305,8 @@ assert.equal(capsule._mediaView._titleLabel.text, 'Test track');
 assert.equal(capsule._mediaView._artistLabel.text, 'Test artist');
 capsule.setMedia({playerId: 'test', playbackStatus: 'Playing', audioLevels: [0.1, 0.5, 0.9]});
 assert.ok(capsule._beatBars._bars[2].scale_y > capsule._beatBars._bars[0].scale_y, 'actual band levels control heights');
-assert.equal(capsule._beatBars._bars[0].transitions.length, 0, 'no fabricated repeat animation');
+assert.equal(capsule._beatBars._bars[0].transitions.length, 1, 'one tween per actual audio update');
+assert.notEqual(capsule._beatBars._bars[0].scaleBeforeEase, capsule._beatBars._bars[0].scale_y, 'animate from previous height');
 assert.equal(capsule._mediaView._beatBars._bars[1].scale_y, 0.15 + 0.85 * 0.5);
 capsule.setMedia({playerId: 'test', playbackStatus: 'Playing', audioLevels: [0.9, 0.2, 0.1]});
 assert.ok(capsule._beatBars._bars[0].scale_y > capsule._beatBars._bars[2].scale_y, 'new audio updates even while playing');
@@ -239,13 +346,19 @@ assert.equal(capsule._mediaView._playPauseBtn.reactive, false);
 capsule.setConnected(true);
 capsule.setMedia({});
 assert.equal(capsule._mediaView._titleLabel.text, 'No Media Playing');
+capsule._widget.width = 180;
+capsule._widget.height = 36;
 capsule.applyState('EXPANDED');
 assert.equal(capsule._compactRow.visible, false);
 assert.equal(capsule._mediaView.actor.visible, true);
-assert.equal(capsule._widget.transitions.at(-1).duration, 220);
+assert.equal(capsule._widget.transitions.at(-1).duration, 300);
+assert.equal(capsule._widget.transitions.at(-1).width, 360, 'expand must tween width instead of snapping layout');
+assert.equal(capsule._widget.transitions.at(-1).height, 184, 'expand must tween height');
+assert.equal(capsule._widget.scaleBeforeEase, 1, 'opening does not reset scale and cause a pop');
+assert.equal(capsule._mediaView.actor.transitions.at(-1).opacity, 255, 'incoming content fades in');
 assert.equal(capsule._grabHelper.grabbed, true, 'expanded card owns dismissal grab');
 capsule.applyState('COMPACT');
-assert.equal(capsule._grabHelper.grabbed, false, 'collapse releases grab');
+assert.equal(capsule._currentState, 'COMPACT');
 assert.equal(capsule._widget.transitions.length, 1, 'replace interrupted animation');
 capsule.applyState('HIDDEN');
 assert.equal(capsule._widget.visible, false, 'fullscreen hides immediately');
@@ -268,11 +381,11 @@ settings.enable_animations = true;
 capsule.applyState('COMPACT');
 capsule.applyState('EXPANDED');
 const widget = capsule._widget;
-const grab = capsule._grabHelper;
+const stageListenerId = capsule._outsideEventId;
 const systemThemeSettings = capsule._systemSettings;
 capsule.destroy();
 assert.equal(Object.keys(systemThemeSettings.handlers).length, 0, 'theme listener removed');
-assert.equal(grab.grabbed, false, 'destroy releases input');
+assert.equal(stageHandlers.has(stageListenerId), false, 'destroy disconnects outside input listener');
 assert.equal(widget.transitions.length, 0);
 assert.equal(widget.destroyed, true);
 
@@ -282,7 +395,9 @@ const {default: Extension} = await load(`const Extension = class {};\n${extensio
 const extension = new Extension();
 extension._capsule = new Capsule();
 extension._onCoreStateChanged({connected: true, media: {playerId: 'test', title: 'Recovered track'},
-    settings: {animationEnabled: false, theme: 'dark', capsuleSize: 'large'}});
+    settings: {animationEnabled: false, theme: 'dark', capsuleSize: 'large', verticalOffset: 32, horizontalOffset: 16}});
+assert.equal(extension._capsule._verticalOffset, 32, 'Core verticalOffset reaches renderer');
+assert.equal(extension._capsule._horizontalOffset, 16, 'Core horizontalOffset reaches renderer');
 assert.match(extension._capsule._mediaView.actor.style, /width: 388px/, 'Core size reaches renderer');
 assert.equal(extension._capsule._widget.classes.has('linux-island--dark'), true, 'Core theme reaches renderer');
 assert.equal(extension._capsule._mediaView._titleLabel.text, 'Recovered track');
@@ -300,7 +415,7 @@ const outsideCard = new Capsule({onInteractionEvent: event => {
     if (event === 'DISMISS') outsideCard.applyState('COMPACT');
 }});
 outsideCard.applyState('EXPANDED');
-outsideCard._grabHelper.ungrab({isUser: true});
+stage.emit({type: () => 3, get_key_symbol: () => 27});
 assert.equal(outsideCard._currentState, 'COMPACT', 'outside dismissal collapses');
 assert.deepEqual(dismissEvents, ['DISMISS']);
 outsideCard.applyState('EXPANDED');
@@ -311,7 +426,31 @@ outsideCard.applyState('COMPACT');
 GrabHelperDouble.failNext = true;
 outsideCard.applyState('EXPANDED');
 assert.equal(outsideCard._currentState, 'COMPACT', 'failed grab returns to compact');
+GrabHelperDouble.failNext = false;
+// Test that a click outside the expanded card triggers dismissal and releases grab
+dismissEvents.length = 0;
+outsideCard.applyState('EXPANDED');
+const outsidePress = {
+    type: () => globalThis.renderTest.Clutter.EventType.BUTTON_PRESS,
+    get_coords: () => [50, 500],
+};
+assert.ok(stage.emit(outsidePress).every(result => result === 0), 'outside handler does not stop propagation');
+assert.equal(outsideCard._currentState, 'COMPACT', 'outside click dismisses expanded island and ungrabs');
+assert.equal(outsideCard._grabHelper.grabbed, false, 'stage outside clicks release modal input');
+assert.deepEqual(dismissEvents, ['DISMISS']);
+for (let attempt = 0; attempt < 10; attempt++) {
+    outsideCard.applyState('EXPANDED');
+    outsideCard._widget.get_transformed_size = () => [360, 184];
+    const [x, y] = outsideCard._widget.position;
+    stage.emit({type: () => 1, get_coords: () => [x + 1, y + 1]});
+    assert.equal(outsideCard._currentState, 'EXPANDED', 'inside clicks keep Island open');
+    stage.emit({type: () => 2, get_coords: () => [50, 500]});
+    assert.equal(outsideCard._currentState, 'COMPACT', 'outside touch closes on repeated openings');
+    assert.equal(outsideCard._grabHelper.grabbed, false);
+}
+const outsideListener = outsideCard._outsideEventId;
 outsideCard.destroy();
+assert.equal(stageHandlers.has(outsideListener), false, 'destroy removes stage capture');
 
 let preferenceController;
 const preferenceCard = new Capsule({onInteractionEvent: event => preferenceController.dispatch(event)});
@@ -356,6 +495,12 @@ timelineView.setMedia(timelineMedia);
 assert.equal(timelineView._elapsedLabel.text, '0:15');
 assert.equal(timelineView._durationLabel.text, '1:40');
 assert.equal(timelineView._progressFill.width, 30);
+assert.equal(timelineView._progressTrack.children[0], timelineView._progressFill, 'progress fill is child of track');
+assert.deepEqual(timelineView._progressFill.pivot, [0, 0.5], 'progress fill pivot anchored to left edge');
+assert.ok(timelineView._progressFill.transitions.length > 0, 'progress fill animates width from left to right');
+const progressAnim = timelineView._progressFill.transitions[timelineView._progressFill.transitions.length - 1];
+assert.equal(progressAnim.width, 30);
+assert.equal(progressAnim.duration, 250);
 assert.equal(timelineTicks.size, 1);
 timelineNow += 5000000;
 for (const fn of timelineTicks.values()) fn();
@@ -364,6 +509,33 @@ timelineView.setMedia({...timelineMedia, audioLevels: [1, 0, 1]});
 assert.equal(timelineView._elapsedLabel.text, '0:20', 'audio updates do not reset progress');
 timelineView.setMedia({...timelineMedia, playbackStatus: 'Paused'});
 assert.equal(timelineTicks.size, 0, 'pause cancels timeline timer');
+// A seek changes position without changing track metadata or playback state.
+const pausedMedia = {...timelineMedia, playbackStatus: 'Paused', canSeek: true};
+timelineView.setMedia(pausedMedia);
+timelineView.setMedia({...pausedMedia, positionUs: 70000000});
+assert.equal(timelineView._elapsedLabel.text, '1:10', 'paused seek immediately updates elapsed time');
+assert.equal(timelineView._progressFill.width, 140, 'paused seek immediately updates progress');
+const seekActions = [];
+timelineView._onControlAction = action => seekActions.push(action);
+timelineView._progressTrack.transform_stage_point = () => [true, 50, 0];
+timelineView._progressTrack.handlers['button-press-event'](timelineView._progressTrack, {
+    get_coords: () => [350, 10],
+});
+assert.deepEqual(seekActions, ['SeekTo:25000000'], 'click seeks to local position on timeline');
+assert.equal(timelineView._elapsedLabel.text, '0:25', 'click immediately previews selected time');
+assert.deepEqual(pausedMedia.positionUs, 10000000, 'received snapshots remain unchanged');
+// The current snapshot belongs to CoreProxy; optimistic preview must not mutate it.
+const sharedSnapshot = {...pausedMedia};
+timelineView.setMedia(sharedSnapshot);
+assert.equal(timelineView._elapsedLabel.text, '0:25', 'stale snapshot does not roll back optimistic seek');
+assert.equal(sharedSnapshot.positionUs, 10000000, 'seek does not mutate shared Core snapshot');
+
+// Converged snapshot from player unlocks the timeline
+timelineView.setMedia({...pausedMedia, positionUs: 25000000});
+assert.equal(timelineView._elapsedLabel.text, '0:25', 'converged snapshot clears optimistic lock');
+timelineView.setMedia({...pausedMedia, positionUs: 50000000});
+assert.equal(timelineView._elapsedLabel.text, '0:50', 'external updates apply after lock clears');
+
 timelineView.setMedia(timelineMedia);
 timelineView.actor.mapped = false;
 timelineView.actor.handlers['notify::mapped']();
@@ -402,6 +574,90 @@ assert.equal(pendingArtwork[3].cancellable.cancelled, true);
 pendingArtwork[3].resolve({name: 'E'});
 await Promise.resolve();
 assert.equal(settings.listeners.size, 0, 'all beat settings listeners removed on destroy');
+
+// Keep tweens pending to exercise an actual mid-animation reversal.
+const morph = new Capsule({idleTimeoutMs: 0});
+const morphActor = morph._widget;
+const starts = [];
+morphActor.width = 180;
+morphActor.height = 36;
+morphActor.ease = function (params) {
+    starts.push([this.width, this.height, this.scale_x, this.scale_y]);
+    this.transitions.push(params);
+};
+morph.applyState('EXPANDED');
+assert.deepEqual(starts[0], [180, 36, 1, 1], 'opening starts at displayed geometry');
+morphActor.width = 250;
+morphActor.height = 90;
+morph.applyState('COMPACT');
+assert.deepEqual(starts[1], [250, 90, 1, 1], 'reversal continues from the in-flight allocation');
+assert.equal(morphActor.transitions.length, 1, 'reversal replaces the previous geometry tween');
+morph.setAnimationEnabled(false);
+assert.equal(morphActor.height, -1, 'reduced motion releases animated height');
+assert.equal(morph._compactRow.opacity, 255, 'reduced motion completes content fade');
+assert.equal(morph._compactRow.transitions.length, 0);
+morph.destroy();
+
+// Circle CSS must be released before measuring the pill, and quick hover
+// reversals must replace child fades as well as the geometry tween.
+const circleMorph = new Capsule({idleTimeoutMs: 0});
+circleMorph.setAnimationEnabled(false);
+circleMorph.setCapsuleSize('circle');
+circleMorph.setAnimationEnabled(true);
+const circleStarts = [];
+circleMorph._widget.width = 36;
+circleMorph._widget.height = 36;
+circleMorph._widget.get_preferred_width = function () {
+    return [36, /max-width: 36px/.test(this.style) ? 36 : 260];
+};
+circleMorph._widget.get_preferred_height = () => [36, 40];
+circleMorph._widget.ease = function (params) {
+    circleStarts.push({width: this.width, height: this.height, style: this.style, params});
+    this.transitions.push(params);
+};
+circleMorph._label.ease = function (params) { this.transitions.push(params); };
+circleMorph.applyState('PREVIEW');
+assert.equal(circleStarts[0].width, 36, 'hover starts from the actual circle width');
+assert.equal(circleStarts[0].params.width, 260, 'hover measures the unconstrained pill, not its circle row');
+assert.doesNotMatch(circleStarts[0].style, /max-width: 36px/, 'circle size constraints are removed before tween');
+assert.equal(circleStarts[0].params.duration, 300, 'circle hover uses emphasis timing');
+circleMorph._widget.width = 130;
+circleMorph._widget.height = 38;
+circleMorph.applyState('COMPACT');
+assert.equal(circleStarts.at(-1).width, 130, 'hover leave continues from current width');
+assert.equal(circleMorph._widget.position[0], 618, 'shrinking stays centered at current width, not final circle width');
+assert.doesNotMatch(circleStarts.at(-1).style, /max-width: 36px/, 'circle constraints apply only after shrinking');
+assert.equal(circleMorph._widget.transitions.length, 1, 'one geometry tween after hover reversal');
+assert.equal(circleMorph._label.transitions.length, 1, 'one child fade after hover reversal');
+circleMorph._label.opacity = 110;
+circleMorph.applyState('PREVIEW');
+assert.equal(circleMorph._label.opacity, 110, 'hover reversal preserves the in-flight label opacity');
+assert.equal(circleMorph._label.transitions.length, 1, 'return hover cancels the old hide callback');
+const hoverStartCount = circleStarts.length;
+circleMorph.applyState('PREVIEW');
+assert.equal(circleStarts.length, hoverStartCount, 'repeated preview does not restart the tween');
+assert.equal(circleMorph._widget.transitions.length, 1, 'repeated state delivery must not cancel the current morph');
+circleMorph.setAnimationEnabled(false);
+assert.equal(circleMorph._label.opacity, 255, 'reduced motion restores the visible label');
+circleMorph.setAnimationEnabled(true);
+circleMorph.applyState('COMPACT');
+circleMorph.setAnimationEnabled(false);
+assert.equal(circleMorph._label.visible, false, 'disabling motion completes pending circle label hide');
+assert.equal(circleMorph._widget.classes.has('linux-island__capsule--circle'), true);
+circleMorph.destroy();
+const idleMorph = new Capsule({idleTimeoutMs: 0});
+idleMorph.setAnimationEnabled(false);
+idleMorph._enterIdleCircle();
+idleMorph.setAnimationEnabled(true);
+idleMorph._widget.width = 36;
+idleMorph._widget.height = 36;
+idleMorph._widget.ease = function (params) { this.transitions.push(params); };
+idleMorph.applyState('PREVIEW');
+idleMorph._widget.width = 100;
+idleMorph.applyState('COMPACT');
+assert.equal(idleMorph._widget.transitions.length, 1, 'leaving a waking idle circle must not freeze the partial pill');
+assert.equal(idleMorph._widget.transitions[0].width, 360);
+idleMorph.destroy();
 
 // Idle 10s Circle Island & Media Thumbnail tests
 const {Clutter} = globalThis.renderTest;
@@ -470,8 +726,19 @@ assert.equal(circleCapsule._label.visible, false, 'label hidden in circle mode')
 assert.equal(circleCapsule._beatBars.actor.visible, false, 'beat bars hidden in circle mode');
 assert.equal(circleCapsule._icon.visible, true, 'island icon visible');
 assert.equal(circleCapsule._icon.text, '🏝️', 'island icon text is palm island');
+assert.equal(circleCapsule._icon.x_expand, true, 'idle icon fills circle width for centered text');
+assert.match(circleCapsule._icon.style, /width: 32px/, 'idle icon has bounded width inside circle');
 assert.equal(circleCapsule._circleArtBox.visible, false, 'circle artwork box hidden when not playing');
 assert.equal(circleCapsule._widget.position[0], 665, 'centered horizontally on screen for 36px circle');
+
+// State changes can arrive from live preference updates, without a pointer
+// notification. The renderer must leave circle layout for PREVIEW itself.
+circleCapsule.applyState('PREVIEW');
+assert.equal(circleCapsule._widget.classes.has('linux-island__capsule--circle'), false,
+    'controller-driven preview must remove circle constraints');
+assert.equal(circleCapsule._label.visible, true, 'preview must restore the track label');
+circleCapsule.applyState('COMPACT');
+idleScheduler.advance(10000);
 
 // 3. Hovering the circle wakes it from circle mode and triggers PREVIEW
 interactionEvents.length = 0;
@@ -480,9 +747,14 @@ circleCapsule._widget.handlers['notify::hover']();
 assert.equal(circleCapsule._isIdleCircle, false, 'hover exits circle mode immediately');
 assert.equal(circleCapsule._widget.classes.has('linux-island__capsule--circle'), false);
 assert.equal(circleCapsule._label.visible, true);
+const hoverTransition = circleCapsule._widget.transitions.find(t => t.duration === 300 && t.width > 36);
+assert.ok(hoverTransition, 'hover transition animates width expansion');
+assert.equal(hoverTransition.duration, 300);
+assert.equal(hoverTransition.mode, globalThis.renderTest.Clutter.AnimationMode.EASE_IN_OUT_CUBIC);
+assert.equal(hoverTransition.width, 360);
+assert.equal(circleCapsule._widget.position[0], 503, 'pill stays centered using its actual width');
 assert.deepEqual(interactionEvents, ['HOVER_ENTER']);
 assert.equal(circleCapsule._currentState, 'PREVIEW');
-
 // 4. Pointer leaving preview returns to COMPACT and restarts 10s timer
 interactionEvents.length = 0;
 circleCapsule._widget.hover = false;
@@ -502,22 +774,94 @@ assert.equal(circleCapsule._widget.classes.has('linux-island__capsule--circle'),
 assert.deepEqual(interactionEvents, ['CLICK']);
 assert.equal(circleCapsule._currentState, 'EXPANDED');
 assert.equal(idleScheduler.count, 0, 'idle timer stopped while EXPANDED');
-// Clicking the expanded island toggles it back to COMPACT
+// A drag starts with a press, including presses picked on the card background.
+// Bubble that press to the capsule before delivering horizontal motion.
 interactionEvents.length = 0;
-circleCapsule._widget.handlers['button-press-event'](circleCapsule._widget, {get_source: () => circleCapsule._widget});
-assert.deepEqual(interactionEvents, ['DISMISS']);
-assert.equal(circleCapsule._currentState, 'COMPACT');
-assert.equal(idleScheduler.count, 1, 'idle timer restarted after click dismissal');
+const swipeCarousel = circleCapsule._mediaView._carousel;
+for (const source of [circleCapsule._widget, swipeCarousel.actor, null]) {
+    const startPage = swipeCarousel.currentPage;
+    const press = {get_button: () => 1, get_coords: () => [100, 100]};
+    if (source) press.get_source = () => source;
+    swipeCarousel.actor.handlers['button-press-event'](swipeCarousel.actor, press);
+    const result = circleCapsule._widget.handlers['button-press-event'](circleCapsule._widget, press);
+    assert.equal(result, Clutter.EVENT_PROPAGATE, 'expanded press must allow swipe');
+    assert.equal(circleCapsule._currentState, 'EXPANDED', 'drag start must not dismiss');
+    swipeCarousel.actor.handlers['motion-event'](swipeCarousel.actor, {get_coords: () => [50, 100]});
+    assert.notEqual(swipeCarousel.currentPage, startPage, 'left drag switches page');
+    swipeCarousel.actor.handlers['button-release-event']();
+    swipeCarousel.actor.handlers['button-press-event'](swipeCarousel.actor, press);
+    circleCapsule._widget.handlers['button-press-event'](circleCapsule._widget, press);
+    swipeCarousel.actor.handlers['motion-event'](swipeCarousel.actor, {get_coords: () => [150, 100]});
+    assert.equal(swipeCarousel.currentPage, startPage, 'right drag switches back');
+    swipeCarousel.actor.handlers['button-release-event']();
+}
+assert.deepEqual(interactionEvents, [], 'swiping never dispatches dismissal');
+assert.equal(idleScheduler.count, 0, 'idle collapse timer stays stopped during swipe');
 
-// Re-expand to test keyboard Escape dismissal
-circleCapsule._compactRow.handlers['button-press-event']();
-assert.equal(circleCapsule._currentState, 'EXPANDED');
+// Regression tests: hovering and clicking controls must not trigger accidental page swipes
+const navBtn = swipeCarousel._navButtons[0];
+const navPress = {get_button: () => 1, get_coords: () => [100, 100], get_source: () => navBtn};
+swipeCarousel.actor.handlers['button-press-event'](swipeCarousel.actor, navPress);
+swipeCarousel.actor.handlers['motion-event'](swipeCarousel.actor, {get_coords: () => [30, 100]});
+assert.equal(swipeCarousel.currentPage, 0, 'motion after clicking nav button must not swipe');
+
+swipeCarousel.actor.handlers['button-release-event']();
+swipeCarousel.actor.handlers['motion-event'](swipeCarousel.actor, {get_coords: () => [10, 100]});
+assert.equal(swipeCarousel.currentPage, 0, 'hover motion without press must not swipe');
+
+const scrollDown = {get_scroll_direction: () => 0 /* UP */};
+const scrollRes = swipeCarousel.actor.handlers['scroll-event'](swipeCarousel.actor, scrollDown);
+assert.equal(scrollRes, Clutter.EVENT_PROPAGATE, 'vertical scroll propagates without page switch');
+assert.equal(swipeCarousel.currentPage, 0, 'vertical scroll does not change carousel page');
+
+const bgPress = {get_button: () => 1, get_coords: () => [100, 100], get_source: () => swipeCarousel.actor};
+swipeCarousel.actor.handlers['button-press-event'](swipeCarousel.actor, bgPress);
+swipeCarousel.actor.handlers['leave-event']();
+swipeCarousel.actor.handlers['motion-event'](swipeCarousel.actor, {get_coords: () => [10, 100]});
+assert.equal(swipeCarousel.currentPage, 0, 'motion after pointer leaves actor must not swipe');
+
+// Circle/pill width animations set an explicit Clutter width. Expansion must
+// release that request so the wider media card receives its natural allocation.
+assert.equal(circleCapsule._widget.width, -1,
+    'expanded card must release the animated pill width instead of squeezing its contents');
+circleCapsule.setCapsuleSize('large');
+assert.equal(circleCapsule._widget.width, -1, 'resizing expanded card keeps natural width');
+circleCapsule.setCapsuleSize('medium');
 
 // 6. Escape / dismissal of EXPANDED returns to COMPACT and restarts 10s timer
 circleCapsule._widget.handlers['key-press-event'](circleCapsule._widget, {get_key_symbol: () => Clutter.KEY_Escape});
 assert.equal(circleCapsule._currentState, 'COMPACT');
 assert.equal(circleCapsule._isIdleCircle, false);
 assert.equal(idleScheduler.count, 1, 'idle timer restarted after dismissal of EXPANDED');
+
+// WhatsApp notification activity dot and expanded action
+let waActivated = false;
+const waCapsule = new Capsule({
+    onWhatsAppActivate: () => { waActivated = true; },
+});
+assert.ok(waCapsule._waDot, 'activity dot exists in compact row');
+assert.ok(waCapsule._waActionRow, 'action row exists in card');
+assert.equal(waCapsule._waDot.visible, false);
+assert.equal(waCapsule._waActionRow.visible, false);
+
+waCapsule.setWhatsAppActivity(true);
+assert.equal(waCapsule._waDot.visible, false, 'activity without opt-in remains hidden');
+
+waCapsule.setWhatsAppEnabled(true);
+waCapsule.setWhatsAppActivity(true);
+assert.equal(waCapsule._waDot.visible, true, 'dot visible in compact mode');
+assert.equal(waCapsule._waActionRow.visible, false);
+
+waCapsule.applyState('EXPANDED');
+assert.equal(waCapsule._waDot.visible, false, 'dot hidden in expanded mode');
+assert.equal(waCapsule._waActionRow.visible, true, 'action row visible in expanded mode');
+
+waCapsule._waBtn.handlers['clicked']();
+assert.equal(waActivated, true, 'clicking action invokes onWhatsAppActivate');
+assert.equal(waCapsule._waActionRow.visible, false, 'activating clears action row');
+assert.equal(waCapsule._waDot.visible, false, 'activating clears dot');
+
+waCapsule.destroy();
 
 // 2. When media with playbackStatus: 'Playing' is active, after 10s idle transitions to circle displaying music thumbnail artwork
 circleCapsule.setMedia({
@@ -534,10 +878,11 @@ assert.equal(circleCapsule._icon.visible, false, 'island icon hidden when playin
 assert.equal(circleCapsule._circleArtBox.visible, true, 'circle artwork thumbnail box visible');
 assert.equal(circleArtworkRequests.length, 1);
 assert.equal(circleArtworkRequests[0].uri, 'file:///home/user/art.png');
-const mockGIcon = {name: 'album-art-gicon'};
+const mockGIcon = {get_file: () => ({get_uri: () => 'file:///home/user/art.png'})};
 circleArtworkRequests[0].resolve(mockGIcon);
 await Promise.resolve();
-assert.equal(circleCapsule._circleArtIcon.gicon, mockGIcon, 'circle thumbnail icon receives loaded artwork');
+assert.equal(circleCapsule._circleArtIcon.visible, false, 'square icon must not cover rounded background');
+assert.match(circleCapsule._circleArtBox.style, /background-image: url/, 'vetted artwork paints on rounded background');
 
 // 7. Continuous audioLevels updates do not reset the idle timer or knock capsule out of circle mode
 circleCapsule.setMedia({
@@ -592,7 +937,65 @@ assert.equal(circleCapsule._isIdleCircle, true);
 assert.equal(circleCapsule._circleArtBox.visible, true, 'thumbnail restored on resume');
 assert.equal(circleCapsule._icon.visible, false);
 
-// 9. Destroy clears pending timers and cancels pending artwork loaders
+// 9. Circle mode setting and hover transitions
+circleCapsule.setCapsuleSize('circle');
+assert.equal(circleCapsule._capsuleSize, 'circle');
+assert.equal(circleCapsule._isCircleMode(), true, 'capsuleSize circle enters circle mode in COMPACT');
+assert.equal(circleCapsule._isIdleCircle, true);
+assert.equal(circleCapsule._widget.classes.has('linux-island__capsule--circle'), true);
+assert.equal(idleScheduler.count, 0, 'no idle timer scheduled when capsuleSize is circle');
+
+// Hovering circle preset expands to pill
+interactionEvents.length = 0;
+circleCapsule._widget.hover = true;
+circleCapsule._widget.handlers['notify::hover']();
+assert.equal(circleCapsule._isIdleCircle, false, 'hover exits circle mode');
+assert.equal(circleCapsule._widget.classes.has('linux-island__capsule--circle'), false);
+const circlePresetHoverExpand = circleCapsule._widget.transitions.find(t => t.duration === 300 && t.width > 36);
+assert.ok(circlePresetHoverExpand, 'circle preset hover triggers width expansion transition');
+assert.equal(circlePresetHoverExpand.width, 360);
+
+// Hover leave collapses back to circle with animation
+interactionEvents.length = 0;
+circleCapsule._widget.hover = false;
+circleCapsule._widget.handlers['notify::hover']();
+const circlePresetHoverCollapse = circleCapsule._widget.transitions.find(t => t.duration === 300 && t.width === 36);
+assert.ok(circlePresetHoverCollapse, 'circle preset hover leave triggers collapse transition');
+assert.equal(circlePresetHoverCollapse.width, 36);
+assert.equal(circlePresetHoverCollapse.duration, 300);
+assert.equal(circlePresetHoverCollapse.mode, globalThis.renderTest.Clutter.AnimationMode.EASE_IN_OUT_CUBIC);
+assert.equal(circleCapsule._isIdleCircle, true);
+assert.equal(circleCapsule._widget.classes.has('linux-island__capsule--circle'), true);
+assert.equal(idleScheduler.count, 0, 'idle timer not started when capsuleSize is circle');
+
+// Disabling animations performs instant resize without queuing transitions
+circleCapsule.setAnimationEnabled(false);
+circleCapsule._widget.transitions = [];
+circleCapsule._widget.hover = true;
+circleCapsule._widget.handlers['notify::hover']();
+assert.equal(circleCapsule._widget.transitions.length, 0, 'no transitions queued when animation is disabled');
+assert.equal(circleCapsule._isIdleCircle, false);
+assert.equal(circleCapsule._widget.classes.has('linux-island__capsule--circle'), false);
+
+// Hover leave with animation disabled
+circleCapsule._widget.transitions = [];
+circleCapsule._widget.hover = false;
+circleCapsule._widget.handlers['notify::hover']();
+assert.equal(circleCapsule._widget.transitions.length, 0, 'no transitions queued on collapse when animation disabled');
+assert.equal(circleCapsule._isIdleCircle, true);
+assert.equal(circleCapsule._widget.classes.has('linux-island__capsule--circle'), true);
+
+// Re-enable animation and restore medium capsule size
+circleCapsule.setAnimationEnabled(true);
+circleCapsule.setCapsuleSize('medium');
+assert.equal(circleCapsule._isIdleCircle, false);
+assert.equal(circleCapsule._widget.classes.has('linux-island__capsule--circle'), false);
+assert.equal(idleScheduler.count, 1, 'idle timer restored after exiting circle size');
+idleScheduler.advance(10000);
+assert.equal(circleCapsule._isIdleCircle, true, 're-entered circle mode for destroy test');
+assert.equal(circleCapsule._circleArtBox.visible, true);
+
+// 10. Destroy clears pending timers and cancels pending artwork loaders
 circleCapsule.setMedia({
     playerId: 'spotify',
     title: 'New Track',

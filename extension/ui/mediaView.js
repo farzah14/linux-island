@@ -6,8 +6,11 @@ import {estimateTimeline, formatTime} from '../lib/mediaTimeline.js';
 import {SystemMetricsRow} from './systemMetricTile.js';
 import {QuickTogglesRow} from './quickToggle.js';
 import {FeatureCarousel} from './featureCarousel.js';
+import {AiQuotaSection} from './aiQuotaView.js';
 
 export const CAPSULE_SIZES = Object.freeze({
+    circle: {width: 268, artwork: 40, button: 28, play: 36, icon: 12,
+        title: 12, artist: 11, compactFont: 12, padding: '4px 12px', limit: 28},
     small: {width: 268, artwork: 40, button: 28, play: 36, icon: 12,
         title: 12, artist: 11, compactFont: 12, padding: '4px 12px', limit: 28},
     medium: {width: 328, artwork: 48, button: 32, play: 40, icon: 14,
@@ -117,12 +120,14 @@ export class MediaView {
         this._clock = clock;
         this._progressMedia = null;
         this._progressTimer = null;
+        this._lastUserSeek = null;
         this._scheduler = scheduler ?? {
             repeat: fn => GLib ? GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
                 fn(); return GLib.SOURCE_CONTINUE;
             }) : null,
             cancel: id => { if (GLib) GLib.source_remove(id); },
         };
+        this._aiQuotaSection = null;
 
         if (St && Clutter) {
             this._buildUi();
@@ -232,7 +237,7 @@ export class MediaView {
         trackRow.add_child(textCol);
         this._mediaSection.add_child(trackRow);
 
-        this._progressTrack = new St.Bin({
+        this._progressTrack = new St.BoxLayout({
             style: 'height: 6px; border-radius: 3px;',
             style_class: 'linux-island__progress-track',
             x_expand: true,
@@ -242,25 +247,55 @@ export class MediaView {
         this._progressFill = new St.Widget({
             style: 'height: 6px; border-radius: 3px;',
             style_class: 'linux-island__progress-fill',
-            x_align: Clutter.ActorAlign.START, y_align: Clutter.ActorAlign.CENTER,
+            x_align: Clutter.ActorAlign.START,
+            y_align: Clutter.ActorAlign.CENTER,
             reactive: false,
         });
-        this._progressTrack.set_child(this._progressFill);
+        this._progressFill.set_pivot_point(0, 0.5);
+        this._progressTrack.add_child(this._progressFill);
         this._progressTrack.connect('notify::allocation', () => this._renderProgress());
         this._progressTrack.connect('button-press-event', (_actor, event) => {
-            if (!this._progressMedia || !this._progressMedia.canSeek || !this._progressMedia.durationUs) {
+            if (!this._progressMedia || !this._progressMedia.durationUs || this._progressMedia.durationUs <= 0) {
+                return Clutter.EVENT_PROPAGATE;
+            }
+            if (this._progressMedia.canSeek === false) {
                 return Clutter.EVENT_PROPAGATE;
             }
             let clickX = 0;
             if (typeof event.get_coords === 'function') {
-                const [x] = event.get_coords();
-                const [stageX] = this._progressTrack.get_transformed_position?.() ?? [0];
-                clickX = x - stageX;
+                const [x, y] = event.get_coords();
+                let transformed = false;
+                if (typeof this._progressTrack.transform_stage_point === 'function') {
+                    const res = this._progressTrack.transform_stage_point(x, y);
+                    if (Array.isArray(res)) {
+                        if (res.length === 3 && typeof res[0] === 'boolean') {
+                            if (res[0]) {
+                                clickX = res[1];
+                                transformed = true;
+                            }
+                        } else if (res.length >= 2) {
+                            clickX = res[0];
+                            transformed = true;
+                        }
+                    }
+                }
+                if (!transformed) {
+                    const [stageX] = this._progressTrack.get_transformed_position?.() ?? [0];
+                    clickX = x - stageX;
+                }
             }
             const width = this._progressTrack.width;
             if (width > 0) {
                 const ratio = Math.max(0, Math.min(1, clickX / width));
                 const targetUs = Math.round(ratio * this._progressMedia.durationUs);
+                const now = this._clock();
+                this._lastUserSeek = { targetUs, at: now };
+                this._progressMedia = {
+                    ...this._progressMedia,
+                    positionUs: targetUs,
+                    positionSampleUs: now,
+                };
+                this._renderProgress();
                 this._onControlAction(`SeekTo:${targetUs}`);
                 return Clutter.EVENT_STOP;
             }
@@ -354,20 +389,51 @@ export class MediaView {
             this._systemSection.add_child(this._metricsRow.actor);
         }
 
-        this._quickTogglesRow = new QuickTogglesRow({onThemeToggle: this._onThemeToggle});
+        this._quickTogglesRow = new QuickTogglesRow({
+            onThemeToggle: this._onThemeToggle,
+            onOpenSettings: () => {
+                try {
+                    if (Gio) {
+                        Gio.Subprocess.new(['linux-island-settings'], Gio.SubprocessFlags.NONE);
+                    }
+                } catch (_) {
+                    try {
+                        if (Gio && GLib) {
+                            const home = GLib.get_home_dir();
+                            Gio.Subprocess.new([`${home}/.local/bin/linux-island-settings`], Gio.SubprocessFlags.NONE);
+                        }
+                    } catch (_) {}
+                }
+                this._onDismiss?.();
+            },
+        });
         if (this._quickTogglesRow.actor) {
             this._systemSection.add_child(this._quickTogglesRow.actor);
         }
+        // Section 3: AI Quota Section (Antigravity, Codex, Claude Code)
+        this._aiQuotaSection = new AiQuotaSection({scheduler: this._scheduler});
+        if (this._aiQuotaSection.actor) {
+            this._aiQuotaSection.setWidth(300);
+        }
+
 
         // Slideable Carousel between Music section and System/Controls section
         this._carousel = new FeatureCarousel({
             pages: [
-                { id: 'media', actor: this._mediaSection, label: 'Music' },
+                { id: 'media', actor: this._mediaSection, label: 'Music', iconName: 'audio-x-generic-symbolic' },
                 {
                     id: 'system',
                     actor: this._systemSection,
                     label: 'System & Controls',
+                    iconName: 'preferences-system-symbolic',
                     onActivate: () => this._metricsRow?.start(),
+                },
+                {
+                    id: 'ai',
+                    actor: this._aiQuotaSection?.actor,
+                    label: 'AI Quota',
+                    iconName: 'applications-science-symbolic',
+                    onActivate: () => this._aiQuotaSection?.start(),
                 },
             ],
             onPageChanged: (idx) => {
@@ -375,6 +441,11 @@ export class MediaView {
                     this._metricsRow?.start();
                 } else {
                     this._metricsRow?.stop();
+                }
+                if (idx === 2) {
+                    this._aiQuotaSection?.start();
+                } else {
+                    this._aiQuotaSection?.stop();
                 }
             },
         });
@@ -430,6 +501,9 @@ export class MediaView {
         if (this._metricsRow) {
             this._metricsRow.setWidth(contentWidth - 52);
         }
+        if (this._aiQuotaSection) {
+            this._aiQuotaSection.setWidth(contentWidth);
+        }
         if (this._carousel) {
             this._carousel.setPageWidth?.(contentWidth);
         }
@@ -458,19 +532,49 @@ export class MediaView {
     setMedia(media) {
         if (!this._actor) return;
         const prevMedia = this._progressMedia;
-        this._progressMedia = this._connected ? media : null;
-        const pres = formatMediaPresentation(this._connected ? media : null);
-        this._beatBars?.setPlayback(pres.isPlaying, pres.hasPlayer, media?.audioLevels);
+        let effectiveMedia = this._connected ? media : null;
 
-        const trackChanged = (media?.playerId !== prevMedia?.playerId ||
-            media?.title !== prevMedia?.title ||
-            media?.artist !== prevMedia?.artist ||
-            media?.albumArtUri !== prevMedia?.albumArtUri ||
-            media?.playbackStatus !== prevMedia?.playbackStatus);
+        if (this._lastUserSeek && effectiveMedia && prevMedia) {
+            const sameTrack = (effectiveMedia.playerId === prevMedia.playerId &&
+                               effectiveMedia.title === prevMedia.title);
+            if (sameTrack) {
+                const ageUs = this._clock() - this._lastUserSeek.at;
+                if (ageUs < 1200000) {
+                    const incomingPos = Number(effectiveMedia.positionUs) || 0;
+                    const diffToTarget = Math.abs(incomingPos - this._lastUserSeek.targetUs);
+                    if (diffToTarget > 1500000) {
+                        effectiveMedia = {
+                            ...effectiveMedia,
+                            positionUs: this._lastUserSeek.targetUs,
+                            positionSampleUs: this._lastUserSeek.at,
+                        };
+                    } else {
+                        this._lastUserSeek = null;
+                    }
+                } else {
+                    this._lastUserSeek = null;
+                }
+            } else {
+                this._lastUserSeek = null;
+            }
+        } else if (!effectiveMedia) {
+            this._lastUserSeek = null;
+        }
+
+        this._progressMedia = effectiveMedia;
+        const pres = formatMediaPresentation(this._connected ? effectiveMedia : null);
+        this._beatBars?.setPlayback(pres.isPlaying, pres.hasPlayer, effectiveMedia?.audioLevels);
+
+        const trackChanged = (effectiveMedia?.playerId !== prevMedia?.playerId ||
+            effectiveMedia?.title !== prevMedia?.title ||
+            effectiveMedia?.artist !== prevMedia?.artist ||
+            effectiveMedia?.albumArtUri !== prevMedia?.albumArtUri ||
+            effectiveMedia?.playbackStatus !== prevMedia?.playbackStatus);
+        // Position/capability updates also arrive without track metadata changes.
+        this._renderProgress();
+        this._syncProgressTimer();
         if (trackChanged || !prevMedia) {
-            this._renderProgress();
-            this._syncProgressTimer();
-            this._setArtwork(this._connected && media?.playerId ? media : null);
+            this._setArtwork(this._connected && effectiveMedia?.playerId ? effectiveMedia : null);
             if (this._titleLabel) {
                 this._titleLabel.text = this._connected ? pres.title : 'Core offline';
             }
@@ -508,7 +612,18 @@ export class MediaView {
                 this._durationLabel.text = timeline.durationUs > 0 ? formatTime(timeline.durationUs) : '--:--';
             this._progressTrack.visible = timeline.durationUs > 0;
             this._progressFill.visible = timeline.progress > 0;
-            this._progressFill.width = Math.round(Math.max(0, Number(this._progressTrack.width) || 0) * timeline.progress);
+            const targetWidth = Math.round(Math.max(0, Number(this._progressTrack.width) || 0) * timeline.progress);
+            const enableAnim = St?.Settings?.get()?.enable_animations !== false;
+            if (enableAnim && typeof this._progressFill.ease === 'function' && this._actor?.mapped) {
+                this._progressFill.remove_all_transitions();
+                this._progressFill.ease({
+                    width: targetWidth,
+                    duration: 250,
+                    mode: Clutter?.AnimationMode?.LINEAR ?? 1,
+                });
+            } else {
+                this._progressFill.width = targetWidth;
+            }
         } catch (_) {}
     }
 
@@ -554,6 +669,8 @@ export class MediaView {
         this._metricsRow = null;
         this._quickTogglesRow?.destroy();
         this._quickTogglesRow = null;
+        this._aiQuotaSection?.destroy();
+        this._aiQuotaSection = null;
         this._playerSwitcherBtn = null;
         this._playerSwitcherLabel = null;
         ++this._artGeneration;

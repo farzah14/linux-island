@@ -115,6 +115,54 @@ export function getBatteryIconName(percent, isCharging) {
     return 'battery-caution-symbolic';
 }
 
+export function parseNetDev(content) {
+    if (!content || typeof content !== 'string') return null;
+    const lines = content.split('\n');
+    let totalRx = 0;
+    let totalTx = 0;
+    let found = false;
+
+    for (const line of lines) {
+        const colonIdx = line.indexOf(':');
+        if (colonIdx === -1) continue;
+        const iface = line.slice(0, colonIdx).trim();
+        if (iface === 'lo') continue;
+
+        const fields = line.slice(colonIdx + 1).trim().split(/\s+/).map(Number);
+        if (fields.length >= 9) {
+            const rx = fields[0];
+            const tx = fields[8];
+            if (!isNaN(rx) && !isNaN(tx)) {
+                totalRx += rx;
+                totalTx += tx;
+                found = true;
+            }
+        }
+    }
+
+    if (!found) return null;
+    return { rx: totalRx, tx: totalTx, total: totalRx + totalTx, timestamp: Date.now() };
+}
+
+export function formatNetSpeed(bytesPerSec) {
+    if (typeof bytesPerSec !== 'number' || isNaN(bytesPerSec) || bytesPerSec <= 0) {
+        return '0 B/s';
+    }
+    if (bytesPerSec < 1024) {
+        return `${Math.round(bytesPerSec)} B/s`;
+    }
+    const kb = bytesPerSec / 1024;
+    if (kb < 1024) {
+        return `${kb >= 100 ? Math.round(kb) : kb.toFixed(1)} KB/s`;
+    }
+    const mb = kb / 1024;
+    if (mb < 1024) {
+        return `${mb >= 100 ? Math.round(mb) : mb.toFixed(1)} MB/s`;
+    }
+    const gb = mb / 1024;
+    return `${gb.toFixed(1)} GB/s`;
+}
+
 function defaultReadFile(filePath) {
     if (GLib) {
         try {
@@ -132,6 +180,7 @@ export class SystemMetricsCollector {
     constructor({ readFile = defaultReadFile } = {}) {
         this._readFile = readFile;
         this._lastCpuSample = null;
+        this._lastNetSample = null;
         this._batteryPaths = [];
         this._detectBatteryPaths();
     }
@@ -264,10 +313,51 @@ export class SystemMetricsCollector {
             }
         }
 
+        // Network
+        let netData = null;
+        try {
+            const netStr = this._readFile('/proc/net/dev');
+            const currNet = parseNetDev(netStr);
+            if (currNet) {
+                if (this._lastNetSample && this._lastNetSample.timestamp) {
+                    const dt = Math.max(0.1, (currNet.timestamp - this._lastNetSample.timestamp) / 1000);
+                    const rxSpeed = Math.max(0, (currNet.rx - this._lastNetSample.rx) / dt);
+                    const txSpeed = Math.max(0, (currNet.tx - this._lastNetSample.tx) / dt);
+                    const totalSpeed = rxSpeed + txSpeed;
+
+                    netData = {
+                        rxSpeed,
+                        txSpeed,
+                        totalSpeed,
+                        iconName: 'network-transmit-receive-symbolic',
+                        label: 'NET',
+                        rxText: `↓ ${formatNetSpeed(rxSpeed)}`,
+                        txText: `↑ ${formatNetSpeed(txSpeed)}`,
+                        text: formatNetSpeed(totalSpeed),
+                    };
+                } else {
+                    netData = {
+                        rxSpeed: 0,
+                        txSpeed: 0,
+                        totalSpeed: 0,
+                        iconName: 'network-transmit-receive-symbolic',
+                        label: 'NET',
+                        rxText: '↓ 0 B/s',
+                        txText: '↑ 0 B/s',
+                        text: '0 B/s',
+                    };
+                }
+                this._lastNetSample = currNet;
+            }
+        } catch {
+            netData = null;
+        }
+
         return {
             cpu: cpuData,
             ram: ramData,
             battery: batData,
+            network: netData,
         };
     }
 }

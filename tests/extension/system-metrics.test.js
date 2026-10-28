@@ -3,6 +3,8 @@ import {
     computeCpuPercent,
     parseMeminfo,
     parseBattery,
+    parseNetDev,
+    formatNetSpeed,
     SystemMetricsCollector,
 } from '../../extension/lib/systemMetrics.js';
 
@@ -90,6 +92,31 @@ Cached:          4194304 kB`;
     assertEqual(parseBattery('invalid', 'status'), null);
 }
 
+// 5. parseNetDev and formatNetSpeed
+{
+    const sample = `Inter-|   Receive                                                |  Transmit
+ face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
+    lo: 1000       10    0    0    0     0          0         0     1000       10    0    0    0     0       0          0
+wlp58s0: 20000000 15000    0    0    0     0          0         0 10000000  10000    0    0    0     0       0          0
+enp0s31:  5000000  4000    0    0    0     0          0         0  2000000   2000    0    0    0     0       0          0
+`;
+    const parsed = parseNetDev(sample);
+    assert(parsed, 'should parse valid /proc/net/dev');
+    // rx = 20000000 + 5000000 = 25000000
+    // tx = 10000000 + 2000000 = 12000000
+    assertEqual(parsed.rx, 25000000);
+    assertEqual(parsed.tx, 12000000);
+    assertEqual(parsed.total, 37000000);
+
+    assertEqual(parseNetDev(''), null, 'empty net dev returns null');
+    assertEqual(parseNetDev('invalid'), null, 'invalid net dev returns null');
+
+    assertEqual(formatNetSpeed(0), '0 B/s');
+    assertEqual(formatNetSpeed(500), '500 B/s');
+    assertEqual(formatNetSpeed(1536), '1.5 KB/s');
+    assertEqual(formatNetSpeed(1048576 * 2.5), '2.5 MB/s');
+}
+
 // 5. SystemMetricsCollector with mock reader
 {
     let statCount = 0;
@@ -103,8 +130,10 @@ Cached:          4194304 kB`;
         '/proc/meminfo': () => `MemTotal:       16777216 kB\nMemAvailable:    8388608 kB`,
         '/sys/class/power_supply/BAT0/capacity': () => '92',
         '/sys/class/power_supply/BAT0/status': () => 'Discharging',
+        '/proc/net/dev': () => `Inter-|   Receive
+ face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
+wlp58s0: 10000000  1000    0    0    0     0          0         0  5000000   1000    0    0    0     0       0          0`,
     };
-
     const collector = new SystemMetricsCollector({
         readFile: (path) => {
             if (mockFiles[path]) return mockFiles[path]();
@@ -123,6 +152,9 @@ Cached:          4194304 kB`;
     assertEqual(m1.battery.device, 'BAT');
     assert(m1.cpu);
 
+    assert(m1.network);
+    assertEqual(m1.network.label, 'NET');
+    assertEqual(m1.network.iconName, 'network-transmit-receive-symbolic');
     // Second collect calculates delta CPU
     const m2 = collector.collect();
     assertEqual(m2.cpu.percent, 37.5);

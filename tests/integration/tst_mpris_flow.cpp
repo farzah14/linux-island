@@ -4,6 +4,7 @@
 #include "media/player_registry.h"
 #include "media/mpris_controller.h"
 #include "fake_mpris_player.h"
+#include <chrono>
 
 class TestMprisFlow : public QObject {
     Q_OBJECT
@@ -58,6 +59,16 @@ void TestMprisFlow::testMprisControllerSeeking() {
     res = controller.perform(QStringLiteral("SeekBackward"), fake.serviceName(), registry.activeMediaState());
     QVERIFY(res.accepted);
     QTRY_COMPARE_WITH_TIMEOUT(registry.activeMediaState().positionUs, 30000000, 2000);
+
+    // 4. SeekTo without valid trackId uses real-time estimated offset
+    MediaState stateNoTrack = registry.activeMediaState();
+    stateNoTrack.trackId = QString();
+    stateNoTrack.playbackStatus = QStringLiteral("Playing");
+    stateNoTrack.positionSampleUs = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count() - 5000000;
+    res = controller.perform(QStringLiteral("SeekTo:50000000"), fake.serviceName(), stateNoTrack);
+    QVERIFY(res.accepted);
+    QTRY_VERIFY_WITH_TIMEOUT(qAbs(registry.activeMediaState().positionUs - 45000000) < 50000, 2000);
 
     fake.stop();
 }

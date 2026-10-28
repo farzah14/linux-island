@@ -15,6 +15,8 @@ add_executable(linux-island-core
     media/player_registry.cpp
     media/mpris_controller.h
     media/mpris_controller.cpp
+    media/artwork_cache.h
+    media/artwork_cache.cpp
     events/revision_clock.h
     events/revision_clock.cpp
     settings/settings_schema.h
@@ -24,4 +26,4 @@ add_executable(linux-island-core
 )
 
 target_include_directories(linux-island-core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(linux-island-core PRIVATE Qt6::Core Qt6::DBus)
+target_link_libraries(linux-island-core PRIVATE Qt6::Core Qt6::DBus Qt6::Network)

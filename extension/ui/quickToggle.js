@@ -2,10 +2,14 @@ import {QuickSettingsManager} from '../lib/quickSettings.js';
 
 let St = null;
 let Clutter = null;
+let Gio = null;
+let GLib = null;
 if (typeof process === 'undefined') {
     try {
         St = (await import('gi://St')).default;
         Clutter = (await import('gi://Clutter')).default;
+        Gio = (await import('gi://Gio')).default;
+        GLib = (await import('gi://GLib')).default;
     } catch (_) {}
 }
 
@@ -30,7 +34,8 @@ export class QuickToggle {
 
     _build() {
         this.actor = new St.Button({
-            style: 'width: 26px; height: 26px; border-radius: 13px; padding: 0;',
+            // Keep a generous click target while displaying a plain 14px metric-sized icon.
+            style: 'width: 26px; height: 26px; padding: 0; border: 0; background-color: transparent;',
             style_class: 'linux-island__quick-toggle',
             reactive: true,
             can_focus: true,
@@ -91,9 +96,23 @@ export class QuickToggle {
 }
 
 export class QuickTogglesRow {
-    constructor({manager, onThemeToggle} = {}) {
+    constructor({manager, onThemeToggle, onOpenSettings} = {}) {
         this._manager = manager ?? new QuickSettingsManager();
         this._onThemeToggle = onThemeToggle ?? (() => this._manager.toggleDarkMode());
+        this._onOpenSettings = onOpenSettings ?? (() => {
+            try {
+                if (Gio) {
+                    Gio.Subprocess.new(['linux-island-settings'], Gio.SubprocessFlags.NONE);
+                }
+            } catch (_) {
+                try {
+                    if (Gio && GLib) {
+                        const home = GLib.get_home_dir();
+                        Gio.Subprocess.new([`${home}/.local/bin/linux-island-settings`], Gio.SubprocessFlags.NONE);
+                    }
+                } catch (_) {}
+            }
+        });
         this._destroyed = false;
         this._listener = null;
         this.actor = null;
@@ -119,6 +138,11 @@ export class QuickTogglesRow {
             onToggle: () => this._manager.toggleNightLight(),
         });
 
+        this._settingsToggle = new QuickToggle({
+            iconName: 'preferences-system-symbolic',
+            label: 'Settings',
+            onToggle: () => this._onOpenSettings(),
+        });
         if (St && Clutter) {
             this._build();
         }
@@ -151,6 +175,7 @@ export class QuickTogglesRow {
         if (this._themeToggle.actor) this.actor.add_child(this._themeToggle.actor);
         if (this._dndToggle.actor) this.actor.add_child(this._dndToggle.actor);
         if (this._nightToggle.actor) this.actor.add_child(this._nightToggle.actor);
+        if (this._settingsToggle.actor) this.actor.add_child(this._settingsToggle.actor);
     }
 
     _sync(state) {
@@ -171,6 +196,7 @@ export class QuickTogglesRow {
         this._themeToggle.destroy();
         this._dndToggle.destroy();
         this._nightToggle.destroy();
+        this._settingsToggle.destroy();
         if (this.actor) {
             this.actor.destroy();
             this.actor = null;

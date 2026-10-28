@@ -1,7 +1,8 @@
 #include "media_normalizer.h"
 #include <QStringList>
+#include <QUrl>
+#include <QDBusObjectPath>
 #include <cmath>
-
 static QString truncateUtf8(const QString &str, int maxBytes = 2048) {
     QByteArray utf8 = str.toUtf8();
     if (utf8.size() <= maxBytes) {
@@ -36,11 +37,20 @@ static QString sanitizeArtUrl(const QVariant &var) {
         return QString();
     }
     QString uri = var.toString().trimmed();
+    if (uri.isEmpty() || uri.size() > 2048) {
+        return QString();
+    }
     if (uri.startsWith(QStringLiteral("file://"))) {
         return uri;
     }
     if (uri.startsWith(QLatin1Char('/'))) {
         return QStringLiteral("file://") + uri;
+    }
+    if (uri.startsWith(QStringLiteral("https://")) || uri.startsWith(QStringLiteral("http://"))) {
+        QUrl url(uri);
+        if (url.isValid() && !url.host().isEmpty()) {
+            return uri;
+        }
     }
     return QString();
 }
@@ -104,9 +114,15 @@ MediaState normalizeMpris(const QString &service, const QVariantMap &metadata, c
     QVariant artistVar = metadata.value(QStringLiteral("xesam:artist"));
     state.artist = truncateUtf8(extractArtist(artistVar));
 
+    QVariant trackIdVar = metadata.value(QStringLiteral("mpris:trackid"));
+    if (trackIdVar.canConvert<QDBusObjectPath>()) {
+        state.trackId = trackIdVar.value<QDBusObjectPath>().path();
+    } else if (trackIdVar.typeId() == QMetaType::QString) {
+        state.trackId = trackIdVar.toString();
+    }
+
     state.durationUs = sanitizeMicroseconds(metadata.value(QStringLiteral("mpris:length")));
     state.albumArtUri = sanitizeArtUrl(metadata.value(QStringLiteral("mpris:artUrl")));
-
     // Properties mapping
     state.playbackStatus = sanitizePlaybackStatus(properties.value(QStringLiteral("PlaybackStatus")));
     state.positionUs = sanitizeMicroseconds(properties.value(QStringLiteral("Position")));
@@ -132,6 +148,8 @@ MediaState normalizeMpris(const QString &service, const QVariantMap &metadata, c
     }
     if (properties.contains(QStringLiteral("CanSeek")) && properties.value(QStringLiteral("CanSeek")).typeId() == QMetaType::Bool) {
         state.canSeek = properties.value(QStringLiteral("CanSeek")).toBool();
+    } else if (!properties.contains(QStringLiteral("CanSeek")) && state.durationUs > 0) {
+        state.canSeek = true;
     }
 
     return state;

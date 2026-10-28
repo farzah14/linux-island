@@ -5,12 +5,14 @@
 #include <QVariantMap>
 #include <QString>
 #include <cmath>
+#include <QTimer>
 #include "events/revision_clock.h"
 #include "settings/settings_store.h"
 #include "media/media_state.h"
 #include "dbus/variant_codec.h"
 #include "media/player_registry.h"
 #include "media/mpris_controller.h"
+#include "media/artwork_cache.h"
 
 class CoreService : public QObject, public QDBusContext {
     Q_OBJECT
@@ -81,6 +83,11 @@ public:
             }
             return false;
         }
+        if (action.startsWith(QLatin1String("SeekTo:")) || action == QLatin1String("SeekForward") || action == QLatin1String("SeekBackward")) {
+            QTimer::singleShot(150, this, [this] {
+                m_playerRegistry.refreshPosition();
+            });
+        }
         return true;
     }
 
@@ -132,6 +139,22 @@ public:
         if (media.playerId != m_mediaState.playerId || media.playbackStatus != QLatin1String("Playing"))
             m_audioLevels = {0.0, 0.0, 0.0};
         m_mediaState = media;
+
+        if (ArtworkCache::isRemoteUrl(media.albumArtUri)) {
+            QString rawRemote = media.albumArtUri;
+            m_artworkCache.fetchArtwork(media.playerId, rawRemote, [this, playerId = media.playerId, rawRemote](const QString &cachedUri) {
+                if (m_mediaState.playerId == playerId && (m_mediaState.albumArtUri == rawRemote || m_mediaState.albumArtUri.isEmpty())) {
+                    m_mediaState.albumArtUri = cachedUri;
+                    quint64 rev = m_clock.mediaChanged();
+                    m_mediaState.revision = rev;
+                    emit mediaChanged(rev, mediaState());
+                }
+            });
+            if (m_mediaState.albumArtUri == rawRemote) {
+                m_mediaState.albumArtUri = QString();
+            }
+        }
+
         quint64 rev = m_clock.mediaChanged();
         m_mediaState.revision = rev;
         emit mediaChanged(rev, mediaState());
@@ -158,5 +181,6 @@ private:
     PlayerRegistry m_playerRegistry;
     MprisController m_controller;
     QVariantMap m_capabilities;
+    ArtworkCache m_artworkCache;
     QVariantList m_audioLevels{0.0, 0.0, 0.0};
 };

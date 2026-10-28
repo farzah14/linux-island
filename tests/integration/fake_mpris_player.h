@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QDBusConnection>
 #include <QDBusAbstractAdaptor>
+#include <QDBusObjectPath>
 #include <QVariantMap>
 
 class FakeMprisPlayer : public QObject {
@@ -74,7 +75,10 @@ public slots:
     void Seek(qint64 offset) {
         m_player->seekTo(m_player->m_position + offset);
     }
-
+    void SetPosition(const QDBusObjectPath &trackId, qint64 position) {
+        Q_UNUSED(trackId);
+        m_player->seekTo(position);
+    }
 private:
     FakeMprisPlayer *m_player;
 };

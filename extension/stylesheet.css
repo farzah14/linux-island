@@ -3,16 +3,27 @@
     border-radius: 20px;
     padding: 6px 18px;
     border: 1px solid transparent;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+    box-shadow: none;
+}
+.linux-island__capsule--circle {
+    border-radius: 999px;
+    padding: 0;
+    min-width: 36px;
+    max-width: 36px;
+    width: 36px;
+    min-height: 36px;
+    max-height: 36px;
+    height: 36px;
 }
 .linux-island__preview {
     border-radius: 24px;
     padding: 2px;
     border: 1.5px solid transparent;
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7);
+    box-shadow: none;
 }
 .linux-island__label { font-size: 13px; font-weight: 600; }
 .linux-island__artwork { border: 1px solid transparent; }
+.linux-island__circle-thumbnail { border-radius: 999px; border: 1px solid transparent; background-size: cover; background-position: center; }
 .linux-island__media-button { border: 0; }
 .linux-island__metric-tile { border: 0; padding: 2px 4px; }
 .linux-island__metric-label { font-size: 11px; font-weight: 600; }
@@ -23,6 +34,15 @@
 .linux-island__carousel-dot { width: 5px; height: 5px; border-radius: 3px; border: 0; padding: 0; }
 .linux-island__carousel-dot--active { width: 14px; height: 5px; border-radius: 3px; border: 0; padding: 0; }
 .linux-island__player-badge { font-size: 10px; font-weight: 600; border-radius: 6px; padding: 1px 6px; border: 0; }
+.linux-island__section-nav { spacing: 6px; padding-bottom: 2px; }
+.linux-island__section-btn { border-radius: 10px; width: 28px; height: 22px; padding: 0; border: 1px solid transparent; }
+.linux-island__section-btn--active { border-radius: 10px; width: 28px; height: 22px; padding: 0; border: 1px solid transparent; }
+.linux-island__wa-dot { width: 6px; height: 6px; border-radius: 3px; }
+.linux-island__wa-row { border-radius: 12px; border: 1px solid transparent; }
+.linux-island__quota-row { border: 0; padding: 2px 4px; background-color: transparent; }
+.linux-island__quota-pill-btn { font-size: 10px; font-weight: 600; border-radius: 6px; padding: 1px 6px; border: 1px solid transparent; }
+.linux-island__quota-pill-btn--active { font-size: 10px; font-weight: 600; border-radius: 6px; padding: 1px 6px; border: 1px solid transparent; }
+.linux-island__quota-toggle-btn { width: auto; min-width: 32px; padding: 0 8px; font-size: 10px; font-weight: 600; }
 
 .linux-island--dark.linux-island__capsule {
     background-color: #191816;
@@ -127,13 +147,11 @@
 }
 
 .linux-island--dark .linux-island__quick-toggle--active {
-    background-color: #D8B77F;
-    border-color: #D8B77F;
-    color: #191816;
+    color: #D8B77F;
 }
 
 .linux-island--dark .linux-island__quick-toggle--active:hover {
-    background-color: #E9CEA0;
+    color: #E9CEA0;
 }
 
 .linux-island--dark .linux-island__carousel-dot {
@@ -155,6 +173,60 @@
 
 .linux-island--dark .linux-island__player-badge:hover {
     background-color: #403B34;
+}
+
+.linux-island--dark .linux-island__section-btn {
+    background-color: transparent;
+    border-color: transparent;
+    color: #C8C0B5;
+}
+
+.linux-island--dark .linux-island__section-btn:hover {
+    background-color: #403B34;
+    color: #F4F0E9;
+}
+
+.linux-island--dark .linux-island__section-btn--active {
+    background-color: #302D28;
+    border-color: #575148;
+    color: #D8B77F;
+}
+
+.linux-island--dark .linux-island__section-btn--active:hover {
+    background-color: #403B34;
+    color: #E9CEA0;
+}
+
+.linux-island--dark .linux-island__wa-dot {
+    background-color: #9DD2B1;
+}
+
+.linux-island--dark .linux-island__wa-row {
+    background-color: #302D28;
+    border-color: #575148;
+    color: #F4F0E9;
+}
+
+.linux-island--dark .linux-island__quota-row {
+    background-color: transparent;
+    border: 0;
+}
+
+.linux-island--dark .linux-island__quota-pill-btn {
+    background-color: #302D28;
+    border-color: #575148;
+    color: #C8C0B5;
+}
+
+.linux-island--dark .linux-island__quota-pill-btn:hover {
+    background-color: #403B34;
+    color: #F4F0E9;
+}
+
+.linux-island--dark .linux-island__quota-pill-btn--active {
+    background-color: #403B34;
+    border-color: #D8B77F;
+    color: #D8B77F;
 }
 
 .linux-island--light.linux-island__capsule {
@@ -260,13 +332,11 @@
 }
 
 .linux-island--light .linux-island__quick-toggle--active {
-    background-color: #80551F;
-    border-color: #80551F;
-    color: #FBF8F1;
+    color: #80551F;
 }
 
 .linux-island--light .linux-island__quick-toggle--active:hover {
-    background-color: #6B471B;
+    color: #6B471B;
 }
 
 .linux-island--light .linux-island__carousel-dot {
@@ -288,4 +358,58 @@
 
 .linux-island--light .linux-island__player-badge:hover {
     background-color: #E5DED3;
+}
+
+.linux-island--light .linux-island__section-btn {
+    background-color: transparent;
+    border-color: transparent;
+    color: #5D554B;
+}
+
+.linux-island--light .linux-island__section-btn:hover {
+    background-color: #E5DED3;
+    color: #292621;
+}
+
+.linux-island--light .linux-island__section-btn--active {
+    background-color: #EEE9DF;
+    border-color: #C7BCAE;
+    color: #80551F;
+}
+
+.linux-island--light .linux-island__section-btn--active:hover {
+    background-color: #E5DED3;
+    color: #6B471B;
+}
+
+.linux-island--light .linux-island__wa-dot {
+    background-color: #276448;
+}
+
+.linux-island--light .linux-island__wa-row {
+    background-color: #EEE9DF;
+    border-color: #C7BCAE;
+    color: #292621;
+}
+
+.linux-island--light .linux-island__quota-row {
+    background-color: transparent;
+    border: 0;
+}
+
+.linux-island--light .linux-island__quota-pill-btn {
+    background-color: #EEE9DF;
+    border-color: #C7BCAE;
+    color: #5D554B;
+}
+
+.linux-island--light .linux-island__quota-pill-btn:hover {
+    background-color: #E5DED3;
+    color: #292621;
+}
+
+.linux-island--light .linux-island__quota-pill-btn--active {
+    background-color: #E5DED3;
+    border-color: #80551F;
+    color: #80551F;
 }

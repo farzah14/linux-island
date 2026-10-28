@@ -1,7 +1,7 @@
 #include <QtTest>
+#include <QDBusObjectPath>
 #include "media/media_state.h"
 #include "media/media_normalizer.h"
-
 class TestMediaNormalizer : public QObject {
     Q_OBJECT
 
@@ -17,6 +17,8 @@ private slots:
     void testRateValidation();
     void testCapabilitiesFlags();
     void testVolumeValidation();
+    void testTrackIdExtraction();
+    void testCanSeekFallback();
 };
 
 void TestMediaNormalizer::testNoPlayer() {
@@ -93,12 +95,19 @@ void TestMediaNormalizer::testInvalidPlaybackStatus() {
 }
 
 void TestMediaNormalizer::testAlbumArtUriFiltering() {
-    // HTTP/HTTPS rejected in v0.1
-    QVariantMap metaHttp = {
+    // HTTPS accepted
+    QVariantMap metaHttps = {
         {QStringLiteral("mpris:artUrl"), QStringLiteral("https://example.com/art.png")}
     };
-    MediaState s1 = normalizeMpris(QStringLiteral("org.mpris.MediaPlayer2.test"), metaHttp, {});
-    QCOMPARE(s1.albumArtUri, QString());
+    MediaState s1 = normalizeMpris(QStringLiteral("org.mpris.MediaPlayer2.test"), metaHttps, {});
+    QCOMPARE(s1.albumArtUri, QStringLiteral("https://example.com/art.png"));
+
+    // HTTP accepted
+    QVariantMap metaHttp = {
+        {QStringLiteral("mpris:artUrl"), QStringLiteral("http://127.0.0.1:8080/art.jpg")}
+    };
+    MediaState sHttp = normalizeMpris(QStringLiteral("org.mpris.MediaPlayer2.test"), metaHttp, {});
+    QCOMPARE(sHttp.albumArtUri, QStringLiteral("http://127.0.0.1:8080/art.jpg"));
 
     // Valid file:// accepted
     QVariantMap metaFile = {
@@ -106,6 +115,13 @@ void TestMediaNormalizer::testAlbumArtUriFiltering() {
     };
     MediaState s2 = normalizeMpris(QStringLiteral("org.mpris.MediaPlayer2.test"), metaFile, {});
     QCOMPARE(s2.albumArtUri, QStringLiteral("file:///home/user/cover.jpg"));
+
+    // Dangerous/invalid schemes rejected
+    QVariantMap metaBad = {
+        {QStringLiteral("mpris:artUrl"), QStringLiteral("javascript:alert(1)")}
+    };
+    MediaState s3 = normalizeMpris(QStringLiteral("org.mpris.MediaPlayer2.test"), metaBad, {});
+    QCOMPARE(s3.albumArtUri, QString());
 }
 
 void TestMediaNormalizer::testRateValidation() {
@@ -150,6 +166,26 @@ void TestMediaNormalizer::testVolumeValidation() {
     QVariantMap propsLow = {{QStringLiteral("Volume"), -0.2}};
     MediaState sLow = normalizeMpris(QStringLiteral("org.mpris.MediaPlayer2.test"), {}, propsLow);
     QCOMPARE(sLow.volume, 0.0);
+}
+
+void TestMediaNormalizer::testTrackIdExtraction() {
+    QVariantMap meta = {
+        {QStringLiteral("mpris:trackid"), QVariant::fromValue(QDBusObjectPath(QStringLiteral("/org/mpris/MediaPlayer2/TrackList/123")))}
+    };
+    MediaState s = normalizeMpris(QStringLiteral("org.mpris.MediaPlayer2.test"), meta, {});
+    QCOMPARE(s.trackId, QStringLiteral("/org/mpris/MediaPlayer2/TrackList/123"));
+}
+
+void TestMediaNormalizer::testCanSeekFallback() {
+    // When CanSeek is omitted, but duration is positive, fallback to true
+    QVariantMap meta = {{QStringLiteral("mpris:length"), 120000000LL}};
+    MediaState s1 = normalizeMpris(QStringLiteral("org.mpris.MediaPlayer2.test"), meta, {});
+    QCOMPARE(s1.canSeek, true);
+
+    // When CanSeek is explicitly false, respect it even if duration is positive
+    QVariantMap props = {{QStringLiteral("CanSeek"), false}};
+    MediaState s2 = normalizeMpris(QStringLiteral("org.mpris.MediaPlayer2.test"), meta, props);
+    QCOMPARE(s2.canSeek, false);
 }
 
 QTEST_MAIN(TestMediaNormalizer)

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Linux Island
+Comment=Launch Linux Island Dynamic Island Overlay
+Exec=linux-island-launch --standalone
+Icon=preferences-system
+Terminal=false
+Categories=Utility;DesktopSettings;
+Keywords=island;capsule;notch;media;overlay;

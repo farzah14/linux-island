@@ -1,6 +1,6 @@
 #include "fake_mpris_player.h"
 #include <QDBusMessage>
-
+#include <QDBusObjectPath>
 FakeMprisPlayerAdaptor::FakeMprisPlayerAdaptor(FakeMprisPlayer *parent)
     : QDBusAbstractAdaptor(parent),
       m_player(parent) {}
@@ -12,6 +12,7 @@ FakeMprisPlayer::FakeMprisPlayer(const QString &serviceName, QObject *parent)
     new FakeMprisPlayerAdaptor(this);
     m_metadata[QStringLiteral("xesam:title")] = QStringLiteral("Fake Title");
     m_metadata[QStringLiteral("xesam:artist")] = QStringList{QStringLiteral("Fake Artist")};
+    m_metadata[QStringLiteral("mpris:trackid")] = QVariant::fromValue(QDBusObjectPath(QStringLiteral("/org/mpris/MediaPlayer2/Track/1")));
     m_metadata[QStringLiteral("mpris:length")] = 180000000LL;
 }
 

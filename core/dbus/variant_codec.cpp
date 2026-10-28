@@ -3,6 +3,7 @@
 QVariantMap toMediaVariantMap(const MediaState &state) {
     QVariantMap map;
     map[QStringLiteral("playerId")] = state.playerId;
+    map[QStringLiteral("trackId")] = state.trackId;
     map[QStringLiteral("title")] = state.title;
     map[QStringLiteral("artist")] = state.artist;
     map[QStringLiteral("albumArtUri")] = state.albumArtUri;

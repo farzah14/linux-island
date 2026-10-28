@@ -2,6 +2,9 @@
   "uuid": "linux-island@local",
   "name": "Linux Island",
   "description": "A minimal GNOME Shell capsule feasibility prototype",
-  "shell-version": ["46"],
+  "shell-version": [
+    "46",
+    "50"
+  ],
   "version": 1
 }

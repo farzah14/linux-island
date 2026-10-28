@@ -17,6 +17,7 @@ export default class LinuxIslandExtension extends Extension {
             onMediaOpen: () => this._coreProxy?.refreshMedia(),
             onUpdateSettings: patch => this._coreProxy?.updateSettings(patch),
             onSetActivePlayer: id => this._coreProxy?.setActivePlayer(id),
+            onWhatsAppActivate: () => this._notifAdapter?.activateWhatsApp(),
         });
         let controller = null;
         let coreProxy = null;
@@ -53,8 +54,12 @@ export default class LinuxIslandExtension extends Extension {
 
             this._notifAdapter = new NotificationAdapter({
                 enabled: false,
+                whatsappEnabled: false,
                 onNotificationPeek: () => {
                     this._controller?.dispatch('PEEK_REQUEST');
+                },
+                onWhatsAppActivityChanged: hasActivity => {
+                    this._capsule?.setWhatsAppActivity(hasActivity);
                 },
             });
         } catch (error) {
@@ -81,11 +86,19 @@ export default class LinuxIslandExtension extends Extension {
             this._capsule?.setTheme(coreState.settings.theme);
             this._capsule?.setCapsuleSize(coreState.settings.capsuleSize);
             this._capsule?.setAnimationEnabled(coreState.settings.animationEnabled);
+            if (coreState.settings.verticalOffset !== undefined) {
+                this._capsule?.setVerticalOffset(coreState.settings.verticalOffset);
+            }
+            if (coreState.settings.horizontalOffset !== undefined) {
+                this._capsule?.setHorizontalOffset(coreState.settings.horizontalOffset);
+            }
             const peekEnabled = Boolean(coreState.settings.notificationPeekEnabled);
             this._notifAdapter?.setEnabled(peekEnabled);
+            const waEnabled = Boolean(coreState.settings.whatsappIntegrationEnabled);
+            this._notifAdapter?.setWhatsAppEnabled(waEnabled);
+            this._capsule?.setWhatsAppEnabled(waEnabled);
         }
     }
-
     disable() {
         this._notifAdapter?.destroy();
         this._notifAdapter = null;

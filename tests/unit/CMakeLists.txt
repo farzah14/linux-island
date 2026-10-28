@@ -21,7 +21,7 @@ add_executable(tst_media_normalizer
     ${CMAKE_SOURCE_DIR}/core/media/media_normalizer.cpp
 )
 target_include_directories(tst_media_normalizer PRIVATE ${CMAKE_SOURCE_DIR}/core)
-target_link_libraries(tst_media_normalizer PRIVATE Qt6::Core Qt6::Test)
+target_link_libraries(tst_media_normalizer PRIVATE Qt6::Core Qt6::DBus Qt6::Test)
 add_test(NAME media-normalizer COMMAND tst_media_normalizer)
 
 add_executable(tst_player_selection
@@ -37,3 +37,36 @@ add_executable(tst_audio_meter tst_audio_meter.cpp ${CMAKE_SOURCE_DIR}/core/medi
 target_include_directories(tst_audio_meter PRIVATE ${CMAKE_SOURCE_DIR}/core)
 target_link_libraries(tst_audio_meter PRIVATE Qt6::Core Qt6::Test)
 add_test(NAME audio-meter COMMAND tst_audio_meter)
+
+add_executable(tst_artwork_cache
+    tst_artwork_cache.cpp
+    ${CMAKE_SOURCE_DIR}/core/media/artwork_cache.cpp
+)
+target_include_directories(tst_artwork_cache PRIVATE ${CMAKE_SOURCE_DIR}/core)
+target_link_libraries(tst_artwork_cache PRIVATE Qt6::Core Qt6::Network Qt6::Test)
+add_test(NAME artwork-cache COMMAND tst_artwork_cache)
+
+add_executable(tst_system_metrics
+    tst_system_metrics.cpp
+    ${CMAKE_SOURCE_DIR}/island-ui/system_metrics_provider.cpp
+)
+target_include_directories(tst_system_metrics PRIVATE ${CMAKE_SOURCE_DIR}/island-ui)
+target_link_libraries(tst_system_metrics PRIVATE Qt6::Core Qt6::Test)
+add_test(NAME system-metrics COMMAND tst_system_metrics)
+
+add_executable(tst_ai_quota
+    tst_ai_quota.cpp
+    ${CMAKE_SOURCE_DIR}/island-ui/ai_quota_provider.cpp
+)
+target_include_directories(tst_ai_quota PRIVATE ${CMAKE_SOURCE_DIR}/island-ui)
+target_link_libraries(tst_ai_quota PRIVATE Qt6::Core Qt6::Test)
+add_test(NAME ai-quota COMMAND tst_ai_quota)
+
+add_executable(tst_island_client_fsm
+    tst_island_client_fsm.cpp
+    ${CMAKE_SOURCE_DIR}/island-ui/island_client.cpp
+    ${CMAKE_SOURCE_DIR}/island-ui/notification_watcher.cpp
+)
+target_include_directories(tst_island_client_fsm PRIVATE ${CMAKE_SOURCE_DIR}/island-ui)
+target_link_libraries(tst_island_client_fsm PRIVATE Qt6::Core Qt6::DBus Qt6::Gui Qt6::Test)
+add_test(NAME island-client-fsm COMMAND tst_island_client_fsm)

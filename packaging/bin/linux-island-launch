@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Linux Island Cross-DE & Universal Session Launcher
+# Detects Desktop Environment and displayMode, orchestrates Core service,
+# and activates either the native GNOME Shell extension or the standalone Qt6 overlay.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." 2>/dev/null && pwd || echo "")"
+
+# Find binaries
+CORE_BIN=""
+UI_BIN=""
+SETTINGS_BIN=""
+
+# 1. Check build tree first if in repository
+if [[ -n "$ROOT_DIR" && -f "$ROOT_DIR/build/dev/core/linux-island-core" ]]; then
+    CORE_BIN="$ROOT_DIR/build/dev/core/linux-island-core"
+    UI_BIN="$ROOT_DIR/build/dev/island-ui/linux-island-ui"
+    SETTINGS_BIN="$ROOT_DIR/build/dev/settings-app/linux-island-settings"
+fi
+
+# 2. Check installed paths
+if [[ -z "$CORE_BIN" || ! -f "$CORE_BIN" ]]; then
+    if [[ -f "$HOME/.local/libexec/linux-island-core" ]]; then
+        CORE_BIN="$HOME/.local/libexec/linux-island-core"
+    elif command -v linux-island-core &>/dev/null; then
+        CORE_BIN="$(command -v linux-island-core)"
+    fi
+fi
+
+if [[ -z "$UI_BIN" || ! -f "$UI_BIN" ]]; then
+    if [[ -f "$HOME/.local/libexec/linux-island-ui" ]]; then
+        UI_BIN="$HOME/.local/libexec/linux-island-ui"
+    elif command -v linux-island-ui &>/dev/null; then
+        UI_BIN="$(command -v linux-island-ui)"
+    fi
+fi
+
+if [[ -z "$SETTINGS_BIN" || ! -f "$SETTINGS_BIN" ]]; then
+    if [[ -f "$HOME/.local/bin/linux-island-settings" ]]; then
+        SETTINGS_BIN="$HOME/.local/bin/linux-island-settings"
+    elif command -v linux-island-settings &>/dev/null; then
+        SETTINGS_BIN="$(command -v linux-island-settings)"
+    fi
+fi
+
+MODE_FLAG="${1:-}"
+STANDALONE_OVERRIDE=false
+SMOKE_TEST=false
+
+for arg in "$@"; do
+    if [[ "$arg" == "--standalone" ]]; then
+        STANDALONE_OVERRIDE=true
+    elif [[ "$arg" == "--smoke-test" ]]; then
+        SMOKE_TEST=true
+    fi
+done
+
+# Detect Desktop Environment
+DE="${XDG_CURRENT_DESKTOP:-${DESKTOP_SESSION:-unknown}}"
+IS_GNOME=false
+if echo "$DE" | grep -qi "gnome"; then
+    IS_GNOME=true
+fi
+
+# Read displayMode preference
+CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/linux-island/settings.json"
+DISPLAY_MODE="dynamic"
+if [[ -f "$CONFIG_FILE" ]]; then
+    if command -v python3 &>/dev/null; then
+        DISPLAY_MODE="$(python3 -c "import json; print(json.load(open('$CONFIG_FILE')).get('displayMode', 'dynamic'))" 2>/dev/null || echo "dynamic")"
+    fi
+fi
+
+# Function to check if Core D-Bus name is owned
+is_core_running() {
+    if command -v gdbus &>/dev/null; then
+        local reply
+        reply="$(gdbus call --session --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus --method org.freedesktop.DBus.NameHasOwner io.github.linuxisland.Core 2>/dev/null || echo "(false,)")"
+        if echo "$reply" | grep -q "true"; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+ensure_core() {
+    if ! is_core_running; then
+        if command -v systemctl &>/dev/null && systemctl --user is-active --quiet linux-island-core.service 2>/dev/null; then
+            # Already starting or active
+            sleep 0.3
+        elif command -v systemctl &>/dev/null && systemctl --user list-unit-files linux-island-core.service &>/dev/null; then
+            systemctl --user start linux-island-core.service || true
+            sleep 0.5
+        elif [[ -n "$CORE_BIN" && -x "$CORE_BIN" ]]; then
+            "$CORE_BIN" >/dev/null 2>&1 &
+            sleep 0.5
+        fi
+    fi
+}
+
+if [[ "$MODE_FLAG" == "--status" ]]; then
+    echo "Linux Island Desktop Environment: $DE"
+    echo "Display Mode Preference: $DISPLAY_MODE"
+    if is_core_running; then
+        echo "Core Service: RUNNING (io.github.linuxisland.Core)"
+    else
+        echo "Core Service: STOPPED"
+    fi
+    exit 0
+fi
+
+ensure_core
+
+# Determine whether to use GNOME extension or standalone Qt6 overlay
+if [[ "$IS_GNOME" == "true" && "$DISPLAY_MODE" == "dynamic" && "$STANDALONE_OVERRIDE" == "false" && "$SMOKE_TEST" == "false" ]]; then
+    if command -v gnome-extensions &>/dev/null; then
+        gnome-extensions enable linux-island@local || true
+        # If launched via autostart or systemd-ui, extension owns the top bar
+        if [[ "$MODE_FLAG" == "--autostart" || "$MODE_FLAG" == "--systemd-ui" ]]; then
+            exit 0
+        fi
+        echo "Linux Island: GNOME Shell extension enabled for Dynamic Mode."
+        exit 0
+    fi
+fi
+
+# In non-GNOME or Floating mode or --standalone:
+# If running on GNOME in floating mode, disable extension to avoid double rendering
+if [[ "$IS_GNOME" == "true" && "$DISPLAY_MODE" == "floating" ]]; then
+    if command -v gnome-extensions &>/dev/null; then
+        gnome-extensions disable linux-island@local 2>/dev/null || true
+    fi
+fi
+
+if [[ -z "$UI_BIN" || ! -x "$UI_BIN" ]]; then
+    echo "ERROR: linux-island-ui binary not found or not executable." >&2
+    exit 1
+fi
+
+exec "$UI_BIN" "$@"

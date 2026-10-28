@@ -30,7 +30,7 @@ export class SystemMetricTile {
     _build() {
         this.actor = new St.BoxLayout({
             vertical: false,
-            style: 'spacing: 8px; height: 26px;',
+            style: 'spacing: 8px; height: 20px;',
             style_class: 'linux-island__metric-tile',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
@@ -54,9 +54,6 @@ export class SystemMetricTile {
         });
         this.actor.add_child(this._nameLabel);
 
-        const spacer = new St.Widget({x_expand: true});
-        this.actor.add_child(spacer);
-
         this._valueLabel = new St.Label({
             text: '--%',
             style_class: 'linux-island__metric-value',
@@ -68,19 +65,8 @@ export class SystemMetricTile {
 
     setWidth(w) {
         if (!this.actor || w <= 0) return;
-        this.actor.style = `width: ${w}px; spacing: 8px; height: 26px;`;
+        this.actor.style = `width: ${w}px; spacing: 8px; height: 20px;`;
         this.actor.width = w;
-    }
-
-    setWidth(w) {
-        if (!this.actor || w <= 0) return;
-        this.actor.style = `width: ${w}px; padding: 1px 0; spacing: 2px;`;
-        this.actor.width = w;
-        if (this._track) {
-            this._track.style = `width: ${w}px; height: 3px; border-radius: 2px;`;
-            this._track.width = w;
-            this._syncFill();
-        }
     }
 
     setIcon(iconName) {
@@ -143,10 +129,14 @@ export class SystemMetricsRow {
         };
 
         this.actor = null;
+        this._metricsCol = null;
         this._cpuTile = null;
         this._ramTile = null;
         this._batTile = null;
-
+        this._netTile = null;
+        this._netBox = null;
+        this._rxLabel = null;
+        this._txLabel = null;
         if (St && Clutter) {
             this._build();
             this.actor.connect('notify::mapped', () => this._onMappedChanged());
@@ -155,6 +145,14 @@ export class SystemMetricsRow {
 
     _build() {
         this.actor = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 10px;',
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        // Left Column: CPU, RAM, Battery (with percentages)
+        this._metricsCol = new St.BoxLayout({
             vertical: true,
             style: 'spacing: 4px;',
             x_expand: true,
@@ -165,13 +163,13 @@ export class SystemMetricsRow {
             label: 'CPU',
             iconName: 'preferences-system-performance-symbolic',
         });
-        if (this._cpuTile.actor) this.actor.add_child(this._cpuTile.actor);
+        if (this._cpuTile.actor) this._metricsCol.add_child(this._cpuTile.actor);
 
         this._ramTile = new SystemMetricTile({
             label: 'RAM',
             iconName: 'drive-harddisk-symbolic',
         });
-        if (this._ramTile.actor) this.actor.add_child(this._ramTile.actor);
+        if (this._ramTile.actor) this._metricsCol.add_child(this._ramTile.actor);
 
         // Check if system has a battery device
         const initial = this._collector.collect();
@@ -180,17 +178,86 @@ export class SystemMetricsRow {
                 label: 'BAT',
                 iconName: initial.battery.iconName || 'battery-good-symbolic',
             });
-            if (this._batTile.actor) this.actor.add_child(this._batTile.actor);
+            if (this._batTile.actor) this._metricsCol.add_child(this._batTile.actor);
         }
+        this.actor.add_child(this._metricsCol);
+
+        // Right Column (beside percentage): Network Monitor
+        this._netBox = new St.BoxLayout({
+            vertical: true,
+            style: 'spacing: 3px; padding: 6px 8px; min-width: 96px; border-radius: 6px; background-color: rgba(255,255,255,0.04);',
+            style_class: 'linux-island__net-monitor',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        const netHeader = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 5px;',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        const netIcon = new St.Icon({
+            icon_name: 'network-transmit-receive-symbolic',
+            fallback_icon_name: 'network-wireless-symbolic',
+            icon_size: 13,
+            style_class: 'linux-island__metric-icon',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        const netTitle = new St.Label({
+            text: 'NET',
+            style: 'font-size: 11px; font-weight: bold;',
+            style_class: 'linux-island__metric-label',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        netHeader.add_child(netIcon);
+        netHeader.add_child(netTitle);
+        this._netBox.add_child(netHeader);
+
+        this._rxLabel = new St.Label({
+            text: '↓ 0 B/s',
+            style: 'font-size: 11px;',
+            style_class: 'linux-island__metric-value',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._netBox.add_child(this._rxLabel);
+
+        this._txLabel = new St.Label({
+            text: '↑ 0 B/s',
+            style: 'font-size: 11px;',
+            style_class: 'linux-island__metric-value',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._netBox.add_child(this._txLabel);
+
+        this.actor.add_child(this._netBox);
+
+        this._netTile = {
+            _label: 'NET',
+            _iconName: 'network-transmit-receive-symbolic',
+            actor: this._netBox,
+            setValue: (text) => {
+                if (this._rxLabel) this._rxLabel.text = text ? `↓ ${text}` : '↓ 0 B/s';
+            },
+            setSpeeds: (rxText, txText) => {
+                if (this._rxLabel) this._rxLabel.text = rxText || '↓ 0 B/s';
+                if (this._txLabel) this._txLabel.text = txText || '↑ 0 B/s';
+            },
+            setWidth: () => {},
+            destroy: () => {},
+        };
     }
 
     setWidth(w) {
         if (!this.actor || w <= 0) return;
-        this.actor.style = `width: ${w}px; spacing: 6px;`;
+        this.actor.style = `width: ${w}px; spacing: 10px;`;
         this.actor.width = w;
-        if (this._cpuTile) this._cpuTile.setWidth(w);
-        if (this._ramTile) this._ramTile.setWidth(w);
-        if (this._batTile) this._batTile.setWidth(w);
+        const leftW = Math.max(80, Math.round(w * 0.54));
+        if (this._metricsCol) {
+            this._metricsCol.style = `width: ${leftW}px; spacing: 4px;`;
+            this._metricsCol.width = leftW;
+        }
+        if (this._cpuTile) this._cpuTile.setWidth(leftW);
+        if (this._ramTile) this._ramTile.setWidth(leftW);
+        if (this._batTile) this._batTile.setWidth(leftW);
     }
 
     update() {
@@ -207,6 +274,13 @@ export class SystemMetricsRow {
             this._batTile.setIcon(metrics.battery.iconName || 'battery-good-symbolic');
             this._batTile.setLabel(metrics.battery.device || 'BAT');
             this._batTile.setValue(metrics.battery.text, metrics.battery.percent);
+        }
+        if (metrics.network) {
+            if (this._rxLabel) this._rxLabel.text = metrics.network.rxText || `↓ ${metrics.network.text}`;
+            if (this._txLabel) this._txLabel.text = metrics.network.txText || '↑ 0 B/s';
+            if (this._netTile && typeof this._netTile.setValue === 'function') {
+                this._netTile.setValue(metrics.network.text);
+            }
         }
     }
 
@@ -248,6 +322,14 @@ export class SystemMetricsRow {
         if (this._cpuTile) this._cpuTile.destroy();
         if (this._ramTile) this._ramTile.destroy();
         if (this._batTile) this._batTile.destroy();
+        if (this._netBox) {
+            this._netBox.destroy();
+            this._netBox = null;
+        }
+        if (this._metricsCol) {
+            this._metricsCol.destroy();
+            this._metricsCol = null;
+        }
         if (this.actor) {
             this.actor.destroy();
             this.actor = null;
