@@ -1,6 +1,14 @@
 # D-Bus integration targets are introduced in milestone M1.
 add_test(NAME dbus-schema COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_schema.py)
 
+# Developer workflow tooling (no live shell required).
+add_test(NAME dev-session
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_dev_session.py)
+add_test(NAME dev-cli
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_dev_cli.py)
+add_test(NAME stage-metadata
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_stage_metadata.py)
+
 set(CMAKE_AUTOMOC ON)
 add_executable(tst_core_dbus
     tst_core_dbus.cpp
