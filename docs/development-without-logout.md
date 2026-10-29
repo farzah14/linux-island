@@ -181,3 +181,40 @@ during a slow import, two rapid enables, stylesheet unload, missing pointer,
 missing stylesheet.
 
 These validate tooling logic. They are **not** GNOME compatibility evidence.
+
+## 9. Test account for visible evidence
+
+A second GNOME account on the same host gives a *visible* desktop without
+logging out of the primary session. It does not prove GNOME 46 compatibility —
+that needs a VM with Ubuntu 24.04.
+
+Setup performed on this host (2026-10-30):
+
+```text
+user      islandtest (uid 1001)
+password  stored at /tmp/islandtest-cred.txt (mode 0600)
+project   /opt/linux-island-dev (world-readable copy; $HOME/farzah is 0750)
+install   packaging/dev/install-local.sh run as islandtest
+dconf     enabled-extensions = ['linux-island@local']
+```
+
+Verified before login: a headless shell for `islandtest` loads the extension to
+`State: ACTIVE`.
+
+### Capture evidence
+
+Inside the test session, open a terminal and run:
+
+```bash
+/opt/linux-island-dev/scripts/dev/capture-visual.sh
+```
+
+It writes `~/island-evidence/report.txt` plus four PNGs (compact, expanded,
+system page, AI quota page) and records shell version, extension state, Core
+`instanceId`, and monitor geometry. It is read-only apart from the PNGs.
+
+### What the test account does NOT give you
+
+- GNOME 46 behaviour (host is a different version)
+- Frame-level animation smoothness
+- Proof that clicks outside the capsule pass through (needs a manual click test)
