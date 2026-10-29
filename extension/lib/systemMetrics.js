@@ -2,9 +2,13 @@
 // Uses passive /proc and /sys file reads via GLib in GJS, with fallback for pure logic tests.
 
 let GLib = null;
+let Gio = null;
 if (typeof process === 'undefined') {
     try {
         GLib = (await import('gi://GLib')).default;
+    } catch (_) {}
+    try {
+        Gio = (await import('gi://Gio')).default;
     } catch (_) {}
 }
 
@@ -163,6 +167,69 @@ export function formatNetSpeed(bytesPerSec) {
     return `${gb.toFixed(1)} GB/s`;
 }
 
+export function formatStorage(bytes) {
+    const value = Number(bytes);
+    if (!isFinite(value) || value <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+    let amount = value;
+    let unit = 0;
+    while (amount >= 1024 && unit < units.length - 1) {
+        amount /= 1024;
+        unit++;
+    }
+    const rounded = amount >= 100 ? Math.round(amount) : amount.toFixed(1);
+    return `${rounded} ${units[unit]}`;
+}
+
+/**
+ * Compact "used/total unit" form for the narrow disk column, e.g. "36/143 GB".
+ * The unit is printed once so the string stays short enough not to clip.
+ */
+export function formatStorageCompact(usedBytes, totalBytes) {
+    const total = Number(totalBytes);
+    if (!isFinite(total) || total <= 0) return '';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+    let amount = total;
+    let unit = 0;
+    while (amount >= 1024 && unit < units.length - 1) {
+        amount /= 1024;
+        unit++;
+    }
+    const scale = 1024 ** unit;
+    const totalValue = amount >= 100 ? Math.round(amount) : amount.toFixed(1);
+    const usedValue = total / scale >= 100
+        ? Math.round(Number(usedBytes) / scale)
+        : (Number(usedBytes) / scale).toFixed(1);
+    return `${usedValue}/${totalValue} ${units[unit]}`;
+}
+
+export function computeStorageUsage(sizeBytes, freeBytes) {
+    const size = Number(sizeBytes);
+    const free = Number(freeBytes);
+    if (!isFinite(size) || size <= 0) return null;
+    const clampedFree = isFinite(free) ? Math.max(0, Math.min(size, free)) : 0;
+    const used = size - clampedFree;
+    const percent = Math.max(0, Math.min(100, (used / size) * 100));
+    return {
+        size,
+        free: clampedFree,
+        used,
+        percent,
+        text: `${Math.round(percent)}%`,
+        detailText: `${formatStorage(used)} / ${formatStorage(size)}`,
+        // The system page's disk column is ~67px wide, which fits about 13
+        // characters at 9px. Spell the total once and drop the redundant unit:
+        // "36/143 GB" instead of "36.0 GB / 143 GB".
+        compactDetailText: formatStorageCompact(used, size),
+    };
+}
+
+export function storageIconName(percent) {
+    const p = Number(percent) || 0;
+    if (p >= 90) return 'drive-harddisk-solidstate-symbolic';
+    return 'drive-harddisk-symbolic';
+}
+
 function defaultReadFile(filePath) {
     if (GLib) {
         try {
@@ -176,9 +243,26 @@ function defaultReadFile(filePath) {
     return null;
 }
 
+export function defaultReadStorage(mountPath = '/') {
+    if (!Gio) return null;
+    try {
+        const file = Gio.File.new_for_path(mountPath);
+        const info = file.query_filesystem_info(
+            'filesystem::size,filesystem::free', null);
+        if (!info) return null;
+        return {
+            size: info.get_attribute_uint64('filesystem::size'),
+            free: info.get_attribute_uint64('filesystem::free'),
+        };
+    } catch {
+        return null;
+    }
+}
+
 export class SystemMetricsCollector {
-    constructor({ readFile = defaultReadFile } = {}) {
+    constructor({ readFile = defaultReadFile, readStorage = defaultReadStorage } = {}) {
         this._readFile = readFile;
+        this._readStorage = readStorage;
         this._lastCpuSample = null;
         this._lastNetSample = null;
         this._batteryPaths = [];
@@ -353,11 +437,28 @@ export class SystemMetricsCollector {
             netData = null;
         }
 
+        // Storage (root filesystem)
+        let storageData = null;
+        try {
+            const raw = this._readStorage('/');
+            const usage = raw ? computeStorageUsage(raw.size, raw.free) : null;
+            if (usage) {
+                storageData = {
+                    ...usage,
+                    iconName: storageIconName(usage.percent),
+                    label: 'DISK',
+                };
+            }
+        } catch {
+            storageData = null;
+        }
+
         return {
             cpu: cpuData,
             ram: ramData,
             battery: batData,
             network: netData,
+            storage: storageData,
         };
     }
 }

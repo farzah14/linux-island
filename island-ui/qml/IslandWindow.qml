@@ -48,20 +48,24 @@ Window {
         border.color: isHovered || isExpanded ? IslandTheme.borderFocus : IslandTheme.borderSubtle
         border.width: 1
         clip: true
+        scale: (compactMouse.pressed && !islandContainer.isExpanded) ? 0.96 : 1.0
 
         Behavior on width {
             enabled: islandClient.animationEnabled
-            NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
         }
         Behavior on height {
             enabled: islandClient.animationEnabled
-            NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
         }
         Behavior on radius {
             enabled: islandClient.animationEnabled
-            NumberAnimation { duration: 200 }
+            NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
         }
-
+        Behavior on scale {
+            enabled: islandClient.animationEnabled
+            NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+        }
         // Notify surface manager of input mask whenever allocation updates
         onXChanged: updateMask()
         onYChanged: updateMask()
@@ -81,8 +85,12 @@ Window {
         Item {
             id: compactRow
             anchors.fill: parent
-            visible: !islandContainer.isExpanded
-
+            opacity: islandContainer.isExpanded ? 0 : 1
+            visible: opacity > 0
+            Behavior on opacity {
+                enabled: islandClient.animationEnabled
+                NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+            }
             RowLayout {
                 anchors.centerIn: parent
                 spacing: 6
@@ -146,6 +154,7 @@ Window {
             }
 
             MouseArea {
+                id: compactMouse
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
@@ -171,9 +180,12 @@ Window {
             anchors.fill: parent
             anchors.margins: 10
             spacing: 6
-            visible: islandContainer.isExpanded
-
-            // WhatsApp Notification Action Banner (if active)
+            opacity: islandContainer.isExpanded ? 1 : 0
+            visible: opacity > 0
+            Behavior on opacity {
+                enabled: islandClient.animationEnabled
+                NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+            }
             Rectangle {
                 Layout.fillWidth: true
                 implicitHeight: 24

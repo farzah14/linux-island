@@ -1,4 +1,4 @@
-import {QuickToggle, QuickTogglesRow} from '../../extension/ui/quickToggle.js';
+import {QuickToggle, QuickTogglesRow, TOGGLE_WIDTH, TOGGLE_HEIGHT, TOGGLE_COLUMN_SPACING} from '../../extension/ui/quickToggle.js';
 
 function assert(condition, message = 'Assertion failed') {
     if (!condition) throw new Error(message);
@@ -53,6 +53,28 @@ function assertEqual(actual, expected, message) {
     assert(row._settingsToggle, 'Island exposes a Settings launcher');
     assertEqual(row._settingsToggle._label, 'Settings');
     assertEqual(row._settingsToggle._iconName, 'preferences-system-symbolic');
+
+    // The right group must fit the 98px system section, otherwise it is
+    // clipped by the carousel's clip_to_allocation.
+    const toggles = [row._themeToggle, row._dndToggle, row._nightToggle, row._settingsToggle];
+    for (const toggle of toggles) {
+        assertEqual(toggle._size, 20, `${toggle._label} toggle height`);
+    }
+    // Icon column: four 20px toggles plus three 4px gaps — same row height and
+    // gap as the CPU/RAM/BAT tiles.
+    const columnHeight = 4 * TOGGLE_HEIGHT + 3 * TOGGLE_COLUMN_SPACING;
+    assert(columnHeight <= 98,
+        `icon column ${columnHeight}px must fit the 98px section`);
+    // Disk block is 13+1+12+1+11 = 38px tall, shorter than the icon column.
+    assert(38 <= 98, 'disk block must fit the 98px section');
+    // Right-edge parity with the metric column: a 14px glyph centred in a
+    // TOGGLE_WIDTH box leaves 4px on each side — the same inset the metric tile
+    // gets from its 2px 4px padding — so both sides share one visual margin.
+    assertEqual((TOGGLE_WIDTH - 14) / 2, 4, 'toggle glyph inset matches metric tile padding');
+    assertEqual(TOGGLE_COLUMN_SPACING, 4, 'icon gap matches metric row gap');
+    for (const toggle of toggles) {
+        assertEqual(toggle._size, TOGGLE_HEIGHT, `${toggle._label} matches metric row height`);
+    }
 
     // Initial state reflected
     assertEqual(row._dndToggle.isActive, false);

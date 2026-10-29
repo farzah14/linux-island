@@ -1,4 +1,5 @@
 import {QuickSettingsManager} from '../lib/quickSettings.js';
+import {StorageIndicator} from './systemMetricTile.js';
 
 let St = null;
 let Clutter = null;
@@ -13,12 +14,23 @@ if (typeof process === 'undefined') {
     } catch (_) {}
 }
 
+// Quick-setting icon column. Geometry mirrors the CPU/RAM/BAT metric tiles:
+//   metric tile = 20px row, 4px gap, 4px side inset, 14px glyph
+//   toggle      = 20px row, 4px gap, 4px side inset, 14px glyph
+// The inset comes from centring the 14px glyph in a 22px box rather than from
+// CSS padding: St adds padding outside an explicit height, and 4 padded rows
+// would overflow the 98px system section and get clipped by the carousel.
+export const TOGGLE_WIDTH = 22;
+export const TOGGLE_HEIGHT = 20;
+export const TOGGLE_COLUMN_SPACING = 4;
+
 export class QuickToggle {
-    constructor({iconName, label, onToggle, active = false} = {}) {
+    constructor({iconName, label, onToggle, active = false, size = 26} = {}) {
         this._iconName = iconName;
         this._label = label;
         this._onToggle = onToggle ?? (() => {});
         this._active = Boolean(active);
+        this._size = size;
         this.actor = null;
         this._icon = null;
         this._labelWidget = null;
@@ -34,8 +46,9 @@ export class QuickToggle {
 
     _build() {
         this.actor = new St.Button({
-            // Keep a generous click target while displaying a plain 14px metric-sized icon.
-            style: 'width: 26px; height: 26px; padding: 0; border: 0; background-color: transparent;',
+            // Metric-tile geometry: 20px row, 14px glyph centred in 22px gives
+            // the same 4px side inset as the tile's 2px 4px padding.
+            style: `width: ${TOGGLE_WIDTH}px; height: ${this._size}px; padding: 0; border: 0; background-color: transparent;`,
             style_class: 'linux-island__quick-toggle',
             reactive: true,
             can_focus: true,
@@ -96,9 +109,10 @@ export class QuickToggle {
 }
 
 export class QuickTogglesRow {
-    constructor({manager, onThemeToggle, onOpenSettings} = {}) {
+    constructor({manager, onThemeToggle, onOpenSettings, onOpenStorage} = {}) {
         this._manager = manager ?? new QuickSettingsManager();
         this._onThemeToggle = onThemeToggle ?? (() => this._manager.toggleDarkMode());
+        this._onOpenStorage = onOpenStorage ?? (() => {});
         this._onOpenSettings = onOpenSettings ?? (() => {
             try {
                 if (Gio) {
@@ -123,6 +137,7 @@ export class QuickTogglesRow {
             label: 'Theme: Dark',
             onToggle: () => this._onThemeToggle(),
             active: true,
+            size: TOGGLE_HEIGHT,
         });
         this._darkToggle = this._themeToggle;
 
@@ -130,18 +145,26 @@ export class QuickTogglesRow {
             iconName: 'notifications-disabled-symbolic',
             label: 'DND',
             onToggle: () => this._manager.toggleDnd(),
+            size: TOGGLE_HEIGHT,
         });
 
         this._nightToggle = new QuickToggle({
             iconName: 'night-light-symbolic',
             label: 'Night Light',
             onToggle: () => this._manager.toggleNightLight(),
+            size: TOGGLE_HEIGHT,
         });
 
         this._settingsToggle = new QuickToggle({
             iconName: 'preferences-system-symbolic',
             label: 'Settings',
             onToggle: () => this._onOpenSettings(),
+            size: TOGGLE_HEIGHT,
+        });
+
+        // Storage tracker sits directly below the icon row, right side.
+        this._storageIndicator = new StorageIndicator({
+            onActivate: () => this._onOpenStorage(),
         });
         if (St && Clutter) {
             this._build();
@@ -166,16 +189,68 @@ export class QuickTogglesRow {
     }
 
     _build() {
+        // Right slot, left to right: disk readout immediately right of NET,
+        // then the quick-setting icon column flush against the capsule edge.
+        //
+        // The disk block expands to absorb all leftover width and the icon
+        // column keeps a fixed width, so the two always sum to the slot width.
+        // That pins the icons to the right edge without relying on a spacer
+        // widget, whose expansion inside a fixed-width box is not reliable.
+        //
+        // Rows are 20px with 4px gaps and no border, matching the CPU/RAM/BAT
+        // tiles: 4*20 + 3*4 = 92px, which fits the 98px section.
         this.actor = new St.BoxLayout({
-            vertical: true,
-            style: 'spacing: 4px; width: 34px;',
-            x_align: Clutter.ActorAlign.CENTER,
+            vertical: false,
+            style: `spacing: ${TOGGLE_COLUMN_SPACING}px;`,
+            x_expand: true,
+            x_align: Clutter.ActorAlign.END,
             y_align: Clutter.ActorAlign.CENTER,
         });
-        if (this._themeToggle.actor) this.actor.add_child(this._themeToggle.actor);
-        if (this._dndToggle.actor) this.actor.add_child(this._dndToggle.actor);
-        if (this._nightToggle.actor) this.actor.add_child(this._nightToggle.actor);
-        if (this._settingsToggle.actor) this.actor.add_child(this._settingsToggle.actor);
+
+        // Disk readout gets an explicit width in setWidth(). Expansion is not
+        // used because St.BoxLayout ignores x_align on its main axis, which
+        // would leave the block's real width ambiguous and make the centred
+        // glyph/percentage drift off the used/total line.
+        if (this._storageIndicator.actor) {
+            this._storageIndicator.actor.x_expand = false;
+            this._storageIndicator.actor.x_align = Clutter.ActorAlign.START;
+            this.actor.add_child(this._storageIndicator.actor);
+        }
+
+        // Theme, DND, Night Light, Settings stacked as one column.
+        this._iconsBox = new St.BoxLayout({
+            vertical: true,
+            style: `spacing: ${TOGGLE_COLUMN_SPACING}px;`,
+            x_expand: false,
+            x_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        for (const toggle of [this._themeToggle, this._dndToggle,
+            this._nightToggle, this._settingsToggle]) {
+            if (toggle.actor) this._iconsBox.add_child(toggle.actor);
+        }
+        this.actor.add_child(this._iconsBox);
+    }
+
+    setWidth(w) {
+        if (!this.actor || w <= 0) return;
+        // Two children => one gap. The disk takes exactly the remainder, so the
+        // icon column's right edge lands on the slot's right edge.
+        const iconsWidth = TOGGLE_WIDTH;
+        const storageWidth = Math.max(0,
+            w - iconsWidth - TOGGLE_COLUMN_SPACING);
+        this.actor.style = `spacing: ${TOGGLE_COLUMN_SPACING}px; width: ${w}px;`;
+        this.actor.width = w;
+        this._iconsBox.style = `spacing: ${TOGGLE_COLUMN_SPACING}px; width: ${iconsWidth}px;`;
+        this._iconsBox.width = iconsWidth;
+        // Give the disk block its exact width so disk + gap + icons fill the
+        // slot precisely. The block's children are centred inside that width,
+        // which keeps glyph, percentage and used/total on one vertical axis.
+        this._storageIndicator.setWidth(storageWidth);
+    }
+
+    setStorage(storage) {
+        this._storageIndicator.setStorage(storage);
     }
 
     _sync(state) {
@@ -197,6 +272,7 @@ export class QuickTogglesRow {
         this._dndToggle.destroy();
         this._nightToggle.destroy();
         this._settingsToggle.destroy();
+        this._storageIndicator.destroy();
         if (this.actor) {
             this.actor.destroy();
             this.actor = null;

@@ -30,7 +30,7 @@
 .linux-island__metric-value { font-size: 11px; font-weight: bold; }
 .linux-island__metric-track { border-radius: 2px; }
 .linux-island__metric-fill { border-radius: 2px; }
-.linux-island__quick-toggle { border-radius: 13px; width: 26px; height: 26px; padding: 0; border: 1px solid transparent; }
+.linux-island__quick-toggle { border-radius: 10px; padding: 0; border: 0; }
 .linux-island__carousel-dot { width: 5px; height: 5px; border-radius: 3px; border: 0; padding: 0; }
 .linux-island__carousel-dot--active { width: 14px; height: 5px; border-radius: 3px; border: 0; padding: 0; }
 .linux-island__player-badge { font-size: 10px; font-weight: 600; border-radius: 6px; padding: 1px 6px; border: 0; }
@@ -47,12 +47,16 @@
 .linux-island--dark.linux-island__capsule {
     background-color: #191816;
     color: #F4F0E9;
-    border-color: #575148;
 }
 
 .linux-island--dark.linux-island__capsule:hover {
     background-color: #403B34;
     border-color: #D8B77F;
+}
+
+.linux-island--dark.linux-island__capsule:active {
+    background-color: #302D28;
+    border-color: #E9CEA0;
 }
 
 .linux-island--dark.linux-island__preview {
@@ -89,6 +93,14 @@
 }
 
 .linux-island--dark .linux-island__media-button-primary:hover {
+    background-color: #E9CEA0;
+}
+
+.linux-island--dark .linux-island__media-button:active {
+    background-color: #302D28;
+}
+
+.linux-island--dark .linux-island__media-button-primary:active {
     background-color: #E9CEA0;
 }
 
@@ -138,11 +150,14 @@
 
 .linux-island--dark .linux-island__quick-toggle {
     background-color: #302D28;
-    border-color: #575148;
     color: #C8C0B5;
 }
 
 .linux-island--dark .linux-island__quick-toggle:hover {
+    background-color: #403B34;
+}
+
+.linux-island--dark .linux-island__quick-toggle:active {
     background-color: #403B34;
 }
 
@@ -151,6 +166,10 @@
 }
 
 .linux-island--dark .linux-island__quick-toggle--active:hover {
+    color: #E9CEA0;
+}
+
+.linux-island--dark .linux-island__quick-toggle--active:active {
     color: #E9CEA0;
 }
 
@@ -175,6 +194,10 @@
     background-color: #403B34;
 }
 
+.linux-island--dark .linux-island__player-badge:active {
+    background-color: #403B34;
+}
+
 .linux-island--dark .linux-island__section-btn {
     background-color: transparent;
     border-color: transparent;
@@ -183,6 +206,11 @@
 
 .linux-island--dark .linux-island__section-btn:hover {
     background-color: #403B34;
+    color: #F4F0E9;
+}
+
+.linux-island--dark .linux-island__section-btn:active {
+    background-color: #302D28;
     color: #F4F0E9;
 }
 
@@ -223,6 +251,11 @@
     color: #F4F0E9;
 }
 
+.linux-island--dark .linux-island__quota-pill-btn:active {
+    background-color: #403B34;
+    color: #F4F0E9;
+}
+
 .linux-island--dark .linux-island__quota-pill-btn--active {
     background-color: #403B34;
     border-color: #D8B77F;
@@ -232,12 +265,16 @@
 .linux-island--light.linux-island__capsule {
     background-color: #FBF8F1;
     color: #292621;
-    border-color: #C7BCAE;
 }
 
 .linux-island--light.linux-island__capsule:hover {
     background-color: #E5DED3;
     border-color: #80551F;
+}
+
+.linux-island--light.linux-island__capsule:active {
+    background-color: #EEE9DF;
+    border-color: #6B471B;
 }
 
 .linux-island--light.linux-island__preview {
@@ -274,6 +311,14 @@
 }
 
 .linux-island--light .linux-island__media-button-primary:hover {
+    background-color: #6B471B;
+}
+
+.linux-island--light .linux-island__media-button:active {
+    background-color: #EEE9DF;
+}
+
+.linux-island--light .linux-island__media-button-primary:active {
     background-color: #6B471B;
 }
 
@@ -323,11 +368,14 @@
 
 .linux-island--light .linux-island__quick-toggle {
     background-color: #EEE9DF;
-    border-color: #C7BCAE;
     color: #5D554B;
 }
 
 .linux-island--light .linux-island__quick-toggle:hover {
+    background-color: #E5DED3;
+}
+
+.linux-island--light .linux-island__quick-toggle:active {
     background-color: #E5DED3;
 }
 
@@ -336,6 +384,10 @@
 }
 
 .linux-island--light .linux-island__quick-toggle--active:hover {
+    color: #6B471B;
+}
+
+.linux-island--light .linux-island__quick-toggle--active:active {
     color: #6B471B;
 }
 
@@ -360,6 +412,10 @@
     background-color: #E5DED3;
 }
 
+.linux-island--light .linux-island__player-badge:active {
+    background-color: #E5DED3;
+}
+
 .linux-island--light .linux-island__section-btn {
     background-color: transparent;
     border-color: transparent;
@@ -368,6 +424,11 @@
 
 .linux-island--light .linux-island__section-btn:hover {
     background-color: #E5DED3;
+    color: #292621;
+}
+
+.linux-island--light .linux-island__section-btn:active {
+    background-color: #EEE9DF;
     color: #292621;
 }
 
@@ -404,6 +465,11 @@
 }
 
 .linux-island--light .linux-island__quota-pill-btn:hover {
+    background-color: #E5DED3;
+    color: #292621;
+}
+
+.linux-island--light .linux-island__quota-pill-btn:active {
     background-color: #E5DED3;
     color: #292621;
 }

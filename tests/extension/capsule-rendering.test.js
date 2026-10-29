@@ -79,7 +79,7 @@ globalThis.renderTest = {
         }},
     loadLocalArtwork: async () => null,
     estimateTimeline, formatTime,
-    Clutter: {ActorAlign: {CENTER: 1}, AnimationMode: {EASE_OUT_CUBIC: 1, EASE_IN_OUT_CUBIC: 2},
+    Clutter: {ActorAlign: {CENTER: 1, END: 2}, AnimationMode: {EASE_OUT_CUBIC: 1, EASE_IN_OUT_CUBIC: 2},
         EventType: {BUTTON_PRESS: 1, TOUCH_BEGIN: 2, KEY_PRESS: 3},
         EVENT_STOP: 1, EVENT_PROPAGATE: 0, KEY_Escape: 27},
     Main: {layoutManager: {primaryMonitor: {x: 0, y: 0, width: 1366},
@@ -99,13 +99,17 @@ let metricTileSource = (await readFile(new URL('../../extension/ui/systemMetricT
     .replace(/^import .*systemMetrics.*;$/gm, 'const {SystemMetricsCollector} = globalThis.renderTest;')
     .replace('let St = null;', 'let St = globalThis.renderTest.St;')
     .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
-const {SystemMetricsRow, SystemMetricTile} = await load(metricTileSource);
+const {SystemMetricsRow, SystemMetricTile, NetMonitorView, StorageIndicator, computeSystemColumns} = await load(metricTileSource);
 const metric = new SystemMetricTile({label: 'CPU'});
 assert.equal(metric.actor.children[1], metric._valueLabel, 'percentage immediately follows metric text');
 metric.destroy();
 globalThis.renderTest.SystemMetricsRow = SystemMetricsRow;
+globalThis.renderTest.NetMonitorView = NetMonitorView;
+globalThis.renderTest.StorageIndicator = StorageIndicator;
+globalThis.renderTest.computeSystemColumns = computeSystemColumns;
 let quickToggleSource = (await readFile(new URL('../../extension/ui/quickToggle.js', import.meta.url), 'utf8'))
     .replace(/^import .*quickSettings.*;$/gm, 'const {QuickSettingsManager} = globalThis.renderTest;')
+    .replace(/^import .*systemMetricTile.*;$/gm, 'const {StorageIndicator} = globalThis.renderTest;')
     .replace('let St = null;', 'let St = globalThis.renderTest.St;')
     .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
 const {QuickTogglesRow} = await load(quickToggleSource);
@@ -127,7 +131,7 @@ mediaSource = mediaSource.replace('let St = null;', 'let St = globalThis.renderT
     .replace(/^import .*localArtwork.*;$/gm, 'const {loadLocalArtwork} = globalThis.renderTest;')
     .replace(/^import .*beatBars.*;$/gm, 'const {BeatBars} = globalThis.renderTest;')
     .replace(/^import .*mediaTimeline.*;$/gm, 'const {estimateTimeline, formatTime} = globalThis.renderTest;')
-    .replace(/^import .*systemMetricTile.*;$/gm, 'const {SystemMetricsRow} = globalThis.renderTest;')
+    .replace(/^import .*systemMetricTile.*;$/gm, 'const {SystemMetricsRow, NetMonitorView, computeSystemColumns} = globalThis.renderTest;')
     .replace(/^import .*quickToggle.*;$/gm, 'const {QuickTogglesRow} = globalThis.renderTest;')
     .replace(/^import .*featureCarousel.*;$/gm, 'const {FeatureCarousel} = globalThis.renderTest;')
     .replace(/^import .*aiQuotaView.*;$/gm, 'const {AiQuotaSection} = globalThis.renderTest;')
@@ -245,12 +249,127 @@ assert.ok(!carousel._navButtons[1].classes.has('linux-island__section-btn--activ
 assert.ok(!carousel._navButtons[2].classes.has('linux-island__section-btn--active'), 'button 2 inactive again');
 assert.equal(capsule._mediaView._mediaSection.children.length, 3, 'track, duration progress line, and controls rows in media section');
 assert.ok(capsule._mediaView._mediaSection.children.includes(capsule._mediaView._progressTrack), 'duration line is restored in media section');
-assert.equal(capsule._mediaView._systemSection.children.length, 2, 'metrics and quick toggles in system section');
-assert.equal(capsule._mediaView._systemSection.vertical, false, 'system section is horizontal: left metrics, right toggles');
-assert.equal(capsule._mediaView._systemSection.children[0], capsule._mediaView._metricsRow.actor, 'metrics on the left');
-assert.equal(capsule._mediaView._systemSection.children[1], capsule._mediaView._quickTogglesRow.actor, 'quick toggles on the right');
-assert.equal(capsule._mediaView._quickTogglesRow.actor.children.length, 4,
-    'Island shows Theme, DND, Night Light, and Settings launcher controls');
+assert.equal(capsule._mediaView._systemSection.children.length, 3,
+    'metrics, centred NET, and quick toggles in system section');
+assert.equal(capsule._mediaView._systemSection.vertical, false, 'system section is horizontal');
+assert.equal(capsule._mediaView._systemSection.children[0], capsule._mediaView._metricsSlot, 'metrics slot on the left');
+assert.equal(capsule._mediaView._systemSection.children[1], capsule._mediaView._netView.actor, 'NET sits in the centre');
+assert.equal(capsule._mediaView._systemSection.children[2], capsule._mediaView._togglesSlot, 'quick toggles slot on the right');
+assert.equal(capsule._mediaView._metricsSlot.children[0], capsule._mediaView._metricsRow.actor, 'metrics row lives in the left slot');
+assert.equal(capsule._mediaView._togglesSlot.children[0], capsule._mediaView._quickTogglesRow.actor, 'toggles live in the right slot');
+
+// NET must be centred: equal side-slot widths, and no rounded container.
+const netStyle = capsule._mediaView._netView.actor.style;
+assert.doesNotMatch(netStyle, /border-radius/, 'NET has no rounded rectangle');
+assert.doesNotMatch(netStyle, /background-color/, 'NET has no filled box');
+assert.equal(capsule._mediaView._metricsSlot.width, capsule._mediaView._togglesSlot.width,
+    'side slots share a width so NET lands on the centre line');
+// The medium card measures 364px: MediaView's 328px content box plus 14px
+// padding per side, wrapped by the expanded card's 2px padding/1.5px border.
+// The System page must spend that whole 328px, otherwise its right column stops
+// ~28px short of the card edge and the layout looks lopsided (left 26px vs
+// right 54px in the reported screenshot).
+assert.equal(capsule._mediaView._systemSection.width, 320,
+    'system section content box spans the page minus its own 4px side padding');
+assert.equal(capsule._mediaView._mediaSection.width, 328,
+    'media section fills the same content box');
+assert.equal(capsule._mediaView._metricsSlot.width + capsule._mediaView._netView.actor.width +
+    capsule._mediaView._togglesSlot.width + 20, 320,
+    'slots plus the two 10px gaps consume the full section content width');
+assert.equal(capsule._mediaView._quickTogglesRow._storageIndicator.actor.width,
+    capsule._mediaView._togglesSlot.width - 22 - 4,
+    'storage block absorbs the extra width so icons reach the right edge');
+// St.BoxLayout ignores x_align on its own main axis, so the right group must
+// fill the slot; otherwise the icon column and disk readout drift toward the
+// middle of the capsule instead of hugging its right side.
+const togglesColumn = capsule._mediaView._quickTogglesRow.actor;
+assert.equal(togglesColumn.x_expand, true, 'right group fills the right slot');
+assert.match(togglesColumn.style,
+    new RegExp(`width: ${capsule._mediaView._togglesSlot.width}px`),
+    'right group is as wide as the right slot');
+assert.equal(capsule._mediaView._quickTogglesRow._iconsBox.x_align, 2,
+    'icon column hugs the right edge');
+// The block gets an explicit width so disk + gap + icons fill the slot exactly;
+// expansion is avoided because St.BoxLayout ignores x_align on its main axis.
+assert.match(capsule._mediaView._quickTogglesRow._storageIndicator.actor.style,
+    /width: \d+px/,
+    'disk block has an explicit width so the slot divides exactly');
+// The block centres each line as an actor. Pinning label widths made the text
+// fill the block and render flush left, which is the reported "miring" bug.
+assert.equal(capsule._mediaView._quickTogglesRow._storageIndicator._icon.x_align, 1,
+    'disk glyph is centred');
+assert.equal(capsule._mediaView._quickTogglesRow._storageIndicator._valueLabel.x_align, 1,
+    'percentage label is centred as an actor');
+assert.equal(capsule._mediaView._quickTogglesRow._storageIndicator._detailLabel.x_align, 1,
+    'used/total label is centred as an actor');
+assert.equal(capsule._mediaView._quickTogglesRow._storageIndicator.actor.vertical, true,
+    'disk block stacks glyph, percentage and detail vertically');
+assert.doesNotMatch(capsule._mediaView._quickTogglesRow._storageIndicator._valueLabel.style ?? '',
+    /width:\s*\d+px/,
+    'percentage label keeps its natural width so centring is meaningful');
+assert.equal(capsule._mediaView._quickTogglesRow._iconsBox.children.length, 4,
+    'quick settings form a single vertical column');
+assert.deepEqual(capsule._mediaView._quickTogglesRow._iconsBox.children, [
+    capsule._mediaView._quickTogglesRow._themeToggle.actor,
+    capsule._mediaView._quickTogglesRow._dndToggle.actor,
+    capsule._mediaView._quickTogglesRow._nightToggle.actor,
+    capsule._mediaView._quickTogglesRow._settingsToggle.actor,
+], 'Theme, DND, Night Light, Settings stacked in order');
+const rightGroup = capsule._mediaView._quickTogglesRow.actor;
+assert.equal(rightGroup.vertical, false, 'right group lays disk and icons out horizontally');
+assert.equal(rightGroup.children[0],
+    capsule._mediaView._quickTogglesRow._storageIndicator.actor,
+    'disk readout sits first, directly right of NET');
+assert.equal(rightGroup.children[1], capsule._mediaView._quickTogglesRow._iconsBox,
+    'icon column sits second, against the capsule right edge');
+assert.equal(rightGroup.children.length, 2,
+    'no spacer widget: the disk block absorbs the leftover width');
+assert.equal(rightGroup.children[0].x_expand, false,
+    'disk block keeps an explicit width; the slot is divided exactly instead');
+assert.equal(rightGroup.children[1].x_expand, false,
+    'icon column keeps a fixed width so it stays on the right edge');
+// The slot must divide exactly: disk + gap + icon column == slot width, so the
+// icon column's right edge lands on the slot's right edge. If the disk block
+// were narrower the icons would float left, which is the reported bug.
+{
+    const slot = capsule._mediaView._togglesSlot.width;
+    const iconsW = capsule._mediaView._quickTogglesRow._iconsBox.width;
+    const gap = 4;
+    const diskW = slot - iconsW - gap;
+    assert(diskW > 0, `disk block must keep positive width, got ${diskW}`);
+    assert.equal(diskW + gap + iconsW, slot,
+        'disk + gap + icons fills the right slot exactly');
+    assert.match(capsule._mediaView._quickTogglesRow._storageIndicator.actor.style,
+        new RegExp(`width: ${diskW}px`),
+        'disk block owns exactly the leftover width');
+}
+// A 1px border used to add 2px per row (4*22 + 3*4 = 100px), so the fourth
+// icon was clipped by the 98px section. Rows must be exactly 20px.
+for (const toggle of [capsule._mediaView._quickTogglesRow._themeToggle,
+    capsule._mediaView._quickTogglesRow._dndToggle,
+    capsule._mediaView._quickTogglesRow._nightToggle,
+    capsule._mediaView._quickTogglesRow._settingsToggle]) {
+    assert.doesNotMatch(toggle.actor.style, /border:\s*[1-9]/,
+        `${toggle._label} must have no border: 4 bordered rows overflow 98px`);
+}
+assert.match(capsule._mediaView._quickTogglesRow._iconsBox.style,
+    /spacing: 4px/, 'icon column keeps the metric 4px gap');
+
+const storageStyle = capsule._mediaView._quickTogglesRow._storageIndicator.actor.style;
+assert.doesNotMatch(storageStyle, /border-radius/, 'storage tracker has no rounded rectangle');
+assert.doesNotMatch(storageStyle, /background-color/, 'storage tracker has no filled box');
+// Vertical rhythm of the disk block: 2px between glyph/percentage/detail and
+// 3px padding above and below. setCapsuleSize() rewrites the style string, so
+// this also guards against the padding being flattened on a resize.
+assert.match(storageStyle, /spacing: 2px/, 'disk lines keep a 2px gap');
+assert.match(storageStyle, /padding: 3px 0/, 'disk block keeps 3px top/bottom padding');
+for (const size of ['small', 'medium', 'large']) {
+    capsule.setCapsuleSize(size);
+    const style = capsule._mediaView._quickTogglesRow._storageIndicator.actor.style;
+    assert.match(style, /padding: 3px 0/, `disk padding survives ${size} resize`);
+    assert.match(style, /spacing: 2px/, `disk line spacing survives ${size} resize`);
+}
+capsule.setCapsuleSize('medium');
 for (const toggle of [capsule._mediaView._quickTogglesRow._themeToggle,
     capsule._mediaView._quickTogglesRow._dndToggle, capsule._mediaView._quickTogglesRow._nightToggle,
     capsule._mediaView._quickTogglesRow._settingsToggle]) {
@@ -268,9 +387,9 @@ const cancellations = systemPage.cancelled;
 capsule._mediaView._carousel.setPage(0);
 assert.ok(systemPage.cancelled > cancellations, 'switching back cancels the outgoing page tween');
 assert.equal(systemPage.translation_x, 0, 'detached page has no lingering slide offset');
-assert.equal(capsule._mediaView._quickTogglesRow.actor.children.length, 4,
-    'Quick controls has Settings icon as 4th control');
-assert.equal(capsule._mediaView._quickTogglesRow.actor.children[3],
+assert.equal(capsule._mediaView._quickTogglesRow._iconsBox.children.length, 4,
+    'Quick controls stay a single vertical column');
+assert.equal(capsule._mediaView._quickTogglesRow._iconsBox.children[3],
     capsule._mediaView._quickTogglesRow._settingsToggle.actor);
 assert.equal(systemPage.opacity, 255, 'detached page has no lingering fade');
 

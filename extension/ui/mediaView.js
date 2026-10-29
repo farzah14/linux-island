@@ -3,7 +3,7 @@
 import {loadLocalArtwork} from '../lib/localArtwork.js';
 import {BeatBars} from './beatBars.js';
 import {estimateTimeline, formatTime} from '../lib/mediaTimeline.js';
-import {SystemMetricsRow} from './systemMetricTile.js';
+import {SystemMetricsRow, NetMonitorView, computeSystemColumns} from './systemMetricTile.js';
 import {QuickTogglesRow} from './quickToggle.js';
 import {FeatureCarousel} from './featureCarousel.js';
 import {AiQuotaSection} from './aiQuotaView.js';
@@ -128,6 +128,9 @@ export class MediaView {
             cancel: id => { if (GLib) GLib.source_remove(id); },
         };
         this._aiQuotaSection = null;
+        this._netView = null;
+        this._metricsSlot = null;
+        this._togglesSlot = null;
 
         if (St && Clutter) {
             this._buildUi();
@@ -153,7 +156,7 @@ export class MediaView {
         // Section 1: Pure Media Player section
         this._mediaSection = new St.BoxLayout({
             vertical: true,
-            style: 'width: 300px; height: 98px; spacing: 4px;',
+            style: 'width: 328px; height: 98px; spacing: 4px;',
             x_expand: true,
         });
 
@@ -379,18 +382,38 @@ export class MediaView {
         // Section 2: Pure System & Controls section (CPU, RAM, Battery on LEFT, and Icon Quick Controls on RIGHT)
         this._systemSection = new St.BoxLayout({
             vertical: false,
-            style: 'width: 300px; height: 98px; spacing: 14px; padding: 0 4px;',
+            style: 'width: 320px; height: 98px; spacing: 10px; padding: 0 4px;',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
-        this._metricsRow = new SystemMetricsRow({scheduler: this._scheduler});
+
+        // Three fixed-width slots: metrics | NET | right group (disk + icon
+        // column). Equal side widths keep NET exactly on the page centre line.
+        this._metricsSlot = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 0;',
+            x_expand: false,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._metricsRow = new SystemMetricsRow({
+            scheduler: this._scheduler,
+            onNetwork: network => this._netView?.setNetwork(network),
+            onStorage: storage => this._quickTogglesRow?.setStorage(storage),
+        });
         if (this._metricsRow.actor) {
-            this._metricsRow.setWidth(248);
-            this._systemSection.add_child(this._metricsRow.actor);
+            this._metricsSlot.add_child(this._metricsRow.actor);
+        }
+        this._systemSection.add_child(this._metricsSlot);
+
+        // Centre slot: NET. No background, border or border-radius.
+        this._netView = new NetMonitorView();
+        if (this._netView.actor) {
+            this._systemSection.add_child(this._netView.actor);
         }
 
         this._quickTogglesRow = new QuickTogglesRow({
             onThemeToggle: this._onThemeToggle,
+            onOpenStorage: () => this._openStorageSettings(),
             onOpenSettings: () => {
                 try {
                     if (Gio) {
@@ -407,13 +430,22 @@ export class MediaView {
                 this._onDismiss?.();
             },
         });
+        this._togglesSlot = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 0;',
+            x_expand: false,
+            x_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
         if (this._quickTogglesRow.actor) {
-            this._systemSection.add_child(this._quickTogglesRow.actor);
+            this._quickTogglesRow.actor.x_align = Clutter.ActorAlign.END;
+            this._togglesSlot.add_child(this._quickTogglesRow.actor);
         }
+        this._systemSection.add_child(this._togglesSlot);
         // Section 3: AI Quota Section (Antigravity, Codex, Claude Code)
         this._aiQuotaSection = new AiQuotaSection({scheduler: this._scheduler});
         if (this._aiQuotaSection.actor) {
-            this._aiQuotaSection.setWidth(300);
+            this._aiQuotaSection.setWidth(320);
         }
 
 
@@ -485,24 +517,65 @@ export class MediaView {
         }
     }
 
+    _openStorageSettings() {
+        // Prefer GNOME's Disk Usage analyser, then Settings' storage panel.
+        const candidates = [
+            ['gnome-disks'],
+            ['baobab'],
+            ['gnome-control-center', 'storage'],
+        ];
+        for (const argv of candidates) {
+            try {
+                if (!Gio) continue;
+                Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE);
+                return true;
+            } catch (_) {
+                // Try the next candidate
+            }
+        }
+        return false;
+    }
+
     setCapsuleSize(size) {
         if (!Object.hasOwn(CAPSULE_SIZES, size) || !this._actor) return;
         const preset = CAPSULE_SIZES[size];
         this._actor.style = `width: ${preset.width}px; padding: 8px 14px; spacing: 6px;`;
-        const contentWidth = preset.width - 28;
+        // St's CSS width is the content box: the 14px horizontal padding is
+        // added outside it. MediaView's own content box is therefore
+        // preset.width, not preset.width - 28. The System page used to be
+        // budgeted from the reduced value, so its right column stopped ~28px
+        // short of the card edge (26px left margin vs 54px right).
+        const contentWidth = preset.width;
         if (this._mediaSection) {
             this._mediaSection.style = `width: ${contentWidth}px; height: 98px; spacing: 4px;`;
             this._mediaSection.width = contentWidth;
         }
+        // The section's own 4px horizontal padding sits outside its CSS width,
+        // so request contentWidth - 8 to make the outer box exactly contentWidth.
+        // 8px is the section's horizontal padding (4px each side).
+        const systemWidth = Math.max(0, contentWidth - 8);
         if (this._systemSection) {
-            this._systemSection.style = `width: ${contentWidth}px; height: 98px; spacing: 14px; padding: 0 4px;`;
-            this._systemSection.width = contentWidth;
+            this._systemSection.style = `width: ${systemWidth}px; height: 98px; spacing: 10px; padding: 0 4px;`;
+            this._systemSection.width = systemWidth;
         }
-        if (this._metricsRow) {
-            this._metricsRow.setWidth(contentWidth - 52);
+        const columns = computeSystemColumns(systemWidth);
+        if (this._metricsSlot) {
+            this._metricsSlot.style = `width: ${columns.metricsWidth}px; spacing: 0;`;
+            this._metricsSlot.width = columns.metricsWidth;
+        }
+        if (this._metricsRow) this._metricsRow.setWidth(columns.metricsWidth);
+        if (this._netView) this._netView.setWidth(columns.netWidth);
+        if (this._togglesSlot) {
+            this._togglesSlot.style = `width: ${columns.metricsWidth}px; spacing: 0;`;
+            this._togglesSlot.width = columns.metricsWidth;
+        }
+        if (this._quickTogglesRow) {
+            this._quickTogglesRow.setWidth(columns.metricsWidth);
         }
         if (this._aiQuotaSection) {
-            this._aiQuotaSection.setWidth(contentWidth);
+            // AI quota rows add their own 4px side padding, so subtract it from
+            // the requested width to keep the page flush with the card.
+            this._aiQuotaSection.setWidth(Math.max(0, contentWidth - 8));
         }
         if (this._carousel) {
             this._carousel.setPageWidth?.(contentWidth);
@@ -667,8 +740,12 @@ export class MediaView {
         this._carousel = null;
         this._metricsRow?.destroy();
         this._metricsRow = null;
+        this._metricsSlot = null;
+        this._netView?.destroy();
+        this._netView = null;
         this._quickTogglesRow?.destroy();
         this._quickTogglesRow = null;
+        this._togglesSlot = null;
         this._aiQuotaSection?.destroy();
         this._aiQuotaSection = null;
         this._playerSwitcherBtn = null;

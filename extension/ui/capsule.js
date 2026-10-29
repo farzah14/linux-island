@@ -630,17 +630,21 @@ export class Capsule {
             this._widget.width = fromWidth > 0 ? fromWidth : width;
             this._widget.height = fromHeight > 0 ? fromHeight : height;
             this._relayout();
-            const content = state === 'EXPANDED' ? this._mediaView?.actor : this._compactRow;
+            const isExpanding = state === 'EXPANDED';
+            const content = isExpanding ? this._mediaView?.actor : this._compactRow;
             if (content) {
                 content.opacity = 0;
-                content.ease({opacity: 255, duration: 150,
-                    mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
+                content.ease({
+                    opacity: 255,
+                    duration: isExpanding ? 220 : 180, // tokens.metrics.motionMs.standard
+                    mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+                });
             }
             this._widget.ease({
                 width,
                 height,
-                duration: 300, // tokens.metrics.motionMs.emphasis
-                mode: Clutter.AnimationMode.EASE_IN_OUT_CUBIC,
+                duration: isExpanding ? 300 : 220, // tokens.metrics.motionMs.emphasis / standard
+                mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
                 onComplete: () => {
                     this._applySize();
                     this._relayout();
