@@ -19,9 +19,24 @@ A Dynamic Island-inspired interface for Linux desktops, built for GNOME on Wayla
 - GCC / G++ (C++20 support)
 - CMake 3.22+ and Ninja
 - Qt 6 (Core, DBus, Test, Gui, Qml, Quick)
+- **Qt 6 WebEngine** (`Qt6WebEngineQuick`, `Qt6WebEngineCore`) — required by the
+  embedded search companion and the cookie importer; the build fails at
+  configure time without it
+- **Qt 6 Sql** (`Qt6Sql`) — reads the copied Chromium cookie database
+- **OpenSSL development headers** (`libssl-dev`) — AES-128-CBC cookie decryption
 - GJS (GNOME JavaScript)
 - Node.js (for offline pure logic tests)
 - Python 3
+
+On Debian/Ubuntu the Qt packages are:
+
+```bash
+sudo apt install qt6-webengine-dev qt6-base-dev libssl-dev
+```
+
+The build requires no other network access. Cookie import additionally needs an
+unlocked Secret Service keyring at runtime (GNOME Keyring or KWallet); it is
+optional and can be disabled with `ISLAND_NO_COOKIE_IMPORT=1`.
 
 ### 2. Configure & Build
 ```bash
@@ -31,7 +46,7 @@ cmake --build build/dev
 
 ### 3. Run Automated Tests
 ```bash
-# CTest suite (7 C++/Qt tests)
+# CTest suite (C++/Qt unit + integration tests)
 ctest --test-dir build/dev --output-on-failure
 
 # JavaScript logic and reducer tests
@@ -41,11 +56,30 @@ node tests/extension/island-controller.test.js
 node tests/extension/core-proxy.test.js
 node tests/extension/media-view.test.js
 node tests/extension/controller.test.js
+node tests/extension/search-engines.test.js
 
 # Design system and scaffold verification
 python3 scripts/dev/verify-kit.py
 python3 design-system/qa/verify_tokens.py
 ```
+
+The `companion-persistence` CTest launches the real companion twice against a
+loopback server and asserts the second launch's first request already carries
+the cookie set by the first. It skips (exit 0) when the UI binary is missing or
+headless WebEngine is unavailable.
+
+### 4. Embedded search and account sessions
+
+The Search tab opens a Qt WebEngine companion. Its profile lives under
+`~/.local/share/linux-island/webengine` and `~/.cache/linux-island/webengine`,
+so a session that is signed in once survives later launches. On startup the
+companion imports only Google/YouTube cookies from the default Chromium-family
+browser (Brave, Chrome, Chromium, Edge) using the Secret Service keyring.
+
+- Google's interactive sign-in is always handed to the system browser; embedded
+  WebEngine is refused by Google regardless of imported cookies.
+- `ISLAND_NO_COOKIE_IMPORT=1` disables cookie import entirely.
+- Firefox profiles are not imported.
 
 ---
 

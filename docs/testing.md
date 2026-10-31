@@ -8,7 +8,7 @@ cmake --preset dev
 cmake --build build/dev
 ctest --test-dir build/dev --output-on-failure
 ```
-Executes all 7 automated C++/Qt unit and integration suites:
+Executes all automated C++/Qt unit and integration suites:
 - `revision-clock`: monotonic revision counters and instance ID generation.
 - `settings-schema`: schema validation, enums, length limits, and all-or-nothing patches.
 - `media-normalizer`: bounded MPRIS metadata normalization and URL safety.
@@ -16,6 +16,19 @@ Executes all 7 automated C++/Qt unit and integration suites:
 - `dbus-schema`: Core1 introspection XML signature verification.
 - `core-dbus`: live private session bus service registration, introspection, and IPC.
 - `mpris-flow`: asynchronous player discovery and metadata change propagation.
+- `search-provider`: search URL building, percent-encoding, and navigation scheme validation.
+- `cookie-importer`: v24+ digest stripping, expiry rejection, and decrypt success/failure separation.
+- `companion-persistence`: two real companion launches share one cookie jar (skips when WebEngine is unavailable).
+
+### Build Dependencies for Search
+
+The embedded companion adds three hard build requirements beyond the base Qt
+modules: `Qt6WebEngineQuick`, `Qt6WebEngineCore`, `Qt6Sql`, and OpenSSL
+(`libssl-dev`). Configure fails without them, by design — a silently missing
+WebEngine would turn the Search tab into a no-op.
+
+Runtime cookie import additionally needs an unlocked Secret Service keyring.
+Set `ISLAND_NO_COOKIE_IMPORT=1` to disable import, for example in CI.
 
 ### JavaScript Pure Tests (Node.js & GJS)
 ```bash
@@ -36,6 +49,9 @@ gjs -m tests/extension/media-view.test.js
 
 node tests/extension/controller.test.js
 gjs -m tests/extension/controller.test.js
+
+node tests/extension/search-engines.test.js
+gjs -m tests/extension/search-engines.test.js
 ```
 
 ### Static Quality Assurance

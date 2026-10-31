@@ -9,6 +9,11 @@ add_test(NAME dev-cli
 add_test(NAME stage-metadata
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_stage_metadata.py)
 
+# Companion session persistence: two real launches, one cookie jar. Skips when
+# the UI binary is missing or headless WebEngine cannot reach a local server.
+add_test(NAME companion-persistence
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_companion_persistence.py)
+
 set(CMAKE_AUTOMOC ON)
 add_executable(tst_core_dbus
     tst_core_dbus.cpp
