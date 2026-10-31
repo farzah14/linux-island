@@ -43,6 +43,11 @@
 .linux-island__quota-pill-btn { font-size: 10px; font-weight: 600; border-radius: 6px; padding: 1px 6px; border: 1px solid transparent; }
 .linux-island__quota-pill-btn--active { font-size: 10px; font-weight: 600; border-radius: 6px; padding: 1px 6px; border: 1px solid transparent; }
 .linux-island__quota-toggle-btn { width: auto; min-width: 32px; padding: 0 8px; font-size: 10px; font-weight: 600; }
+.linux-island__search-entry { border-radius: 10px; padding: 4px 10px; border: 1px solid transparent; }
+.linux-island__search-action { border-radius: 8px; padding: 3px 10px; border: 1px solid transparent; font-size: 11px; font-weight: 600; }
+.linux-island__search-engine-btn { border-radius: 8px; padding: 2px 8px; border: 1px solid transparent; font-size: 10px; font-weight: 600; }
+.linux-island__search-engine-btn--active { border-radius: 8px; padding: 2px 8px; border: 1px solid transparent; font-size: 10px; font-weight: 600; }
+.linux-island__search-hint { font-size: 10px; }
 
 .linux-island--dark.linux-island__capsule {
     background-color: #191816;
@@ -262,6 +267,55 @@
     color: #D8B77F;
 }
 
+.linux-island--dark .linux-island__search-entry {
+    background-color: #302D28;
+    border-color: #575148;
+    color: #F4F0E9;
+}
+
+.linux-island--dark .linux-island__search-entry:focus {
+    border-color: #D8B77F;
+}
+
+.linux-island--dark .linux-island__search-action {
+    background-color: #D8B77F;
+    color: #191816;
+}
+
+.linux-island--dark .linux-island__search-action:hover {
+    background-color: #E9CEA0;
+}
+
+.linux-island--dark .linux-island__search-action:active {
+    background-color: #E9CEA0;
+}
+
+.linux-island--dark .linux-island__search-engine-btn {
+    background-color: #302D28;
+    border-color: #575148;
+    color: #C8C0B5;
+}
+
+.linux-island--dark .linux-island__search-engine-btn:hover {
+    background-color: #403B34;
+    color: #F4F0E9;
+}
+
+.linux-island--dark .linux-island__search-engine-btn:active {
+    background-color: #403B34;
+    color: #F4F0E9;
+}
+
+.linux-island--dark .linux-island__search-engine-btn--active {
+    background-color: #403B34;
+    border-color: #D8B77F;
+    color: #D8B77F;
+}
+
+.linux-island--dark .linux-island__search-hint {
+    color: #A69C8F;
+}
+
 .linux-island--light.linux-island__capsule {
     background-color: #FBF8F1;
     color: #292621;
@@ -478,4 +532,53 @@
     background-color: #E5DED3;
     border-color: #80551F;
     color: #80551F;
+}
+
+.linux-island--light .linux-island__search-entry {
+    background-color: #EEE9DF;
+    border-color: #C7BCAE;
+    color: #292621;
+}
+
+.linux-island--light .linux-island__search-entry:focus {
+    border-color: #80551F;
+}
+
+.linux-island--light .linux-island__search-action {
+    background-color: #80551F;
+    color: #FBF8F1;
+}
+
+.linux-island--light .linux-island__search-action:hover {
+    background-color: #6B471B;
+}
+
+.linux-island--light .linux-island__search-action:active {
+    background-color: #6B471B;
+}
+
+.linux-island--light .linux-island__search-engine-btn {
+    background-color: #EEE9DF;
+    border-color: #C7BCAE;
+    color: #5D554B;
+}
+
+.linux-island--light .linux-island__search-engine-btn:hover {
+    background-color: #E5DED3;
+    color: #292621;
+}
+
+.linux-island--light .linux-island__search-engine-btn:active {
+    background-color: #E5DED3;
+    color: #292621;
+}
+
+.linux-island--light .linux-island__search-engine-btn--active {
+    background-color: #E5DED3;
+    border-color: #80551F;
+    color: #80551F;
+}
+
+.linux-island--light .linux-island__search-hint {
+    color: #665E53;
 }

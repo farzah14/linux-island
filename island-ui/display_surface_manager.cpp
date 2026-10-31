@@ -12,7 +12,15 @@ DisplaySurfaceManager::DisplaySurfaceManager(QQuickWindow *window, IslandClient 
       m_window(window),
       m_client(client) {
     if (m_window) {
-        m_window->setFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+        // Qt::Tool keeps the overlay out of the taskbar on X11, where tool
+        // windows still accept keyboard focus. On Wayland a tool window is a
+        // transient popup that compositors refuse to focus, which would break
+        // typing into the Search page, so only set it for X11.
+        Qt::WindowFlags flags = Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint;
+        if (QGuiApplication::platformName().startsWith(QLatin1String("xcb"))) {
+            flags |= Qt::Tool;
+        }
+        m_window->setFlags(flags);
         m_window->setColor(QColor(0, 0, 0, 0));
         updateWindowPosition();
     }

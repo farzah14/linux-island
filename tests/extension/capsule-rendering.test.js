@@ -6,17 +6,23 @@ import {estimateTimeline, formatTime} from '../../extension/lib/mediaTimeline.js
 import {SystemMetricsCollector} from '../../extension/lib/systemMetrics.js';
 import {QuickSettingsManager} from '../../extension/lib/quickSettings.js';
 import {AiQuotaCollector} from '../../extension/lib/aiQuota.js';
+import {SEARCH_ENGINES, DEFAULT_SEARCH_ENGINE, buildSearchUrl, isValidNavigationUrl} from '../../extension/lib/searchEngines.js';
 
 class Actor {
     constructor(props = {}) {
         Object.assign(this, {visible: true, opacity: 255, scale_x: 1, scale_y: 1,
             children: [], handlers: {}, transitions: [], cancelled: 0, mapped: true}, props);
-        this.clutter_text = {set_ellipsize() {}};
+        this.text = props.text ?? '';
+        this.clutter_text = {handlers: {}, set_ellipsize() {},
+            connect(name, fn) { this.handlers[name] = fn; return name; }};
         this.classes = new Set((props.style_class ?? '').split(' ').filter(Boolean));
     }
     add_child(child) { this.children.push(child); }
     set_child(child) { this.child = child; }
     get_child() { return this.child; }
+    get_text() { return this.text; }
+    set_text(t) { this.text = t; }
+    grab_key_focus() { this.focused = true; }
     connect(name, fn) { this.handlers[name] = fn; return name; }
     disconnect(name) { delete this.handlers[name]; }
     add_style_class_name(name) { this.classes.add(name); }
@@ -69,8 +75,9 @@ globalThis.renderTest = {
     stage,
     GrabHelper: {GrabHelper: GrabHelperDouble},
     St: {BoxLayout: Actor, Label: Actor, Widget: Actor, Button: Actor, Icon: Actor, Bin: Actor,
-        Settings: {get: () => settings}},
+        Entry: Actor, Settings: {get: () => settings}},
     Gio: {Cancellable: class { cancel() { this.cancelled = true; } },
+        AppInfo: {launch_default_for_uri(uri) { globalThis.renderTest.launchedUris.push(uri); return true; }},
         Settings: class {
             constructor() { this.handlers = {}; }
             get_string() { return systemColorScheme; }
@@ -87,6 +94,11 @@ globalThis.renderTest = {
     SystemMetricsCollector,
     QuickSettingsManager,
     AiQuotaCollector,
+    SEARCH_ENGINES,
+    DEFAULT_SEARCH_ENGINE,
+    buildSearchUrl,
+    isValidNavigationUrl,
+    launchedUris: [],
 };
 const load = source => import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 const beatSource = (await readFile(new URL('../../extension/ui/beatBars.js', import.meta.url), 'utf8'))
@@ -126,6 +138,12 @@ let aiQuotaSource = (await readFile(new URL('../../extension/ui/aiQuotaView.js',
 const {AiQuotaSection, AiQuotaProviderRow} = await load(aiQuotaSource);
 globalThis.renderTest.AiQuotaSection = AiQuotaSection;
 globalThis.renderTest.AiQuotaProviderRow = AiQuotaProviderRow;
+let searchSource = (await readFile(new URL('../../extension/ui/searchView.js', import.meta.url), 'utf8'))
+    .replace(/^import .*searchEngines.*;$/gm, 'const {SEARCH_ENGINES, DEFAULT_SEARCH_ENGINE, buildSearchUrl, isValidNavigationUrl} = globalThis.renderTest;')
+    .replace('let St = null;', 'let St = globalThis.renderTest.St;')
+    .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
+const {SearchSection} = await load(searchSource);
+globalThis.renderTest.SearchSection = SearchSection;
 let mediaSource = await readFile(new URL('../../extension/ui/mediaView.js', import.meta.url), 'utf8');
 mediaSource = mediaSource.replace('let St = null;', 'let St = globalThis.renderTest.St;')
     .replace(/^import .*localArtwork.*;$/gm, 'const {loadLocalArtwork} = globalThis.renderTest;')
@@ -135,6 +153,8 @@ mediaSource = mediaSource.replace('let St = null;', 'let St = globalThis.renderT
     .replace(/^import .*quickToggle.*;$/gm, 'const {QuickTogglesRow} = globalThis.renderTest;')
     .replace(/^import .*featureCarousel.*;$/gm, 'const {FeatureCarousel} = globalThis.renderTest;')
     .replace(/^import .*aiQuotaView.*;$/gm, 'const {AiQuotaSection} = globalThis.renderTest;')
+    .replace(/^import .*searchView.*;$/gm, 'const {SearchSection} = globalThis.renderTest;')
+    .replace(/^import .*searchEngines.*;$/gm, 'const {DEFAULT_SEARCH_ENGINE, isValidNavigationUrl} = globalThis.renderTest;')
     .replace('let Gio = null;', 'let Gio = globalThis.renderTest.Gio;')
     .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
 const {MediaView, CAPSULE_SIZES} = await load(mediaSource);
@@ -208,17 +228,19 @@ capsule.applyState('COMPACT');
 assert.ok(capsule._beatBars, 'compact title needs beat bars');
 assert.match(capsule._mediaView.actor.style, /width: 328px/, 'wide card content width');
 assert.ok(capsule._mediaView._carousel, 'media card has slideable features carousel');
-assert.equal(capsule._mediaView._carousel.pageCount, 3, 'music, system & controls, and AI quota pages');
+assert.equal(capsule._mediaView._carousel.pageCount, 4, 'music, system & controls, AI quota, and search pages');
 const carousel = capsule._mediaView._carousel;
 assert.ok(carousel._navBox, 'section nav box exists');
 assert.equal(carousel.actor.children[0], carousel._navBox, 'section nav is first child of carousel actor');
-assert.equal(carousel._navButtons.length, 3, 'three section buttons');
+assert.equal(carousel._navButtons.length, 4, 'four section buttons');
 assert.equal(carousel._navButtons[0].child.icon_name, 'audio-x-generic-symbolic', 'music section icon');
 assert.equal(carousel._navButtons[1].child.icon_name, 'preferences-system-symbolic', 'system section icon');
 assert.equal(carousel._navButtons[2].child.icon_name, 'applications-science-symbolic', 'AI quota section icon');
+assert.equal(carousel._navButtons[3].child.icon_name, 'system-search-symbolic', 'search section icon');
 assert.ok(carousel._navButtons[0].classes.has('linux-island__section-btn--active'), 'page 0 active initially');
 assert.ok(!carousel._navButtons[1].classes.has('linux-island__section-btn--active'), 'page 1 inactive initially');
 assert.ok(!carousel._navButtons[2].classes.has('linux-island__section-btn--active'), 'page 2 inactive initially');
+assert.ok(!carousel._navButtons[3].classes.has('linux-island__section-btn--active'), 'page 3 inactive initially');
 
 carousel._navButtons[1].handlers['clicked']();
 assert.equal(carousel.currentPage, 1, 'clicking button 1 navigates to page 1');
@@ -229,6 +251,12 @@ assert.equal(carousel.currentPage, 2, 'clicking button 2 navigates to page 2');
 assert.ok(carousel._navButtons[2].classes.has('linux-island__section-btn--active'), 'button 2 active');
 assert.ok(!carousel._navButtons[0].classes.has('linux-island__section-btn--active'), 'button 0 inactive');
 assert.ok(!carousel._navButtons[1].classes.has('linux-island__section-btn--active'), 'button 1 inactive');
+carousel._navButtons[3].handlers['clicked']();
+assert.equal(carousel.currentPage, 3, 'clicking button 3 navigates to the search page');
+assert.ok(carousel._navButtons[3].classes.has('linux-island__section-btn--active'), 'button 3 active');
+assert.ok(!carousel._navButtons[0].classes.has('linux-island__section-btn--active'), 'button 0 inactive');
+assert.ok(!carousel._navButtons[1].classes.has('linux-island__section-btn--active'), 'button 1 inactive');
+assert.ok(!carousel._navButtons[2].classes.has('linux-island__section-btn--active'), 'button 2 inactive');
 assert.ok(capsule._mediaView._aiQuotaSection, 'AI quota section exists');
 assert.equal(capsule._mediaView._aiQuotaSection.actor.children.length, 4, 'AI quota section has top bar + 3 provider rows');
 assert.equal(capsule._mediaView._aiQuotaSection._topBar.children.length, 1, 'top bar has only AI Quota title');
@@ -239,6 +267,118 @@ assert.equal(capsule._mediaView._aiQuotaSection._codexRow._nameLabel.text, 'Code
 assert.equal(capsule._mediaView._aiQuotaSection._claudeRow._nameLabel.text, 'Claude');
 for (const row of [capsule._mediaView._aiQuotaSection._antigravityRow, capsule._mediaView._aiQuotaSection._codexRow, capsule._mediaView._aiQuotaSection._claudeRow]) {
     assert.doesNotMatch(row.actor.style, /#[0-9a-fA-F]{3,8}/, 'no inline hex color overrides on quota rows');
+}
+
+const search = capsule._mediaView._searchSection;
+assert.ok(search, 'search section exists');
+assert.equal(search._engine, 'google', 'search defaults to Google');
+search._entry.set_text('linux island');
+search._submit();
+assert.equal(globalThis.renderTest.launchedUris.at(-1), 'https://www.google.com/search?q=linux%20island',
+    'submitting the search opens the default browser');
+assert.equal(search._entry.get_text(), '', 'search entry clears after a successful launch');
+
+search._engineButtons.duckduckgo.handlers['clicked']();
+assert.equal(search._engine, 'duckduckgo', 'engine chip switches the active engine');
+assert.ok(search._engineButtons.duckduckgo.classes.has('linux-island__search-engine-btn--active'),
+    'DuckDuckGo chip is active');
+assert.ok(!search._engineButtons.google.classes.has('linux-island__search-engine-btn--active'),
+    'Google chip is no longer active');
+
+capsule.setSearchEngine('brave');
+assert.equal(search._engine, 'brave', 'capsule pushes engine changes into the search page');
+assert.ok(search._engineButtons.brave.classes.has('linux-island__search-engine-btn--active'),
+    'Brave chip is active');
+assert.ok(!search._engineButtons.duckduckgo.classes.has('linux-island__search-engine-btn--active'),
+    'DuckDuckGo chip is no longer active');
+
+// Companion subprocess launch and capsule handoff
+{
+    let subprocessArgs = null;
+    let waitCallback = null;
+    const signals = [];
+    globalThis.renderTest.Gio.SubprocessFlags = {NONE: 0};
+    globalThis.renderTest.Gio.Subprocess = class {
+        constructor({argv}) {
+            subprocessArgs = argv;
+            this.signals = [];
+        }
+        init() {}
+        wait_async(_cancellable, cb) {
+            waitCallback = cb;
+        }
+        wait_finish() { return true; }
+        send_signal(sig) { this.signals.push(sig); signals.push(sig); }
+        force_exit() { this.forced = true; }
+    };
+
+    // Non-web URLs must never spawn a companion or open the browser. The
+    // search entry percent-encodes its query into an https URL, so the
+    // rejection boundary is _openSearch itself.
+    const launchesBefore = globalThis.renderTest.launchedUris.length;
+    const dismissals = [];
+    capsule._onInteractionEvent = e => dismissals.push(e);
+    for (const bad of ['javascript:alert(1)', 'file:///etc/passwd', 'data:text/html,x', '']) {
+        capsule._mediaView._openSearch(bad);
+    }
+    assert.equal(subprocessArgs, null, 'invalid direct _openSearch never spawns a subprocess');
+    assert.equal(globalThis.renderTest.launchedUris.length, launchesBefore,
+        'invalid URL never reaches launch_default_for_uri');
+    assert.deepEqual(dismissals, [], 'invalid URL dispatches no interaction events');
+
+    search._entry.set_text('embedded companion query');
+    search._submit();
+
+    assert.ok(subprocessArgs, 'companion subprocess was created');
+    assert.equal(subprocessArgs[1], '--companion', 'launched with --companion');
+    assert.equal(subprocessArgs[2], 'https://search.brave.com/search?q=embedded%20companion%20query', 'correct encoded query passed');
+    assert.ok(capsule._companionActive, 'capsule marks companion active');
+    assert.equal(capsule._widget.visible, true, 'capsule widget remains visible as compact pill during companion session');
+    assert.equal(capsule._currentState, 'COMPACT', 'capsule switches to compact pill mode');
+    assert.deepEqual(dismissals, ['DISMISS'], 'companion start dispatches exactly one DISMISS');
+
+    // Hover must not pop the capsule open over an active companion window.
+    dismissals.length = 0;
+    capsule._widget.hover = true;
+    capsule._widget.handlers['notify::hover']();
+    assert.deepEqual(dismissals, [], 'hover is ignored while the companion is active');
+    capsule.restoreFromCompanion();
+    capsule._widget.handlers['notify::hover']();
+    assert.deepEqual(dismissals, ['HOVER_ENTER'], 'hover works again after the companion closes');
+
+    // A second search must terminate the first companion rather than stacking
+    // a second WebEngine process on top of it.
+    const firstProc = capsule._mediaView._companionSubprocess;
+    const firstWaitCallback = waitCallback;
+    capsule._mediaView._openSearch('https://www.google.com/search?q=two');
+    assert.deepEqual(firstProc.signals, [15], 'previous companion receives SIGTERM');
+    assert.notEqual(capsule._mediaView._companionSubprocess, firstProc,
+        'new companion subprocess replaces the old one');
+
+    // The replaced process exiting late must not clear the new process state.
+    const secondProc = capsule._mediaView._companionSubprocess;
+    const secondWaitCallback = waitCallback;
+    firstWaitCallback(null, {});
+    assert.equal(capsule._mediaView._companionSubprocess, secondProc,
+        'late exit of the replaced process leaves the new subprocess installed');
+    assert.ok(capsule._companionActive, 'late exit does not mark the companion inactive');
+
+    // Simulate companion window closing / process exit
+    assert.ok(secondWaitCallback, 'wait callback registered');
+    secondWaitCallback(null, {});
+    assert.equal(capsule._mediaView._companionSubprocess, null, 'subprocess cleared on real exit');
+    assert.equal(capsule._companionActive, false, 'companionActive cleared when companion exits');
+    assert.equal(capsule._widget.visible, true, 'capsule widget remains visible after companion exits');
+    // Verify clicking the compact pill while minimized dispatches CLICK and expands
+    let lastEvent = null;
+    capsule._onInteractionEvent = e => { lastEvent = e; };
+    capsule._compactRow.handlers['button-press-event']();
+    assert.equal(lastEvent, 'CLICK', 'clicking minimized pill dispatches CLICK');
+    capsule.applyState('EXPANDED');
+    assert.equal(capsule._currentState, 'EXPANDED', 'capsule expands on click');
+    capsule.applyState('COMPACT');
+    assert.equal(capsule._currentState, 'COMPACT', 'capsule stays in compact pill mode');
+    delete globalThis.renderTest.Gio.Subprocess;
 }
 
 

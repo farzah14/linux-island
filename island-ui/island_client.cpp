@@ -1,4 +1,5 @@
 #include "island_client.h"
+#include <QDBusArgument>
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QDBusMessage>
@@ -6,6 +7,17 @@
 #include <QDBusPendingCallWatcher>
 #include <algorithm>
 #include <cmath>
+
+namespace {
+// GetSnapshot returns nested a{sv} values as QDBusArgument, which toMap()
+// silently turns into an empty map. Demarshal those explicitly.
+QVariantMap variantToMap(const QVariant &value) {
+    if (value.metaType().id() == qMetaTypeId<QDBusArgument>()) {
+        return qdbus_cast<QVariantMap>(value.value<QDBusArgument>());
+    }
+    return value.toMap();
+}
+} // namespace
 
 IslandClient::IslandClient(const QDBusConnection &bus, QObject *parent)
     : QObject(parent),
@@ -183,6 +195,11 @@ void IslandClient::cycleActivePlayer() {
 }
 
 void IslandClient::updateSettings(const QVariantMap &patch) {
+    if (patch.contains(QStringLiteral("searchEngine")) && m_searchEngine != patch.value(QStringLiteral("searchEngine")).toString()) {
+        m_searchEngine = patch.value(QStringLiteral("searchEngine")).toString();
+        emit settingsChanged();
+    }
+
     if (!m_bus.isConnected() || patch.isEmpty()) return;
 
     QDBusInterface iface(
@@ -262,6 +279,7 @@ void IslandClient::applySettingsMap(const QVariantMap &settings) {
     if (settings.contains(QStringLiteral("displayMode"))) m_displayMode = settings.value(QStringLiteral("displayMode")).toString();
     if (settings.contains(QStringLiteral("verticalOffset"))) m_verticalOffset = settings.value(QStringLiteral("verticalOffset")).toInt();
     if (settings.contains(QStringLiteral("horizontalOffset"))) m_horizontalOffset = settings.value(QStringLiteral("horizontalOffset")).toInt();
+    if (settings.contains(QStringLiteral("searchEngine"))) m_searchEngine = settings.value(QStringLiteral("searchEngine")).toString();
 
     emit settingsChanged();
 }
@@ -288,10 +306,10 @@ void IslandClient::fetchSnapshot() {
 
             QVariantMap snapshot = reply.value();
             if (snapshot.contains(QStringLiteral("media"))) {
-                applyMediaMap(snapshot.value(QStringLiteral("media")).toMap());
+                applyMediaMap(variantToMap(snapshot.value(QStringLiteral("media"))));
             }
             if (snapshot.contains(QStringLiteral("settings"))) {
-                applySettingsMap(snapshot.value(QStringLiteral("settings")).toMap());
+                applySettingsMap(variantToMap(snapshot.value(QStringLiteral("settings"))));
             }
         }
     });

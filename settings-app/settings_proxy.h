@@ -18,6 +18,7 @@ class SettingsProxy : public QObject {
     Q_PROPERTY(QString displayMode READ displayMode WRITE setDisplayMode NOTIFY displayModeChanged)
     Q_PROPERTY(int verticalOffset READ verticalOffset WRITE setVerticalOffset NOTIFY verticalOffsetChanged)
     Q_PROPERTY(int horizontalOffset READ horizontalOffset WRITE setHorizontalOffset NOTIFY horizontalOffsetChanged)
+    Q_PROPERTY(QString searchEngine READ searchEngine WRITE setSearchEngine NOTIFY searchEngineChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY errorMessageChanged)
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
@@ -38,6 +39,7 @@ public:
     QString displayMode() const { return m_displayMode; }
     int verticalOffset() const { return m_verticalOffset; }
     int horizontalOffset() const { return m_horizontalOffset; }
+    QString searchEngine() const { return m_searchEngine; }
     bool busy() const { return m_busy; }
     QString errorMessage() const { return m_errorMessage; }
     bool connected() const { return m_connected; }
@@ -55,6 +57,7 @@ public:
     Q_INVOKABLE void setVerticalOffset(int val);
     Q_INVOKABLE void setHorizontalOffset(int val);
     Q_INVOKABLE void setDisplayMode(const QString &mode);
+    Q_INVOKABLE void setSearchEngine(const QString &engine);
     Q_INVOKABLE void refresh();
 
 signals:
@@ -69,6 +72,7 @@ signals:
     void displayModeChanged();
     void verticalOffsetChanged();
     void horizontalOffsetChanged();
+    void searchEngineChanged();
     void busyChanged();
     void errorMessageChanged();
     void connectedChanged();
@@ -96,6 +100,7 @@ private:
     QString m_displayMode = QStringLiteral("dynamic");
     int m_verticalOffset = 8;
     int m_horizontalOffset = 0;
+    QString m_searchEngine = QStringLiteral("google");
     bool m_busy = false;
     QString m_errorMessage;
     bool m_connected = false;

@@ -62,6 +62,30 @@ target_include_directories(tst_ai_quota PRIVATE ${CMAKE_SOURCE_DIR}/island-ui)
 target_link_libraries(tst_ai_quota PRIVATE Qt6::Core Qt6::Test)
 add_test(NAME ai-quota COMMAND tst_ai_quota)
 
+add_executable(tst_search_provider
+    tst_search_provider.cpp
+    ${CMAKE_SOURCE_DIR}/island-ui/search_provider.cpp
+)
+target_include_directories(tst_search_provider PRIVATE ${CMAKE_SOURCE_DIR}/island-ui)
+target_link_libraries(tst_search_provider PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+add_test(NAME search-provider COMMAND tst_search_provider)
+
+add_executable(tst_cookie_importer
+    tst_cookie_importer.cpp
+    ${CMAKE_SOURCE_DIR}/island-ui/cookie_importer.cpp
+)
+target_include_directories(tst_cookie_importer PRIVATE ${CMAKE_SOURCE_DIR}/island-ui)
+target_link_libraries(tst_cookie_importer PRIVATE
+    Qt6::Core
+    Qt6::DBus
+    Qt6::Sql
+    Qt6::WebEngineQuick
+    Qt6::WebEngineCore
+    Qt6::Test
+    OpenSSL::Crypto
+)
+add_test(NAME cookie-importer COMMAND tst_cookie_importer)
+
 add_executable(tst_island_client_fsm
     tst_island_client_fsm.cpp
     ${CMAKE_SOURCE_DIR}/island-ui/island_client.cpp

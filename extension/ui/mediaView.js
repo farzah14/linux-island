@@ -7,6 +7,8 @@ import {SystemMetricsRow, NetMonitorView, computeSystemColumns} from './systemMe
 import {QuickTogglesRow} from './quickToggle.js';
 import {FeatureCarousel} from './featureCarousel.js';
 import {AiQuotaSection} from './aiQuotaView.js';
+import {SearchSection} from './searchView.js';
+import {DEFAULT_SEARCH_ENGINE, isValidNavigationUrl} from '../lib/searchEngines.js';
 
 export const CAPSULE_SIZES = Object.freeze({
     circle: {width: 268, artwork: 40, button: 28, play: 36, icon: 12,
@@ -97,12 +99,19 @@ export class MediaView {
      * @param {Function} [options.onDismiss] - () => void
      * @param {Function} [options.artworkLoader] - async validated local icon loader
      */
-    constructor({onControlAction, onDismiss, onThemeToggle, onSetActivePlayer, artworkLoader = loadLocalArtwork,
+    constructor({onControlAction, onDismiss, onThemeToggle, onSetActivePlayer, onUpdateSettings,
+        onCompanionStart, onCompanionEnd,
+        searchEngine = DEFAULT_SEARCH_ENGINE, artworkLoader = loadLocalArtwork,
         clock = () => GLib ? GLib.get_monotonic_time() : 0, scheduler} = {}) {
         this._onControlAction = onControlAction ?? (() => {});
         this._onDismiss = onDismiss ?? (() => {});
         this._onThemeToggle = onThemeToggle ?? (() => {});
         this._onSetActivePlayer = onSetActivePlayer ?? (() => {});
+        this._onUpdateSettings = onUpdateSettings ?? (() => {});
+        this._onCompanionStart = onCompanionStart ?? (() => {});
+        this._onCompanionEnd = onCompanionEnd ?? (() => {});
+        this._companionSubprocess = null;
+        this._searchEngine = searchEngine;
         this._availablePlayers = [];
         this._playerSwitcherBtn = null;
         this._playerSwitcherLabel = null;
@@ -128,6 +137,7 @@ export class MediaView {
             cancel: id => { if (GLib) GLib.source_remove(id); },
         };
         this._aiQuotaSection = null;
+        this._searchSection = null;
         this._netView = null;
         this._metricsSlot = null;
         this._togglesSlot = null;
@@ -448,6 +458,17 @@ export class MediaView {
             this._aiQuotaSection.setWidth(320);
         }
 
+        // Section 4: Web Search
+        this._searchSection = new SearchSection({
+            engine: this._searchEngine,
+            onEngineChanged: engine => this._onUpdateSettings({searchEngine: engine}),
+            onSearch: url => this._openSearch(url),
+            onDismiss: () => this._onDismiss?.(),
+        });
+        if (this._searchSection.actor) {
+            this._searchSection.setWidth(320);
+        }
+
 
         // Slideable Carousel between Music section and System/Controls section
         this._carousel = new FeatureCarousel({
@@ -466,6 +487,13 @@ export class MediaView {
                     label: 'AI Quota',
                     iconName: 'applications-science-symbolic',
                     onActivate: () => this._aiQuotaSection?.start(),
+                },
+                {
+                    id: 'search',
+                    actor: this._searchSection?.actor,
+                    label: 'Search',
+                    iconName: 'system-search-symbolic',
+                    onActivate: () => this._searchSection?.focus(),
                 },
             ],
             onPageChanged: (idx) => {
@@ -488,6 +516,10 @@ export class MediaView {
 
     setTheme(theme) {
         this._quickTogglesRow?.setTheme(theme);
+    }
+
+    setSearchEngine(engine) {
+        this._searchSection?.setEngine(engine);
     }
 
     _cyclePlayer() {
@@ -577,6 +609,7 @@ export class MediaView {
             // the requested width to keep the page flush with the card.
             this._aiQuotaSection.setWidth(Math.max(0, contentWidth - 8));
         }
+        this._searchSection?.setWidth(Math.max(0, contentWidth - 8));
         if (this._carousel) {
             this._carousel.setPageWidth?.(contentWidth);
         }
@@ -731,6 +764,71 @@ export class MediaView {
             }
         }).catch(() => {});
     }
+    _openSearch(url) {
+        // Only real web pages may reach the companion or the default browser.
+        // SearchSection validates too, but MediaView is also called directly
+        // by other callers, so the check must live at the launch boundary.
+        if (!isValidNavigationUrl(url)) return;
+        let launchedCompanion = false;
+        if (typeof Gio !== 'undefined' && Gio?.Subprocess) {
+            try {
+                const home = GLib?.get_home_dir ? GLib.get_home_dir() : '';
+                const candidates = [
+                    home + '/.local/libexec/linux-island-ui',
+                    'linux-island-ui',
+                    'linux-island-launch',
+                ];
+                let bin = 'linux-island-ui';
+                if (GLib?.find_program_in_path) {
+                    for (const cand of candidates) {
+                        if (GLib.find_program_in_path(cand)) {
+                            bin = cand;
+                            break;
+                        }
+                    }
+                }
+                // A second search must replace the first companion window,
+                // not stack another WebEngine process on top of it.
+                const previous = this._companionSubprocess;
+                if (previous) {
+                    try {
+                        previous.send_signal(15);
+                    } catch (_) {
+                        try {
+                            previous.force_exit();
+                        } catch (_) {}
+                    }
+                }
+                const proc = new Gio.Subprocess({
+                    argv: [bin, '--companion', url],
+                    flags: Gio.SubprocessFlags.NONE,
+                });
+                proc.init(null);
+                this._companionSubprocess = proc;
+                launchedCompanion = true;
+                // onCompanionStart dismisses the capsule; calling onDismiss
+                // here as well dispatched a duplicate 'DISMISS'.
+                this._onCompanionStart?.();
+                proc.wait_async(null, (_p, res) => {
+                    try {
+                        proc.wait_finish(res);
+                    } catch (_) {}
+                    // The replaced process exits after the new one is already
+                    // installed; clearing state here would orphan it.
+                    if (this._companionSubprocess !== proc) return;
+                    this._companionSubprocess = null;
+                    this._onCompanionEnd?.();
+                });
+            } catch (_) {}
+        }
+        if (!launchedCompanion) {
+            try {
+                Gio?.AppInfo?.launch_default_for_uri(url, null);
+            } catch (_) {}
+            this._onDismiss?.();
+        }
+    }
+
 
     destroy() {
         if (this._progressTimer !== null) this._scheduler.cancel(this._progressTimer);
@@ -748,6 +846,21 @@ export class MediaView {
         this._togglesSlot = null;
         this._aiQuotaSection?.destroy();
         this._aiQuotaSection = null;
+        this._searchSection?.destroy();
+        this._searchSection = null;
+        if (this._companionSubprocess) {
+            try {
+                // SIGTERM (not force_exit/SIGKILL) lets WebEngine flush its
+                // cookie store, so the user's logins survive the Island
+                // reloading its own UI.
+                this._companionSubprocess.send_signal(15);
+            } catch (_) {
+                try {
+                    this._companionSubprocess.force_exit();
+                } catch (_) {}
+            }
+            this._companionSubprocess = null;
+        }
         this._playerSwitcherBtn = null;
         this._playerSwitcherLabel = null;
         ++this._artGeneration;

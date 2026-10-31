@@ -84,6 +84,9 @@ export default class LinuxIslandExtension extends Extension {
             this._controller?.setFullscreenPolicyEnabled(coreState.settings.smartAdaptiveEnabled);
             this._capsule?.setHoverPreviewEnabled(coreState.settings.hoverPreviewEnabled);
             this._capsule?.setTheme(coreState.settings.theme);
+            if (coreState.settings.searchEngine !== undefined) {
+                this._capsule?.setSearchEngine(coreState.settings.searchEngine);
+            }
             this._capsule?.setCapsuleSize(coreState.settings.capsuleSize);
             this._capsule?.setAnimationEnabled(coreState.settings.animationEnabled);
             if (coreState.settings.verticalOffset !== undefined) {

@@ -9,7 +9,7 @@ Window {
     width: surfaceManager ? surfaceManager.windowWidth : 440
     height: surfaceManager ? surfaceManager.windowHeight : 360
     color: "transparent"
-    flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
+    flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
 
     // Shortcut for Esc dismissal
     Shortcut {
@@ -38,6 +38,13 @@ Window {
         property bool isExpanded: islandClient.uiState === "EXPANDED"
         property bool isCircle: islandClient.capsuleSize === "circle" && !isExpanded
         property bool isHovered: islandClient.uiState === "PREVIEW"
+
+        onIsExpandedChanged: {
+            if (isExpanded && carouselView.currentIndex === 3) {
+                windowRoot.requestActivate();
+                Qt.callLater(searchPage.forceFocus);
+            }
+        }
 
         width: isExpanded ? windowRoot.getExpandedWidth() : (isCircle ? 36 : windowRoot.getPillWidth())
         height: isExpanded ? 260 : 34
@@ -253,7 +260,7 @@ Window {
                         Text {
                             anchors.centerIn: parent
                             text: "🎵 Music"
-                            font.pixelSize: 10
+                            font.pixelSize: 9
                             font.bold: true
                             color: carouselView.currentIndex === 0 ? IslandTheme.surfaceIsland : IslandTheme.textPrimary
                         }
@@ -276,7 +283,7 @@ Window {
                         Text {
                             anchors.centerIn: parent
                             text: "⚡ System"
-                            font.pixelSize: 10
+                            font.pixelSize: 9
                             font.bold: true
                             color: carouselView.currentIndex === 1 ? IslandTheme.surfaceIsland : IslandTheme.textPrimary
                         }
@@ -298,8 +305,8 @@ Window {
 
                         Text {
                             anchors.centerIn: parent
-                            text: "🤖 AI Quota"
-                            font.pixelSize: 10
+                            text: "🤖 AI"
+                            font.pixelSize: 9
                             font.bold: true
                             color: carouselView.currentIndex === 2 ? IslandTheme.surfaceIsland : IslandTheme.textPrimary
                         }
@@ -309,6 +316,29 @@ Window {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
                             onClicked: carouselView.currentIndex = 2
+                        }
+                    }
+
+                    // Tab 3: Search
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        radius: 4
+                        color: carouselView.currentIndex === 3 ? IslandTheme.accentPrimary : (tab3Mouse.containsMouse ? IslandTheme.surfaceHover : "transparent")
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "🔍 Search"
+                            font.pixelSize: 9
+                            font.bold: true
+                            color: carouselView.currentIndex === 3 ? IslandTheme.surfaceIsland : IslandTheme.textPrimary
+                        }
+
+                        MouseArea {
+                            id: tab3Mouse
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: carouselView.currentIndex = 3
                         }
                     }
 
@@ -347,7 +377,37 @@ Window {
                 MusicPage {}
                 SystemPage {}
                 AiQuotaPage {}
+                SearchPage { id: searchPage }
+
+                onCurrentIndexChanged: {
+                    if (currentIndex === 3 && islandContainer.isExpanded) {
+                        windowRoot.requestActivate();
+                        Qt.callLater(searchPage.forceFocus);
+                    }
+                }
             }
+        }
+    }
+
+    Connections {
+        target: searchProvider
+        function onOpenEmbeddedRequested(url) {
+            companionLoader.targetUrl = url;
+            companionLoader.active = false;
+            companionLoader.active = true;
+        }
+    }
+
+    Loader {
+        id: companionLoader
+        active: false
+        property string targetUrl: ""
+        source: "CompanionWindow.qml"
+        onLoaded: {
+            item.initialUrl = targetUrl;
+            item.closedByUser.connect(function() {
+                companionLoader.active = false;
+            });
         }
     }
 }

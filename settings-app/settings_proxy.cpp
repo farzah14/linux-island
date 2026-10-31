@@ -155,6 +155,10 @@ void SettingsProxy::applySettingsMap(const QVariantMap &settings) {
         m_horizontalOffset = settings.value(QStringLiteral("horizontalOffset")).toInt();
         emit horizontalOffsetChanged();
     }
+    if (settings.contains(QStringLiteral("searchEngine")) && m_searchEngine != settings.value(QStringLiteral("searchEngine")).toString()) {
+        m_searchEngine = settings.value(QStringLiteral("searchEngine")).toString();
+        emit searchEngineChanged();
+    }
 }
 
 void SettingsProxy::sendPatch(const QVariantMap &patch) {
@@ -262,6 +266,14 @@ void SettingsProxy::setHorizontalOffset(int val) {
 void SettingsProxy::setDisplayMode(const QString &mode) {
     if (m_displayMode != mode) {
         sendPatch({{QStringLiteral("displayMode"), mode}});
+    }
+}
+
+void SettingsProxy::setSearchEngine(const QString &engine) {
+    if (m_searchEngine != engine) {
+        m_searchEngine = engine;
+        emit searchEngineChanged();
+        sendPatch({{QStringLiteral("searchEngine"), engine}});
     }
 }
 

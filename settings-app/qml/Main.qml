@@ -729,6 +729,49 @@ ApplicationWindow {
             }
         }
 
+        // Web Search
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            Text {
+                text: "Web Search"
+                font.bold: true
+                font.pixelSize: 14
+                color: "#F4F0E9"
+            }
+
+            Text {
+                text: "Choose the engine used by the Island Search tab."
+                font.pixelSize: 12
+                color: "#A69C8F"
+            }
+
+            RowLayout {
+                spacing: 12
+                RadioButton {
+                    text: "Google"
+                    checked: settingsProxy.searchEngine === "google"
+                    onClicked: settingsProxy.setSearchEngine("google")
+                }
+                RadioButton {
+                    text: "DuckDuckGo"
+                    checked: settingsProxy.searchEngine === "duckduckgo"
+                    onClicked: settingsProxy.setSearchEngine("duckduckgo")
+                }
+                RadioButton {
+                    text: "Brave"
+                    checked: settingsProxy.searchEngine === "brave"
+                    onClicked: settingsProxy.setSearchEngine("brave")
+                }
+                RadioButton {
+                    text: "Bing"
+                    checked: settingsProxy.searchEngine === "bing"
+                    onClicked: settingsProxy.setSearchEngine("bing")
+                }
+            }
+        }
+
         // Interaction Toggles
         ColumnLayout {
             Layout.fillWidth: true

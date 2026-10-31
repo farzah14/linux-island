@@ -30,6 +30,7 @@ void TestSettingsSchema::testDefaultSettings() {
     QCOMPARE(defaults.value(QStringLiteral("whatsappIntegrationEnabled")).toBool(), false);
     QCOMPARE(defaults.value(QStringLiteral("verticalOffset")).toInt(), 8);
     QCOMPARE(defaults.value(QStringLiteral("horizontalOffset")).toInt(), 0);
+    QCOMPARE(defaults.value(QStringLiteral("searchEngine")).toString(), QStringLiteral("google"));
 }
 
 void TestSettingsSchema::testValidPatch() {
@@ -38,7 +39,8 @@ void TestSettingsSchema::testValidPatch() {
         {QStringLiteral("theme"), QStringLiteral("dark")},
         {QStringLiteral("capsuleSize"), QStringLiteral("large")},
         {QStringLiteral("notificationPeekEnabled"), true},
-        {QStringLiteral("whatsappIntegrationEnabled"), true}
+        {QStringLiteral("whatsappIntegrationEnabled"), true},
+        {QStringLiteral("searchEngine"), QStringLiteral("duckduckgo")}
     };
     ValidationResult res = validateSettingsPatch(current, patch);
     QVERIFY(res.ok);
@@ -48,6 +50,7 @@ void TestSettingsSchema::testValidPatch() {
     QCOMPARE(res.effective.value(QStringLiteral("notificationPeekEnabled")).toBool(), true);
     QCOMPARE(res.effective.value(QStringLiteral("animationEnabled")).toBool(), true);
     QCOMPARE(res.effective.value(QStringLiteral("whatsappIntegrationEnabled")).toBool(), true);
+    QCOMPARE(res.effective.value(QStringLiteral("searchEngine")).toString(), QStringLiteral("duckduckgo"));
 
     QVariantMap circlePatch = {
         {QStringLiteral("capsuleSize"), QStringLiteral("circle")}
@@ -106,6 +109,12 @@ void TestSettingsSchema::testWrongTypeRejected() {
     };
     ValidationResult res4 = validateSettingsPatch(current, patch4);
     QVERIFY(!res4.ok);
+
+    // Bool instead of string for searchEngine
+    QVariantMap patch5 = {
+        {QStringLiteral("searchEngine"), true}
+    };
+    QVERIFY(!validateSettingsPatch(current, patch5).ok);
 }
 
 void TestSettingsSchema::testInvalidEnumRejected() {
@@ -117,6 +126,13 @@ void TestSettingsSchema::testInvalidEnumRejected() {
     ValidationResult res = validateSettingsPatch(current, patch);
     QVERIFY(!res.ok);
     QVERIFY(!res.error.isEmpty());
+
+    // Unknown search engine should be rejected on its own, since validation
+    // stops at the first invalid key.
+    QVariantMap patchSearch = {
+        {QStringLiteral("searchEngine"), QStringLiteral("yandex")}
+    };
+    QVERIFY(!validateSettingsPatch(current, patchSearch).ok);
 
     // Out of bounds offsets
     QVariantMap patchBounds1 = {

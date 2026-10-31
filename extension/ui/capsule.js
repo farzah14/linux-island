@@ -48,6 +48,8 @@ export class Capsule {
         this._lastMedia = null;
         this._verticalOffset = 8;
         this._horizontalOffset = 0;
+        this._searchEngine = 'google';
+        this._companionActive = false;
 
         // Root floating island widget
         this._widget = new St.BoxLayout({
@@ -126,6 +128,10 @@ export class Capsule {
             onDismiss: () => this._onInteractionEvent('DISMISS'),
             onThemeToggle: () => this.cycleTheme(),
             onSetActivePlayer: this._onSetActivePlayer,
+            onUpdateSettings: this._onUpdateSettings,
+            searchEngine: this._searchEngine,
+            onCompanionStart: () => this.hideForCompanion(),
+            onCompanionEnd: () => this.restoreFromCompanion(),
         });
         if (this._mediaView.actor) {
             this._mediaView.actor.visible = false;
@@ -168,6 +174,9 @@ export class Capsule {
 
         // Hover handling
         this._widget.connect('notify::hover', () => {
+            // While the companion window owns the screen, the pointer leaving
+            // or entering the collapsed pill must not pop it back open.
+            if (this._companionActive) return;
             const isHovered = this._widget.hover;
             if (isHovered) {
                 this._clearIdleTimer();
@@ -547,6 +556,7 @@ export class Capsule {
         this._widget.scale_x = 1;
         this._widget.scale_y = 1;
 
+
         if (state === 'COMPACT') {
             if (previousState !== 'COMPACT' && this._capsuleSize !== 'circle') {
                 this._exitIdleCircle();
@@ -619,6 +629,9 @@ export class Capsule {
             this._onInteractionEvent('DISMISS');
             return;
         }
+        if (state === 'EXPANDED' && this._mediaView?._carousel?.currentPage === 3) {
+            this._mediaView._searchSection?.focus();
+        }
         // The Shell also scales animation time according to accessibility settings.
         if (state === 'EXPANDED' && previousState !== 'EXPANDED') this._onMediaOpen();
         // Replace transitions rather than queueing them during rapid pointer input.
@@ -653,13 +666,24 @@ export class Capsule {
         }
     }
 
+    hideForCompanion() {
+        this._companionActive = true;
+        this._onInteractionEvent('DISMISS');
+    }
+
+    restoreFromCompanion() {
+        this._companionActive = false;
+    }
+
+
     setHoverPreviewEnabled(enabled) {
         const next = enabled !== false;
         if (next === this._hoverPreviewEnabled || !this._widget) return;
         this._hoverPreviewEnabled = next;
         if (!next && this._currentState === 'PREVIEW')
             this._onInteractionEvent('HOVER_LEAVE');
-        else if (next && this._widget.hover && this._currentState === 'COMPACT')
+        else if (next && !this._companionActive && this._widget.hover
+            && this._currentState === 'COMPACT')
             this._onInteractionEvent('HOVER_ENTER');
     }
 
@@ -723,6 +747,11 @@ export class Capsule {
         this._themePreference = theme;
         this._applyTheme();
         this._mediaView?.setTheme(theme);
+    }
+
+    setSearchEngine(engine) {
+        this._searchEngine = engine;
+        this._mediaView?.setSearchEngine(engine);
     }
 
     setVerticalOffset(offset) {

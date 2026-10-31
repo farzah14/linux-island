@@ -48,12 +48,15 @@ fi
 MODE_FLAG="${1:-}"
 STANDALONE_OVERRIDE=false
 SMOKE_TEST=false
+COMPANION_MODE=false
 
 for arg in "$@"; do
     if [[ "$arg" == "--standalone" ]]; then
         STANDALONE_OVERRIDE=true
     elif [[ "$arg" == "--smoke-test" ]]; then
         SMOKE_TEST=true
+    elif [[ "$arg" == "--companion"* ]]; then
+        COMPANION_MODE=true
     fi
 done
 
@@ -114,8 +117,10 @@ fi
 ensure_core
 
 # Determine whether to use GNOME extension or standalone Qt6 overlay
-if [[ "$IS_GNOME" == "true" && "$DISPLAY_MODE" == "dynamic" && "$STANDALONE_OVERRIDE" == "false" && "$SMOKE_TEST" == "false" ]]; then
+if [[ "$IS_GNOME" == "true" && "$DISPLAY_MODE" == "dynamic" && "$STANDALONE_OVERRIDE" == "false" && "$SMOKE_TEST" == "false" && "$COMPANION_MODE" == "false" ]]; then
     if command -v gnome-extensions &>/dev/null; then
+        # Terminate any lingering standalone Qt6 UI to prevent double overlay rendering
+        pkill -f "linux-island-ui" 2>/dev/null || true
         gnome-extensions enable linux-island@local || true
         # If launched via autostart or systemd-ui, extension owns the top bar
         if [[ "$MODE_FLAG" == "--autostart" || "$MODE_FLAG" == "--systemd-ui" ]]; then
@@ -127,13 +132,12 @@ if [[ "$IS_GNOME" == "true" && "$DISPLAY_MODE" == "dynamic" && "$STANDALONE_OVER
 fi
 
 # In non-GNOME or Floating mode or --standalone:
-# If running on GNOME in floating mode, disable extension to avoid double rendering
-if [[ "$IS_GNOME" == "true" && "$DISPLAY_MODE" == "floating" ]]; then
+# If running on GNOME in floating mode or standalone, disable extension to avoid double rendering
+if [[ "$IS_GNOME" == "true" && "$COMPANION_MODE" == "false" && ( "$DISPLAY_MODE" == "floating" || "$STANDALONE_OVERRIDE" == "true" ) ]]; then
     if command -v gnome-extensions &>/dev/null; then
         gnome-extensions disable linux-island@local 2>/dev/null || true
     fi
 fi
-
 if [[ -z "$UI_BIN" || ! -x "$UI_BIN" ]]; then
     echo "ERROR: linux-island-ui binary not found or not executable." >&2
     exit 1

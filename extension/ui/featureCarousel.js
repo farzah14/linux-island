@@ -77,6 +77,7 @@ export function getPageIcon(page) {
     if (id === 'media' || id === 'music') return 'audio-x-generic-symbolic';
     if (id === 'system' || id === 'controls' || id === 'metrics') return 'preferences-system-symbolic';
     if (id === 'ai' || id === 'quota' || id === 'ai-quota') return 'applications-science-symbolic';
+    if (id === 'search' || id === 'web' || id === 'web-search') return 'system-search-symbolic';
     return 'view-more-symbolic';
 }
 
@@ -311,6 +312,10 @@ export class FeatureCarousel {
                 curr.classes.has('linux-island__progress-fill') ||
                 curr.classes.has('linux-island__quota-action') ||
                 curr.classes.has('linux-island__quota-row') ||
+                curr.classes.has('linux-island__search-entry') ||
+                curr.classes.has('linux-island__search-action') ||
+                curr.classes.has('linux-island__search-engine-btn') ||
+                curr.classes.has('linux-island__search-engine-btn--active') ||
                 curr.classes.has('linux-island__carousel-dot'))) {
                 return true;
             }

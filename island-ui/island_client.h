@@ -45,6 +45,7 @@ class IslandClient : public QObject {
     Q_PROPERTY(QString displayMode READ displayMode NOTIFY settingsChanged)
     Q_PROPERTY(int verticalOffset READ verticalOffset NOTIFY settingsChanged)
     Q_PROPERTY(int horizontalOffset READ horizontalOffset NOTIFY settingsChanged)
+    Q_PROPERTY(QString searchEngine READ searchEngine NOTIFY settingsChanged)
 
 public:
     explicit IslandClient(const QDBusConnection &bus = QDBusConnection::sessionBus(), QObject *parent = nullptr);
@@ -81,6 +82,7 @@ public:
     QString displayMode() const { return m_displayMode; }
     int verticalOffset() const { return m_verticalOffset; }
     int horizontalOffset() const { return m_horizontalOffset; }
+    QString searchEngine() const { return m_searchEngine; }
 
     static QString transitionState(const QString &currentState, const QString &event);
     static QString formatTime(qlonglong us);
@@ -145,4 +147,5 @@ private:
     QString m_displayMode = QStringLiteral("dynamic");
     int m_verticalOffset = 8;
     int m_horizontalOffset = 0;
+    QString m_searchEngine = QStringLiteral("google");
 };

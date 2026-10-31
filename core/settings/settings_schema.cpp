@@ -14,6 +14,7 @@ QVariantMap defaultSettings() {
     map[QStringLiteral("whatsappIntegrationEnabled")] = false;
     map[QStringLiteral("verticalOffset")] = 8;
     map[QStringLiteral("horizontalOffset")] = 0;
+    map[QStringLiteral("searchEngine")] = QStringLiteral("google");
     return map;
 }
 
@@ -29,7 +30,8 @@ ValidationResult validateSettingsPatch(const QVariantMap &current, const QVarian
         QStringLiteral("displayMode"),
         QStringLiteral("whatsappIntegrationEnabled"),
         QStringLiteral("verticalOffset"),
-        QStringLiteral("horizontalOffset")
+        QStringLiteral("horizontalOffset"),
+        QStringLiteral("searchEngine")
     };
 
     static const QSet<QString> allowedThemes = {
@@ -49,6 +51,13 @@ ValidationResult validateSettingsPatch(const QVariantMap &current, const QVarian
         QStringLiteral("dynamic"),
         QStringLiteral("floating"),
         QStringLiteral("integrated")
+    };
+
+    static const QSet<QString> allowedSearchEngines = {
+        QStringLiteral("google"),
+        QStringLiteral("duckduckgo"),
+        QStringLiteral("brave"),
+        QStringLiteral("bing")
     };
 
     if (patch.size() > 32) {
@@ -107,6 +116,13 @@ ValidationResult validateSettingsPatch(const QVariantMap &current, const QVarian
             }
             if (!allowedDisplayModes.contains(val.toString())) {
                 return ValidationResult{false, current, QStringLiteral("Invalid displayMode value: ") + val.toString()};
+            }
+        } else if (key == QLatin1String("searchEngine")) {
+            if (val.typeId() != QMetaType::QString) {
+                return ValidationResult{false, current, QStringLiteral("searchEngine must be a string")};
+            }
+            if (!allowedSearchEngines.contains(val.toString())) {
+                return ValidationResult{false, current, QStringLiteral("Invalid searchEngine value: ") + val.toString()};
             }
         } else if (key == QLatin1String("verticalOffset")) {
             if (val.typeId() != QMetaType::Int && val.typeId() != QMetaType::LongLong) {
