@@ -6,8 +6,7 @@ Item {
     id: root
 
     implicitWidth: parent ? parent.width : 340
-    implicitHeight: 200
-    property double lastUnmutedVolume: 1.0
+    implicitHeight: 130
 
     function formatPlayerName(id) {
         if (!id) return "Player";
@@ -21,69 +20,20 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 10
+        anchors.margins: 6
         spacing: 8
 
-        // Top Row: Player Switcher Pill + BeatBars
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 6
-
-            Rectangle {
-                implicitHeight: 22
-                implicitWidth: playerRow.implicitWidth + 14
-                radius: 11
-                color: playerMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
-                border.color: IslandTheme.borderSubtle
-
-                RowLayout {
-                    id: playerRow
-                    anchors.centerIn: parent
-                    spacing: 4
-
-                    Text {
-                        text: root.formatPlayerName(islandClient.playerId)
-                        font.pixelSize: 11
-                        font.bold: true
-                        color: IslandTheme.textPrimary
-                    }
-
-                    Text {
-                        text: "▾"
-                        font.pixelSize: 10
-                        color: IslandTheme.textSecondary
-                        visible: islandClient.availablePlayers.length > 1
-                    }
-                }
-
-                MouseArea {
-                    id: playerMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: islandClient.cycleActivePlayer()
-                }
-            }
-
-            Item { Layout.fillWidth: true }
-
-            BeatBars {
-                isPlaying: islandClient.isPlaying
-                audioLevels: islandClient.audioLevels
-                barColor: IslandTheme.accentPrimary
-            }
-        }
-
-        // Middle Row: Album Artwork + Track Information
+        // Row 1: Album Artwork + Track Information (Title + BeatBars, Artist + Player Pill)
         RowLayout {
             Layout.fillWidth: true
             spacing: 12
 
+            // Album Artwork (48x48, radius 12)
             Rectangle {
                 id: artContainer
-                implicitWidth: 54
-                implicitHeight: 54
-                radius: 10
+                implicitWidth: 48
+                implicitHeight: 48
+                radius: 12
                 color: IslandTheme.surfaceRaised
                 border.color: IslandTheme.borderSubtle
                 clip: true
@@ -98,274 +48,236 @@ Item {
                 Text {
                     anchors.centerIn: parent
                     text: "🎵"
-                    font.pixelSize: 24
+                    font.pixelSize: 20
                     visible: !islandClient.albumArtUri || parent.children[0].status !== Image.Ready
                 }
             }
 
+            // Track Information Column
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 2
 
-                Text {
+                // Title + BeatBars
+                RowLayout {
                     Layout.fillWidth: true
-                    text: islandClient.title ? islandClient.title : "No Media Playing"
-                    font.pixelSize: 14
-                    font.bold: true
-                    color: IslandTheme.textPrimary
-                    elide: Text.ElideRight
-                }
+                    spacing: 8
 
-                Text {
-                    Layout.fillWidth: true
-                    text: islandClient.artist ? islandClient.artist : "Desktop Audio"
-                    font.pixelSize: 12
-                    color: IslandTheme.textSecondary
-                    elide: Text.ElideRight
-                }
-            }
-        }
-
-        // Seek Bar & Timers
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: 2
-
-            Item {
-                Layout.fillWidth: true
-                implicitHeight: 14
-
-                // Track background
-                Rectangle {
-                    id: seekBg
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width
-                    height: 4
-                    radius: 2
-                    color: IslandTheme.surfaceRaised
-                }
-
-                // Progress filled
-                Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: seekBg.x
-                    width: Math.max(0, Math.min(seekBg.width, seekBg.width * (seekMouse.pressed ? seekMouse.dragFraction : islandClient.progress)))
-                    height: 4
-                    radius: 2
-                    color: IslandTheme.accentPrimary
-                }
-
-                // Thumb handle
-                Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: Math.max(0, Math.min(seekBg.width - 10, (seekBg.width * (seekMouse.pressed ? seekMouse.dragFraction : islandClient.progress)) - 5))
-                    width: 10
-                    height: 10
-                    radius: 5
-                    color: seekMouse.containsMouse || seekMouse.pressed ? IslandTheme.accentHover : IslandTheme.textPrimary
-                }
-
-                MouseArea {
-                    id: seekMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    property real dragFraction: 0.0
-
-                    function updatePos(mouseX) {
-                        var frac = Math.max(0.0, Math.min(1.0, mouseX / width));
-                        dragFraction = frac;
-                        islandClient.seekToFraction(frac);
+                    Text {
+                        Layout.fillWidth: true
+                        text: islandClient.title ? islandClient.title : "No Media Playing"
+                        font.pixelSize: 13
+                        font.bold: true
+                        color: IslandTheme.textPrimary
+                        elide: Text.ElideRight
                     }
 
-                    onPressed: (mouse) => updatePos(mouse.x)
-                    onPositionChanged: (mouse) => {
-                        if (pressed) updatePos(mouse.x);
+                    BeatBars {
+                        isPlaying: islandClient.isPlaying
+                        audioLevels: islandClient.audioLevels
+                        barColor: IslandTheme.accentPrimary
                     }
                 }
-            }
 
-            RowLayout {
-                Layout.fillWidth: true
-                Text {
-                    text: islandClient.timeElapsedText
-                    font.pixelSize: 10
-                    color: IslandTheme.textTertiary
-                }
-                Item { Layout.fillWidth: true }
-                Text {
-                    text: islandClient.timeTotalText
-                    font.pixelSize: 10
-                    color: IslandTheme.textTertiary
-                }
-            }
-        }
+                // Artist + Player Switcher Pill
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
 
-        // Volume Row: Mute Toggle + Volume Slider
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 8
+                    Text {
+                        Layout.fillWidth: true
+                        text: islandClient.artist ? islandClient.artist : "Desktop Audio"
+                        font.pixelSize: 12
+                        color: IslandTheme.textSecondary
+                        elide: Text.ElideRight
+                    }
 
-            // Mute button
-            Rectangle {
-                implicitWidth: 24
-                implicitHeight: 24
-                radius: 12
-                color: muteMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
+                    Rectangle {
+                        implicitHeight: 18
+                        implicitWidth: playerRow.implicitWidth + 10
+                        radius: 6
+                        color: playerMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
+                        border.color: IslandTheme.borderSubtle
+                        visible: islandClient.availablePlayers.length > 0
 
-                Text {
-                    anchors.centerIn: parent
-                    text: islandClient.volume <= 0.0 ? "🔇" : "🔊"
-                    font.pixelSize: 12
-                    color: IslandTheme.textPrimary
-                }
+                        RowLayout {
+                            id: playerRow
+                            anchors.centerIn: parent
+                            spacing: 3
 
-                MouseArea {
-                    id: muteMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        if (islandClient.volume > 0.0) {
-                            root.lastUnmutedVolume = islandClient.volume;
-                            islandClient.setVolume(0.0);
-                        } else {
-                            islandClient.setVolume(root.lastUnmutedVolume <= 0.0 ? 1.0 : root.lastUnmutedVolume);
+                            Text {
+                                text: root.formatPlayerName(islandClient.playerId) + (islandClient.availablePlayers.length > 1 ? " ▾" : "")
+                                font.pixelSize: 10
+                                font.bold: true
+                                color: IslandTheme.textPrimary
+                            }
+                        }
+
+                        MouseArea {
+                            id: playerMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: islandClient.cycleActivePlayer()
                         }
                     }
                 }
             }
+        }
 
-            // Volume bar
-            Item {
-                Layout.fillWidth: true
-                implicitHeight: 14
+        // Row 2: Progress Track (Seek Bar)
+        Item {
+            Layout.fillWidth: true
+            implicitHeight: 10
 
-                // Track background
-                Rectangle {
-                    id: volBg
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width
-                    height: 6
-                    radius: 3
-                    color: IslandTheme.surfaceRaised
+            Rectangle {
+                id: seekBg
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width
+                height: 4
+                radius: 2
+                color: IslandTheme.surfaceRaised
+            }
+
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                x: seekBg.x
+                width: Math.max(0, Math.min(seekBg.width, seekBg.width * (seekMouse.pressed ? seekMouse.dragFraction : islandClient.progress)))
+                height: 4
+                radius: 2
+                color: IslandTheme.accentPrimary
+            }
+
+            // Thumb handle
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                x: Math.max(0, Math.min(seekBg.width - 8, (seekBg.width * (seekMouse.pressed ? seekMouse.dragFraction : islandClient.progress)) - 4))
+                width: 8
+                height: 8
+                radius: 4
+                color: seekMouse.containsMouse || seekMouse.pressed ? IslandTheme.accentHover : IslandTheme.textPrimary
+                visible: seekMouse.containsMouse || seekMouse.pressed
+            }
+
+            MouseArea {
+                id: seekMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                property real dragFraction: 0.0
+
+                function updatePos(mouseX) {
+                    var frac = Math.max(0.0, Math.min(1.0, mouseX / width));
+                    dragFraction = frac;
+                    islandClient.seekToFraction(frac);
                 }
 
-                // Volume fill
-                Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: volBg.x
-                    width: Math.max(0, Math.min(volBg.width, volBg.width * (volMouse.pressed ? volMouse.volDragFraction : islandClient.volume)))
-                    height: 6
-                    radius: 3
-                    color: IslandTheme.accentPrimary
-                }
-
-                // Thumb handle
-                Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: Math.max(0, Math.min(volBg.width - 10, (volBg.width * (volMouse.pressed ? volMouse.volDragFraction : islandClient.volume)) - 5))
-                    width: 10
-                    height: 10
-                    radius: 5
-                    color: volMouse.containsMouse || volMouse.pressed ? IslandTheme.accentHover : IslandTheme.textPrimary
-                }
-
-                MouseArea {
-                    id: volMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    property real volDragFraction: 1.0
-
-                    function updateFrac(mouseX) {
-                        volDragFraction = Math.max(0.0, Math.min(1.0, mouseX / width));
-                    }
-
-                    onPressed: (mouse) => updateFrac(mouse.x)
-                    onPositionChanged: (mouse) => {
-                        if (pressed) updateFrac(mouse.x);
-                    }
-                    onReleased: (mouse) => {
-                        updateFrac(mouse.x);
-                        islandClient.setVolume(volDragFraction);
-                    }
+                onPressed: (mouse) => updatePos(mouse.x)
+                onPositionChanged: (mouse) => {
+                    if (pressed) updatePos(mouse.x);
                 }
             }
         }
 
-        // Bottom Controls: Previous, Play/Pause, Next
+        // Row 3: Playback Controls + Duration labels row: [ 0:05 ]  <spacer>  [ ⏮ ] [ ▶ ] [ ⏭ ]  <spacer>  [ 3:58 ]
         RowLayout {
-            Layout.alignment: Qt.AlignHCenter
-            spacing: 24
+            Layout.fillWidth: true
+            spacing: 4
 
-            // Previous button
-            Rectangle {
-                implicitWidth: 32
-                implicitHeight: 32
-                radius: 16
-                color: prevMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
+            Text {
+                text: islandClient.timeElapsedText
+                font.pixelSize: 10
+                color: IslandTheme.textTertiary
+                Layout.preferredWidth: 36
+            }
 
-                Text {
-                    anchors.centerIn: parent
-                    text: "⏮"
-                    font.pixelSize: 14
-                    color: islandClient.canPrevious ? IslandTheme.textPrimary : IslandTheme.textTertiary
+            Item { Layout.fillWidth: true }
+
+            RowLayout {
+                spacing: 12
+                Layout.alignment: Qt.AlignHCenter
+
+                // Prev
+                Rectangle {
+                    implicitWidth: 32
+                    implicitHeight: 32
+                    radius: 12
+                    color: prevMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
+                    opacity: islandClient.canPrevious ? 1.0 : 0.4
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "⏮"
+                        font.pixelSize: 13
+                        color: IslandTheme.textPrimary
+                    }
+
+                    MouseArea {
+                        id: prevMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: islandClient.canPrevious ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: if (islandClient.canPrevious) islandClient.previous()
+                    }
                 }
 
-                MouseArea {
-                    id: prevMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: islandClient.controlMedia("Previous")
+                // Play / Pause (Accent Amber Button)
+                Rectangle {
+                    implicitWidth: 40
+                    implicitHeight: 32
+                    radius: 14
+                    color: playMouse.containsMouse ? IslandTheme.accentHover : IslandTheme.accentPrimary
+                    opacity: islandClient.canPlay || islandClient.canPause ? 1.0 : 0.4
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: islandClient.isPlaying ? "⏸" : "▶"
+                        font.pixelSize: 15
+                        color: IslandTheme.surfaceIsland
+                    }
+
+                    MouseArea {
+                        id: playMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: islandClient.canPlay || islandClient.canPause ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: islandClient.playPause()
+                    }
+                }
+
+                // Next
+                Rectangle {
+                    implicitWidth: 32
+                    implicitHeight: 32
+                    radius: 12
+                    color: nextMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
+                    opacity: islandClient.canNext ? 1.0 : 0.4
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "⏭"
+                        font.pixelSize: 13
+                        color: IslandTheme.textPrimary
+                    }
+
+                    MouseArea {
+                        id: nextMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: islandClient.canNext ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: if (islandClient.canNext) islandClient.next()
+                    }
                 }
             }
 
-            // Play / Pause button
-            Rectangle {
-                implicitWidth: 40
-                implicitHeight: 40
-                radius: 20
-                color: playMouse.containsMouse ? IslandTheme.accentHover : IslandTheme.accentPrimary
+            Item { Layout.fillWidth: true }
 
-                Text {
-                    anchors.centerIn: parent
-                    text: islandClient.isPlaying ? "⏸" : "▶"
-                    font.pixelSize: 16
-                    color: IslandTheme.surfaceIsland
-                }
-
-                MouseArea {
-                    id: playMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: islandClient.controlMedia("PlayPause")
-                }
-            }
-
-            // Next button
-            Rectangle {
-                implicitWidth: 32
-                implicitHeight: 32
-                radius: 16
-                color: nextMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "⏭"
-                    font.pixelSize: 14
-                    color: islandClient.canNext ? IslandTheme.textPrimary : IslandTheme.textTertiary
-                }
-
-                MouseArea {
-                    id: nextMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: islandClient.controlMedia("Next")
-                }
+            Text {
+                text: islandClient.timeTotalText
+                font.pixelSize: 10
+                color: IslandTheme.textTertiary
+                horizontalAlignment: Text.AlignRight
+                Layout.preferredWidth: 36
             }
         }
     }

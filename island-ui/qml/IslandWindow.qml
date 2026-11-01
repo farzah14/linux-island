@@ -31,6 +31,12 @@ Window {
         return 340; // medium default
     }
 
+    function getExpandedHeight() {
+        if (carouselView && carouselView.currentIndex === 1) return 194;
+        if (carouselView && carouselView.currentIndex === 2) return 198;
+        return 174;
+    }
+
     // Dynamic Island Root Box
     Rectangle {
         id: islandContainer
@@ -47,7 +53,7 @@ Window {
         }
 
         width: isExpanded ? windowRoot.getExpandedWidth() : (isCircle ? 36 : windowRoot.getPillWidth())
-        height: isExpanded ? 260 : 34
+        height: isExpanded ? windowRoot.getExpandedHeight() : 34
         anchors.horizontalCenter: parent.horizontalCenter
         y: 4
         radius: isExpanded ? 20 : (isCircle ? 18 : 17)
@@ -247,31 +253,28 @@ Window {
                 }
             }
 
-            // Segmented Carousel Navigation Bar
-            Rectangle {
+            // Minimalist Carousel Section Navigation (matches GNOME FeatureCarousel)
+            RowLayout {
                 Layout.fillWidth: true
-                implicitHeight: 28
-                radius: 6
-                color: IslandTheme.surfaceRaised
-                border.color: IslandTheme.borderSubtle
+                Layout.preferredHeight: 22
+                spacing: 6
+
+                Item { Layout.fillWidth: true }
 
                 RowLayout {
-                    anchors.fill: parent
-                    anchors.margins: 2
-                    spacing: 2
+                    spacing: 6
 
                     // Tab 0: Music
                     Rectangle {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        radius: 4
+                        implicitWidth: 28
+                        implicitHeight: 22
+                        radius: 8
                         color: carouselView.currentIndex === 0 ? IslandTheme.accentPrimary : (tab0Mouse.containsMouse ? IslandTheme.surfaceHover : "transparent")
 
                         Text {
                             anchors.centerIn: parent
-                            text: "🎵 Music"
-                            font.pixelSize: 9
-                            font.bold: true
+                            text: "🎵"
+                            font.pixelSize: 11
                             color: carouselView.currentIndex === 0 ? IslandTheme.surfaceIsland : IslandTheme.textPrimary
                         }
 
@@ -285,16 +288,15 @@ Window {
 
                     // Tab 1: System
                     Rectangle {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        radius: 4
+                        implicitWidth: 28
+                        implicitHeight: 22
+                        radius: 8
                         color: carouselView.currentIndex === 1 ? IslandTheme.accentPrimary : (tab1Mouse.containsMouse ? IslandTheme.surfaceHover : "transparent")
 
                         Text {
                             anchors.centerIn: parent
-                            text: "⚡ System"
-                            font.pixelSize: 9
-                            font.bold: true
+                            text: "⚡"
+                            font.pixelSize: 11
                             color: carouselView.currentIndex === 1 ? IslandTheme.surfaceIsland : IslandTheme.textPrimary
                         }
 
@@ -308,16 +310,15 @@ Window {
 
                     // Tab 2: AI Quota
                     Rectangle {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        radius: 4
+                        implicitWidth: 28
+                        implicitHeight: 22
+                        radius: 8
                         color: carouselView.currentIndex === 2 ? IslandTheme.accentPrimary : (tab2Mouse.containsMouse ? IslandTheme.surfaceHover : "transparent")
 
                         Text {
                             anchors.centerIn: parent
-                            text: "🤖 AI"
-                            font.pixelSize: 9
-                            font.bold: true
+                            text: "🤖"
+                            font.pixelSize: 11
                             color: carouselView.currentIndex === 2 ? IslandTheme.surfaceIsland : IslandTheme.textPrimary
                         }
 
@@ -331,16 +332,15 @@ Window {
 
                     // Tab 3: Search
                     Rectangle {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        radius: 4
+                        implicitWidth: 28
+                        implicitHeight: 22
+                        radius: 8
                         color: carouselView.currentIndex === 3 ? IslandTheme.accentPrimary : (tab3Mouse.containsMouse ? IslandTheme.surfaceHover : "transparent")
 
                         Text {
                             anchors.centerIn: parent
-                            text: "🔍 Search"
-                            font.pixelSize: 9
-                            font.bold: true
+                            text: "🔍"
+                            font.pixelSize: 11
                             color: carouselView.currentIndex === 3 ? IslandTheme.surfaceIsland : IslandTheme.textPrimary
                         }
 
@@ -351,27 +351,29 @@ Window {
                             onClicked: carouselView.currentIndex = 3
                         }
                     }
+                }
 
-                    // Dismiss Button (✕)
-                    Rectangle {
-                        implicitWidth: 22
-                        implicitHeight: 22
-                        radius: 11
-                        color: closeMouse.containsMouse ? IslandTheme.surfaceHover : "transparent"
+                Item { Layout.fillWidth: true }
 
-                        Text {
-                            anchors.centerIn: parent
-                            text: "✕"
-                            font.pixelSize: 10
-                            color: IslandTheme.textSecondary
-                        }
+                // Dismiss Button (✕)
+                Rectangle {
+                    implicitWidth: 22
+                    implicitHeight: 22
+                    radius: 11
+                    color: closeMouse.containsMouse ? IslandTheme.surfaceHover : "transparent"
 
-                        MouseArea {
-                            id: closeMouse
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: islandClient.dispatchEvent("DISMISS")
-                        }
+                    Text {
+                        anchors.centerIn: parent
+                        text: "✕"
+                        font.pixelSize: 11
+                        color: IslandTheme.textSecondary
+                    }
+
+                    MouseArea {
+                        id: closeMouse
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: islandClient.dispatchEvent("DISMISS")
                     }
                 }
             }
