@@ -317,6 +317,12 @@ void TestCoreDBus::testAudioLevelsRespectPlaybackAndRevision() {
     service.setAudioLevels({-1.0, 0.0, 1.0});
     service.setAudioLevels({0.0});
     QCOMPARE(changes.count(), 1);
+    // Microscopic jitter (< 0.015) must NOT emit
+    service.setAudioLevels({0.105, 0.505, 0.905});
+    QCOMPARE(changes.count(), 1);
+    // Significant change (>= 0.015) must emit
+    service.setAudioLevels({0.2, 0.5, 0.9});
+    QCOMPARE(changes.count(), 2);
     media.playbackStatus = QStringLiteral("Paused");
     service.setMediaState(media);
     QCOMPARE(service.mediaState().value(QStringLiteral("audioLevels")).toList(), QVariantList({0.0, 0.0, 0.0}));

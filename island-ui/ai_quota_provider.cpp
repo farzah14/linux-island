@@ -588,6 +588,14 @@ void AiQuotaProvider::refresh() {
         m_process = new QProcess(this);
         connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
                 this, &AiQuotaProvider::onProcessFinished);
+        // If python3 is missing or fails to start, finished() is never emitted
+        // and m_refreshing would stay true forever, permanently wedging refresh().
+        connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
+            if (m_refreshing) {
+                m_refreshing = false;
+                emit refreshingChanged();
+            }
+        });
     }
 
     m_process->start(QStringLiteral("python3"), {QStringLiteral("-c"), QString::fromUtf8(PROBE_SNIPPET)});

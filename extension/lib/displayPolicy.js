@@ -7,6 +7,10 @@ export function shouldHideIsland({
 }) {
     if (!enabled) return false;
 
+    // Activities Overview shows every workspace; a fullscreen window behind
+    // the overview must not hide the panel island.
+    if (inOverview) return false;
+
     // Maximized window does NOT hide the island
     if (isMaximized && !fullscreenOnPrimary) {
         return false;

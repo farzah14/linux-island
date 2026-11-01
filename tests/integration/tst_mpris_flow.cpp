@@ -1,5 +1,6 @@
 #include <QtTest>
 #include <QDBusConnection>
+#include <QDBusMessage>
 #include <QSignalSpy>
 #include "media/player_registry.h"
 #include "media/mpris_controller.h"
@@ -16,6 +17,7 @@ private slots:
     void testMultiplePlayersPreference();
     void testSeekUpdatesPosition();
     void testMprisControllerSeeking();
+    void testPositionPreservedAcrossPartialGetAll();
 };
 
 void TestMprisFlow::initTestCase() {
@@ -69,6 +71,45 @@ void TestMprisFlow::testMprisControllerSeeking() {
     res = controller.perform(QStringLiteral("SeekTo:50000000"), fake.serviceName(), stateNoTrack);
     QVERIFY(res.accepted);
     QTRY_VERIFY_WITH_TIMEOUT(qAbs(registry.activeMediaState().positionUs - 45000000) < 50000, 2000);
+
+    // 5. Malformed SeekTo or Volume values rejected with accepted == false
+    res = controller.perform(QStringLiteral("SeekTo:notanumber"), fake.serviceName(), registry.activeMediaState());
+    QVERIFY(!res.accepted);
+    res = controller.perform(QStringLiteral("SeekTo:-500"), fake.serviceName(), registry.activeMediaState());
+    QVERIFY(!res.accepted);
+    res = controller.perform(QStringLiteral("Volume:abc"), fake.serviceName(), registry.activeMediaState());
+    QVERIFY(!res.accepted);
+
+    fake.stop();
+}
+
+void TestMprisFlow::testPositionPreservedAcrossPartialGetAll() {
+    PlayerRegistry registry;
+    FakeMprisPlayer fake(QStringLiteral("org.mpris.MediaPlayer2.LinuxIslandPosition"));
+    QVERIFY(fake.start());
+
+    QTRY_VERIFY_WITH_TIMEOUT(registry.activePlayerId() == QStringLiteral("org.mpris.MediaPlayer2.LinuxIslandPosition"), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(registry.activeMediaState().title == QStringLiteral("Fake Title"), 2000);
+
+    // Advance the fake position, then trigger a Seeked signal so the registry
+    // caches a non-zero Position.
+    fake.seekTo(42000000);
+    QTRY_COMPARE_WITH_TIMEOUT(registry.activeMediaState().positionUs, 42000000, 2000);
+
+    // A PropertiesChanged for a non-position property on the same track must
+    // not reset the cached Position back to 0:00.
+    QVariantMap changed;
+    changed[QStringLiteral("Rate")] = 1.0;
+    QDBusMessage sig = QDBusMessage::createSignal(
+        QStringLiteral("/org/mpris/MediaPlayer2"),
+        QStringLiteral("org.freedesktop.DBus.Properties"),
+        QStringLiteral("PropertiesChanged"));
+    sig << QStringLiteral("org.mpris.MediaPlayer2.Player") << changed << QStringList();
+    QDBusConnection::sessionBus().send(sig);
+
+    QTest::qWait(300);
+    QVERIFY2(registry.activeMediaState().positionUs >= 42000000,
+             "Partial PropertiesChanged must preserve the cached Position");
 
     fake.stop();
 }

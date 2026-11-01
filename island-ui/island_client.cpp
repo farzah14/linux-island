@@ -254,7 +254,9 @@ void IslandClient::onSettingsChanged(quint64 revision, const QVariantMap &settin
 }
 
 void IslandClient::onCoreStatusChanged(const QString &status) {
-    bool ready = (status == QLatin1String("ready"));
+    // Core announces itself as "ready"; a live-but-busy service reports
+    // "active". Both mean the D-Bus name is owned and calls will succeed.
+    bool ready = (status == QLatin1String("ready") || status == QLatin1String("active"));
     if (m_connected != ready) {
         m_connected = ready;
         emit connectedChanged();

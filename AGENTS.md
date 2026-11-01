@@ -21,6 +21,11 @@ This file is automatically discoverable by many coding agents. Follow it before 
 6. Report exact command output/exit codes; GNOME Wayland claims require runtime evidence on a disposable test user/VM.
 7. Stop after the step, not entire milestone. Do not push/merge/tag without explicit instruction.
 
+## Style skills
+
+- `caveman` at `lite` for conversational replies: no filler or hedging, technical terms exact.
+- `ponytail` at `full` for coding: understand the flow first, then take the smallest correct solution. Never trim validation, security, error handling, or explicit requirements.
+
 ## No-go practices
 
 - Never run system-wide package installs, sudo, nor modify user daily-use GNOME Shell without approval.

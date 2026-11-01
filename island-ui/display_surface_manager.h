@@ -21,6 +21,10 @@ public:
     Q_INVOKABLE void updateInputMask(int x, int y, int width, int height, int radius = 0);
     Q_INVOKABLE void updateWindowPosition();
 
+    // Pure parsers: no I/O, so they can be reasoned about without a compositor.
+    static bool parseHyprlandFullscreen(const QByteArray &jsonBytes);
+    static bool parseSwayFullscreen(const QByteArray &jsonBytes);
+
 signals:
     void windowGeometryChanged();
     void fullscreenDetected(bool isFullscreen);
@@ -30,10 +34,13 @@ private slots:
     void onSettingsChanged();
 
 private:
+    void applyFullscreenState(bool isFullscreen);
+
     QQuickWindow *m_window = nullptr;
     IslandClient *m_client = nullptr;
     QTimer m_fullscreenTimer;
     bool m_isFullscreen = false;
+    bool m_checkInFlight = false;
     QRect m_currentMaskRect;
     int m_currentMaskRadius = 0;
 };

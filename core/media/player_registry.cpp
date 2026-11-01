@@ -212,7 +212,11 @@ void PlayerRegistry::refreshPosition() {
 QString PlayerRegistry::serviceForMessage(const QDBusMessage &msg) const {
     const QString sender = msg.service();
     for (auto it = m_players.cbegin(); it != m_players.cend(); ++it) {
-        if (it.key() == sender || (m_bus.interface() && m_bus.interface()->serviceOwner(it.key()) == sender))
+        if (it.key() == sender || (!it->owner.isEmpty() && it->owner == sender))
+            return it.key();
+    }
+    for (auto it = m_players.cbegin(); it != m_players.cend(); ++it) {
+        if (m_bus.interface() && m_bus.interface()->serviceOwner(it.key()) == sender)
             return it.key();
     }
     return {};
@@ -303,6 +307,17 @@ void PlayerRegistry::queryPlayerProperties(const QString &serviceName) {
             QVariantMap meta = unpackMetaMap(props.value(QStringLiteral("Metadata")));
 
             auto &data = m_players[serviceName];
+            const auto prevMeta = data.metadata;
+            const bool sameTrack =
+                prevMeta.value(QStringLiteral("mpris:trackid")) == meta.value(QStringLiteral("mpris:trackid")) &&
+                prevMeta.value(QStringLiteral("xesam:title")) == meta.value(QStringLiteral("xesam:title"));
+            if (!props.contains(QStringLiteral("Position")) && sameTrack &&
+                data.properties.contains(QStringLiteral("Position"))) {
+                props[QStringLiteral("Position")] = data.properties.value(QStringLiteral("Position"));
+            }
+            if (data.owner.isEmpty() && m_bus.interface()) {
+                data.owner = m_bus.interface()->serviceOwner(serviceName);
+            }
             data.properties = props;
             data.metadata = meta;
             data.playbackStatus = props.value(QStringLiteral("PlaybackStatus")).toString();

@@ -64,7 +64,15 @@ ControlResult MprisController::perform(const QString &action, const QString &pla
                 QStringLiteral("Player cannot skip to previous track")
             };
         }
-    } else if (action == QLatin1String("SeekForward") || action == QLatin1String("SeekBackward") || isSeekTo) {
+    } else if (action == QLatin1String("SeekForward") || action == QLatin1String("SeekBackward")) {
+        if (!currentState.canSeek) {
+            return ControlResult{
+                false,
+                QStringLiteral("io.github.linuxisland.Error.ActionNotAllowed"),
+                QStringLiteral("Player cannot seek")
+            };
+        }
+    } else if (isSeekTo) {
         if (!currentState.canSeek && currentState.durationUs <= 0) {
             return ControlResult{
                 false,
@@ -101,7 +109,14 @@ ControlResult MprisController::perform(const QString &action, const QString &pla
     } else if (isSeekTo) {
         bool ok = false;
         qint64 targetUs = action.mid(7).toLongLong(&ok);
-        if (ok && targetUs >= 0) {
+        if (!ok || targetUs < 0) {
+            return ControlResult{
+                false,
+                QStringLiteral("io.github.linuxisland.Error.UnsupportedAction"),
+                QStringLiteral("Invalid SeekTo target: ") + action
+            };
+        }
+        if (true) {
             bool usedSetPosition = false;
             if (!currentState.trackId.isEmpty() &&
                 currentState.trackId.startsWith(QLatin1Char('/')) &&
@@ -145,7 +160,14 @@ ControlResult MprisController::perform(const QString &action, const QString &pla
     } else if (isVolume) {
         bool ok = false;
         double vol = action.mid(7).toDouble(&ok);
-        if (ok) {
+        if (!ok || !std::isfinite(vol)) {
+            return ControlResult{
+                false,
+                QStringLiteral("io.github.linuxisland.Error.UnsupportedAction"),
+                QStringLiteral("Invalid Volume value: ") + action
+            };
+        }
+        if (true) {
             vol = std::max(0.0, std::min(1.0, vol));
             QDBusMessage msg = QDBusMessage::createMethodCall(
                 playerId,

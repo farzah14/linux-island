@@ -90,7 +90,14 @@ add_executable(tst_island_client_fsm
     tst_island_client_fsm.cpp
     ${CMAKE_SOURCE_DIR}/island-ui/island_client.cpp
     ${CMAKE_SOURCE_DIR}/island-ui/notification_watcher.cpp
+    ${CMAKE_SOURCE_DIR}/island-ui/display_surface_manager.cpp
 )
 target_include_directories(tst_island_client_fsm PRIVATE ${CMAKE_SOURCE_DIR}/island-ui)
-target_link_libraries(tst_island_client_fsm PRIVATE Qt6::Core Qt6::DBus Qt6::Gui Qt6::Test)
+target_link_libraries(tst_island_client_fsm PRIVATE
+    Qt6::Core
+    Qt6::DBus
+    Qt6::Gui
+    Qt6::Quick
+    Qt6::Test
+)
 add_test(NAME island-client-fsm COMMAND tst_island_client_fsm)

@@ -24,8 +24,6 @@ function openSettings() {
 
 export default class LinuxIslandPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
-        openSettings();
-
         const page = new Adw.PreferencesPage({
             title: 'Linux Island',
             icon_name: 'preferences-system-symbolic',

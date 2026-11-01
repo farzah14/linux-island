@@ -281,19 +281,37 @@ ApplicationWindow {
             RowLayout {
                 spacing: 12
                 RadioButton {
+                    id: themeSystemRadio
                     text: "System"
-                    checked: settingsProxy.theme === "system"
                     onClicked: settingsProxy.setTheme("system")
+                    Binding {
+                        target: themeSystemRadio
+                        property: "checked"
+                        value: settingsProxy.theme === "system"
+                        restoreMode: Binding.RestoreBindingOrValue
+                    }
                 }
                 RadioButton {
+                    id: themeDarkRadio
                     text: "Dark"
-                    checked: settingsProxy.theme === "dark"
                     onClicked: settingsProxy.setTheme("dark")
+                    Binding {
+                        target: themeDarkRadio
+                        property: "checked"
+                        value: settingsProxy.theme === "dark"
+                        restoreMode: Binding.RestoreBindingOrValue
+                    }
                 }
                 RadioButton {
+                    id: themeLightRadio
                     text: "Light"
-                    checked: settingsProxy.theme === "light"
                     onClicked: settingsProxy.setTheme("light")
+                    Binding {
+                        target: themeLightRadio
+                        property: "checked"
+                        value: settingsProxy.theme === "light"
+                        restoreMode: Binding.RestoreBindingOrValue
+                    }
                 }
             }
         }
@@ -313,24 +331,48 @@ ApplicationWindow {
             RowLayout {
                 spacing: 12
                 RadioButton {
+                    id: sizeCircleRadio
                     text: "Circle"
-                    checked: settingsProxy.capsuleSize === "circle"
                     onClicked: settingsProxy.setCapsuleSize("circle")
+                    Binding {
+                        target: sizeCircleRadio
+                        property: "checked"
+                        value: settingsProxy.capsuleSize === "circle"
+                        restoreMode: Binding.RestoreBindingOrValue
+                    }
                 }
                 RadioButton {
+                    id: sizeSmallRadio
                     text: "Small"
-                    checked: settingsProxy.capsuleSize === "small"
                     onClicked: settingsProxy.setCapsuleSize("small")
+                    Binding {
+                        target: sizeSmallRadio
+                        property: "checked"
+                        value: settingsProxy.capsuleSize === "small"
+                        restoreMode: Binding.RestoreBindingOrValue
+                    }
                 }
                 RadioButton {
+                    id: sizeMediumRadio
                     text: "Medium"
-                    checked: settingsProxy.capsuleSize === "medium"
                     onClicked: settingsProxy.setCapsuleSize("medium")
+                    Binding {
+                        target: sizeMediumRadio
+                        property: "checked"
+                        value: settingsProxy.capsuleSize === "medium"
+                        restoreMode: Binding.RestoreBindingOrValue
+                    }
                 }
                 RadioButton {
+                    id: sizeLargeRadio
                     text: "Large"
-                    checked: settingsProxy.capsuleSize === "large"
                     onClicked: settingsProxy.setCapsuleSize("large")
+                    Binding {
+                        target: sizeLargeRadio
+                        property: "checked"
+                        value: settingsProxy.capsuleSize === "large"
+                        restoreMode: Binding.RestoreBindingOrValue
+                    }
                 }
             }
                 }
@@ -350,19 +392,37 @@ ApplicationWindow {
             RowLayout {
                 spacing: 12
                 RadioButton {
+                    id: modeDynamicRadio
                     text: "Dynamic (Top Bar)"
-                    checked: settingsProxy.displayMode === "dynamic"
                     onClicked: settingsProxy.setDisplayMode("dynamic")
+                    Binding {
+                        target: modeDynamicRadio
+                        property: "checked"
+                        value: settingsProxy.displayMode === "dynamic"
+                        restoreMode: Binding.RestoreBindingOrValue
+                    }
                 }
                 RadioButton {
+                    id: modeFloatingRadio
                     text: "Floating Overlay"
-                    checked: settingsProxy.displayMode === "floating"
                     onClicked: settingsProxy.setDisplayMode("floating")
+                    Binding {
+                        target: modeFloatingRadio
+                        property: "checked"
+                        value: settingsProxy.displayMode === "floating"
+                        restoreMode: Binding.RestoreBindingOrValue
+                    }
                 }
                 RadioButton {
+                    id: modeIntegratedRadio
                     text: "Panel Integrated"
-                    checked: settingsProxy.displayMode === "integrated"
                     onClicked: settingsProxy.setDisplayMode("integrated")
+                    Binding {
+                        target: modeIntegratedRadio
+                        property: "checked"
+                        value: settingsProxy.displayMode === "integrated"
+                        restoreMode: Binding.RestoreBindingOrValue
+                    }
                 }
             }
         }
@@ -402,7 +462,7 @@ ApplicationWindow {
                     id: vOffsetSlider
                     Layout.fillWidth: true
                     from: 0
-                    to: 64
+                    to: 120
                     stepSize: 1
                     value: settingsProxy.verticalOffset
 
@@ -469,8 +529,8 @@ ApplicationWindow {
                 Slider {
                     id: hOffsetSlider
                     Layout.fillWidth: true
-                    from: -200
-                    to: 200
+                    from: -500
+                    to: 500
                     stepSize: 2
                     value: settingsProxy.horizontalOffset
 
@@ -750,24 +810,48 @@ ApplicationWindow {
             RowLayout {
                 spacing: 12
                 RadioButton {
+                    id: engineGoogleRadio
                     text: "Google"
-                    checked: settingsProxy.searchEngine === "google"
                     onClicked: settingsProxy.setSearchEngine("google")
+                    Binding {
+                        target: engineGoogleRadio
+                        property: "checked"
+                        value: settingsProxy.searchEngine === "google"
+                        restoreMode: Binding.RestoreBindingOrValue
+                    }
                 }
                 RadioButton {
+                    id: engineDuckRadio
                     text: "DuckDuckGo"
-                    checked: settingsProxy.searchEngine === "duckduckgo"
                     onClicked: settingsProxy.setSearchEngine("duckduckgo")
+                    Binding {
+                        target: engineDuckRadio
+                        property: "checked"
+                        value: settingsProxy.searchEngine === "duckduckgo"
+                        restoreMode: Binding.RestoreBindingOrValue
+                    }
                 }
                 RadioButton {
+                    id: engineBraveRadio
                     text: "Brave"
-                    checked: settingsProxy.searchEngine === "brave"
                     onClicked: settingsProxy.setSearchEngine("brave")
+                    Binding {
+                        target: engineBraveRadio
+                        property: "checked"
+                        value: settingsProxy.searchEngine === "brave"
+                        restoreMode: Binding.RestoreBindingOrValue
+                    }
                 }
                 RadioButton {
+                    id: engineBingRadio
                     text: "Bing"
-                    checked: settingsProxy.searchEngine === "bing"
                     onClicked: settingsProxy.setSearchEngine("bing")
+                    Binding {
+                        target: engineBingRadio
+                        property: "checked"
+                        value: settingsProxy.searchEngine === "bing"
+                        restoreMode: Binding.RestoreBindingOrValue
+                    }
                 }
             }
         }

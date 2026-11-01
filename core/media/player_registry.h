@@ -53,6 +53,7 @@ private:
         MediaState normalizedState;
         qint64 positionSampleUs = 0;
         quint64 querySequence = 0;
+        QString owner;
     };
 
     QDBusConnection m_bus;

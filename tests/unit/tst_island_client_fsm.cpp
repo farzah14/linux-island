@@ -2,6 +2,7 @@
 #include <QtTest>
 #include "../../island-ui/island_client.h"
 #include "../../island-ui/notification_watcher.h"
+#include "../../island-ui/display_surface_manager.h"
 
 class TestIslandClientFsm : public QObject {
     Q_OBJECT
@@ -11,6 +12,8 @@ private slots:
     void testFormatTime();
     void testIsWhatsAppSource();
     void testClampVolume();
+    void testCoreStatusConnectedMapping();
+    void testFullscreenJsonParsing();
 };
 
 void TestIslandClientFsm::testStateTransitions() {
@@ -62,6 +65,67 @@ void TestIslandClientFsm::testIsWhatsAppSource() {
     QVERIFY(NotificationWatcher::isWhatsAppSource(QStringLiteral("com.whatsapp.whatsapp"), QStringLiteral("")));
     QVERIFY(!NotificationWatcher::isWhatsAppSource(QStringLiteral("Spotify"), QStringLiteral("spotify.desktop")));
     QVERIFY(!NotificationWatcher::isWhatsAppSource(QStringLiteral("Firefox"), QStringLiteral("firefox.desktop")));
+}
+
+void TestIslandClientFsm::testCoreStatusConnectedMapping() {
+    IslandClient client;
+
+    // Core emits "ready" on startup and "active" while it owns the bus name.
+    // Both must count as connected; only a real loss of ownership is false.
+    QMetaObject::invokeMethod(&client, "onCoreStatusChanged",
+                              Qt::DirectConnection, Q_ARG(QString, QStringLiteral("ready")));
+    QVERIFY2(client.connected(), "status 'ready' must mark the client connected");
+
+    QMetaObject::invokeMethod(&client, "onCoreStatusChanged",
+                              Qt::DirectConnection, Q_ARG(QString, QStringLiteral("active")));
+    QVERIFY2(client.connected(), "status 'active' must keep the client connected");
+
+    QMetaObject::invokeMethod(&client, "onCoreStatusChanged",
+                              Qt::DirectConnection, Q_ARG(QString, QStringLiteral("stopping")));
+    QVERIFY2(!client.connected(), "status 'stopping' must mark the client disconnected");
+}
+
+void TestIslandClientFsm::testFullscreenJsonParsing() {
+    // Hyprland reports fullscreen as a JSON bool on some versions and as an
+    // integer (0/1/2) on others. QJsonValue::toBool() returns false for every
+    // number, which silently broke fullscreen hiding.
+    QVERIFY(DisplaySurfaceManager::parseHyprlandFullscreen(R"({"fullscreen": true})"));
+    QVERIFY(DisplaySurfaceManager::parseHyprlandFullscreen(R"({"fullscreen": 1})"));
+    QVERIFY(DisplaySurfaceManager::parseHyprlandFullscreen(R"({"fullscreen": 2})"));
+    QVERIFY(!DisplaySurfaceManager::parseHyprlandFullscreen(R"({"fullscreen": false})"));
+    QVERIFY(!DisplaySurfaceManager::parseHyprlandFullscreen(R"({"fullscreen": 0})"));
+    QVERIFY(!DisplaySurfaceManager::parseHyprlandFullscreen(R"({"title": "x"})"));
+    QVERIFY(!DisplaySurfaceManager::parseHyprlandFullscreen("not json"));
+
+    // Sway: only the focused container may hide the island. A fullscreen
+    // window on an inactive workspace must not count.
+    const QByteArray swayInactive = R"({
+        "fullscreen_mode": 0, "focused": false,
+        "nodes": [
+            {"fullscreen_mode": 1, "focused": false, "nodes": []},
+            {"fullscreen_mode": 0, "focused": true, "nodes": []}
+        ]
+    })";
+    QVERIFY(!DisplaySurfaceManager::parseSwayFullscreen(swayInactive));
+
+    const QByteArray swayActive = R"({
+        "fullscreen_mode": 0, "focused": false,
+        "nodes": [
+            {"fullscreen_mode": 1, "focused": true, "nodes": []}
+        ]
+    })";
+    QVERIFY(DisplaySurfaceManager::parseSwayFullscreen(swayActive));
+
+    const QByteArray swayNested = R"({
+        "fullscreen_mode": 0, "focused": false,
+        "nodes": [
+            {"fullscreen_mode": 0, "focused": false, "nodes": [
+                {"fullscreen_mode": 2, "focused": true, "nodes": []}
+            ]}
+        ]
+    })";
+    QVERIFY(DisplaySurfaceManager::parseSwayFullscreen(swayNested));
+    QVERIFY(!DisplaySurfaceManager::parseSwayFullscreen("{}"));
 }
 
 QTEST_MAIN(TestIslandClientFsm)

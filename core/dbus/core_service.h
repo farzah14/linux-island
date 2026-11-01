@@ -65,7 +65,18 @@ public:
         if (levels.size() != 3 || m_mediaState.playbackStatus != QLatin1String("Playing")) return;
         for (const auto &value : levels)
             if (!std::isfinite(value.toDouble()) || value.toDouble() < 0 || value.toDouble() > 1) return;
-        if (levels == m_audioLevels) return;
+        if (m_audioLevels.size() == 3) {
+            bool significant = false;
+            for (int i = 0; i < 3; ++i) {
+                double prev = m_audioLevels[i].toDouble();
+                double next = levels[i].toDouble();
+                if (std::abs(next - prev) >= 0.015 || (next == 0.0 && prev != 0.0)) {
+                    significant = true;
+                    break;
+                }
+            }
+            if (!significant) return;
+        }
         m_audioLevels = levels;
         m_mediaState.revision = m_clock.mediaChanged();
         emit mediaChanged(m_mediaState.revision, mediaState());

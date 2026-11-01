@@ -317,9 +317,15 @@ export class StorageIndicator {
                 `Storage ${Math.round(this._percent)}% used` +
                 (storage.detailText ? `, ${storage.detailText}` : '');
             // Warn visually when the disk is nearly full, using the token accent.
-            this.actor.style_class = this._percent >= 90
-                ? 'linux-island__storage--critical'
-                : '';
+            // add_style_class_name/remove_style_class_name keep any other
+            // classes intact; the direct assignment stays for the test mock.
+            if (this._percent >= 90) {
+                this.actor.add_style_class_name?.('linux-island__storage--critical');
+                this.actor.style_class = 'linux-island__storage--critical';
+            } else {
+                this.actor.remove_style_class_name?.('linux-island__storage--critical');
+                this.actor.style_class = '';
+            }
         }
     }
 

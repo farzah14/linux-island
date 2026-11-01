@@ -85,6 +85,17 @@ int main(int argc, char *argv[]) {
         client.dispatchEvent(QStringLiteral("PEEK_REQUEST"));
     });
 
+    // Keep the watcher's gating flags in sync with Core settings. Without this
+    // the watcher stays at its constructor defaults (both false), so peeks and
+    // WhatsApp activity never fire even when the user enabled them.
+    auto syncNotificationPrefs = [&client, &notificationWatcher]() {
+        notificationWatcher.setNotificationPeekEnabled(client.notificationPeekEnabled());
+        notificationWatcher.setWhatsappEnabled(client.whatsappIntegrationEnabled());
+    };
+    syncNotificationPrefs();
+    QObject::connect(&client, &IslandClient::settingsChanged,
+                     &notificationWatcher, syncNotificationPrefs);
+
     QQmlApplicationEngine engine;
 
     engine.rootContext()->setContextProperty(QStringLiteral("islandClient"), &client);

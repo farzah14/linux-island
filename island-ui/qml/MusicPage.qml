@@ -39,6 +39,7 @@ Item {
                 clip: true
 
                 Image {
+                    id: albumArtImage
                     anchors.fill: parent
                     source: islandClient.albumArtUri ? islandClient.albumArtUri : ""
                     fillMode: Image.PreserveAspectCrop
@@ -49,7 +50,7 @@ Item {
                     anchors.centerIn: parent
                     text: "🎵"
                     font.pixelSize: 20
-                    visible: !islandClient.albumArtUri || parent.children[0].status !== Image.Ready
+                    visible: !islandClient.albumArtUri || albumArtImage.status !== Image.Ready
                 }
             }
 
@@ -167,14 +168,16 @@ Item {
                 property real dragFraction: 0.0
 
                 function updatePos(mouseX) {
-                    var frac = Math.max(0.0, Math.min(1.0, mouseX / width));
-                    dragFraction = frac;
-                    islandClient.seekToFraction(frac);
+                    dragFraction = Math.max(0.0, Math.min(1.0, mouseX / width));
                 }
 
                 onPressed: (mouse) => updatePos(mouse.x)
                 onPositionChanged: (mouse) => {
                     if (pressed) updatePos(mouse.x);
+                }
+                onReleased: (mouse) => {
+                    updatePos(mouse.x);
+                    islandClient.seekToFraction(dragFraction);
                 }
             }
         }

@@ -1252,6 +1252,10 @@ and in `resolve_stage_root()`:
 ctest --test-dir build/dev -R "dev-session|dev-cli|stage-metadata" --output-on-failure
 ```
 
+**Verified in this checkout (2026-11-02):** Launcher unit detection uses `systemctl --user cat`; its GNOME dynamic-mode branch exits without starting a second overlay for autostart/systemd invocations, and `--standalone` routes to the overlay. `X-systemd-skip=true` is present in the autostart entry. `dev-reload.sh` resolves both stage paths and runtime validation through `RUNTIME_FALLBACK`.
+
+**Verification evidence:** `ctest --test-dir build/dev -R 'dev-session|dev-cli|stage-metadata|launcher-routing' --output-on-failure` — 4/4 passed (3.33 s); `bash -n scripts/dev/dev-reload.sh` — exit 0; with `XDG_RUNTIME_DIR` unset, `dev-reload.sh reload` passed runtime validation using `/run/user/1000` and stopped at the expected missing-loader guard (exit 1).
+
 ---
 
 ## 3. Final End-to-End Verification Gate (Run After `FIX-01` .. `FIX-13`)

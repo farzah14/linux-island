@@ -28,7 +28,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SRC_DIR="$ROOT_DIR/extension"
 DEV_UUID="island-dev@local"
 DEV_EXT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$DEV_UUID"
-DEV_SESSION_STATE="${ISLAND_STATE_DIR:-${XDG_RUNTIME_DIR:-/tmp}/linux-island-dev-session}"
+# validate_runtime_dir rejects /tmp, so never fall back there. /run/user/<uid>
+# matches what GJS GLib.get_user_runtime_dir() returns inside the shell.
+RUNTIME_FALLBACK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+DEV_SESSION_STATE="${ISLAND_STATE_DIR:-$RUNTIME_FALLBACK/linux-island-dev-session}"
 KEEP_GENERATIONS=5
 
 # Resolved per target: the loader reads $XDG_RUNTIME_DIR/linux-island-dev/current.txt
@@ -37,7 +40,7 @@ resolve_stage_root() {
     if [ "${ISLAND_TARGET:-}" = "dev-session" ]; then
         printf '%s' "$DEV_SESSION_STATE/runtime/linux-island-dev"
     else
-        printf '%s' "${XDG_RUNTIME_DIR:-}/linux-island-dev"
+        printf '%s' "$RUNTIME_FALLBACK/linux-island-dev"
     fi
 }
 
@@ -112,7 +115,7 @@ validate_target_runtime() {
         validate_runtime_dir "$DEV_SESSION_STATE/runtime"
         return 0
     fi
-    validate_runtime_dir "${XDG_RUNTIME_DIR:-}"
+    validate_runtime_dir "$RUNTIME_FALLBACK"
 }
 
 with_lock() {

@@ -18,4 +18,7 @@ expect(shouldHideIsland({enabled: true, fullscreenOnPrimary: true, isMaximized: 
 // 3. Fullscreen on another workspace does not hide active workspace island
 expect(shouldHideIsland({enabled: true, fullscreenOnPrimary: false, activeWorkspaceFullscreen: false}), false, 'other workspace fullscreen ignored');
 
-console.log('PASS: 8 display policy checks');
+// 4. Activities Overview never hides the panel island
+expect(shouldHideIsland({enabled: true, fullscreenOnPrimary: true, inOverview: true}), false, 'overview shows island');
+
+console.log('PASS: 9 display policy checks');

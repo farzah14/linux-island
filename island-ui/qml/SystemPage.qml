@@ -8,8 +8,14 @@ Item {
     implicitWidth: parent ? parent.width : 340
     implicitHeight: 200
 
+    readonly property bool shouldPoll: visible && SwipeView.isCurrentItem && islandClient.uiState === "EXPANDED"
+
+    onShouldPollChanged: {
+        systemMetrics.setPollingActive(shouldPoll);
+    }
+
     Component.onCompleted: {
-        systemMetrics.setPollingActive(true);
+        systemMetrics.setPollingActive(shouldPoll);
     }
 
     Component.onDestruction: {

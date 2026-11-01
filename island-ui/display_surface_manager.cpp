@@ -6,6 +6,7 @@
 #include <QStandardPaths>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QPainterPath>
 
 DisplaySurfaceManager::DisplaySurfaceManager(QQuickWindow *window, IslandClient *client, QObject *parent)
@@ -112,67 +113,136 @@ void DisplaySurfaceManager::updateInputMask(int x, int y, int width, int height,
     m_window->setMask(QRegion(targetRect, QRegion::Rectangle));
 }
 
+bool DisplaySurfaceManager::parseHyprlandFullscreen(const QByteArray &jsonBytes) {
+    const QJsonDocument doc = QJsonDocument::fromJson(jsonBytes);
+    if (!doc.isObject())
+        return false;
+    const QJsonValue val = doc.object().value(QStringLiteral("fullscreen"));
+    // Hyprland reports 0/1/2 (int) on some versions and a bool on others.
+    if (val.isBool())
+        return val.toBool();
+    if (val.isDouble())
+        return val.toInt() > 0;
+    return false;
+}
+
+namespace {
+// Only the focused container matters: sway's get_tree dumps every workspace,
+// so scanning for any fullscreen_mode would match windows the user cannot see.
+bool focusedNodeIsFullscreen(const QJsonObject &node) {
+    if (node.value(QStringLiteral("focused")).toBool())
+        return node.value(QStringLiteral("fullscreen_mode")).toInt(0) > 0;
+
+    const QStringList childKeys = {QStringLiteral("nodes"), QStringLiteral("floating_nodes")};
+    for (const QString &key : childKeys) {
+        const QJsonArray arr = node.value(key).toArray();
+        for (const QJsonValue &child : arr) {
+            if (child.isObject() && focusedNodeIsFullscreen(child.toObject()))
+                return true;
+        }
+    }
+    return false;
+}
+} // namespace
+
+bool DisplaySurfaceManager::parseSwayFullscreen(const QByteArray &jsonBytes) {
+    const QJsonDocument doc = QJsonDocument::fromJson(jsonBytes);
+    if (!doc.isObject())
+        return false;
+    return focusedNodeIsFullscreen(doc.object());
+}
+
+void DisplaySurfaceManager::applyFullscreenState(bool isFullscreen) {
+    if (m_isFullscreen == isFullscreen)
+        return;
+    m_isFullscreen = isFullscreen;
+    emit fullscreenDetected(m_isFullscreen);
+    if (m_client) {
+        m_client->dispatchEvent(m_isFullscreen ? QStringLiteral("FULLSCREEN_ON")
+                                              : QStringLiteral("FULLSCREEN_OFF"));
+    }
+}
+
 void DisplaySurfaceManager::checkFullscreen() {
-    if (!m_client || !m_client->smartAdaptiveEnabled()) return;
+    if (!m_client || !m_client->smartAdaptiveEnabled())
+        return;
+    // One probe at a time: the timer fires every 1.5 s and a slow compositor
+    // call must not stack processes on the GUI thread.
+    if (m_checkInFlight)
+        return;
 
-    bool isFs = false;
+    QString program;
+    QStringList arguments;
+    bool isHyprland = false;
+    bool isSway = false;
 
-    // Check Hyprland
     if (qEnvironmentVariableIsSet("HYPRLAND_INSTANCE_SIGNATURE")) {
-        QString hyprctl = QStandardPaths::findExecutable(QStringLiteral("hyprctl"));
-        if (!hyprctl.isEmpty()) {
-            QProcess proc;
-            proc.start(hyprctl, {QStringLiteral("activewindow"), QStringLiteral("-j")});
-            if (proc.waitForFinished(200)) {
-                QJsonDocument doc = QJsonDocument::fromJson(proc.readAllStandardOutput());
-                if (doc.isObject()) {
-                    isFs = doc.object().value(QStringLiteral("fullscreen")).toBool();
-                }
-            }
-        }
-    }
-    // Check Sway
-    else if (qEnvironmentVariableIsSet("SWAYSOCK")) {
-        QString swaymsg = QStandardPaths::findExecutable(QStringLiteral("swaymsg"));
-        if (!swaymsg.isEmpty()) {
-            QProcess proc;
-            proc.start(swaymsg, {QStringLiteral("-t"), QStringLiteral("get_tree")});
-            if (proc.waitForFinished(300)) {
-                QByteArray out = proc.readAllStandardOutput();
-                if (out.contains("\"fullscreen_mode\": 1") || out.contains("\"fullscreen_mode\": 2") ||
-                    out.contains("\"fullscreen_mode\":1") || out.contains("\"fullscreen_mode\":2")) {
-                    isFs = true;
-                }
-            }
-        }
-    }
-    // Check X11 / XWayland via xprop
-    else if (qEnvironmentVariableIsSet("DISPLAY")) {
-        QString xprop = QStandardPaths::findExecutable(QStringLiteral("xprop"));
-        if (!xprop.isEmpty()) {
-            QProcess proc;
-            proc.start(xprop, {QStringLiteral("-root"), QStringLiteral("_NET_ACTIVE_WINDOW")});
-            if (proc.waitForFinished(200)) {
-                QString rootOut = QString::fromUtf8(proc.readAllStandardOutput());
-                int hashIdx = rootOut.indexOf(QLatin1String("0x"));
-                if (hashIdx != -1) {
-                    QString winId = rootOut.mid(hashIdx).trimmed().split(QLatin1Char(' ')).first();
-                    QProcess procWin;
-                    procWin.start(xprop, {QStringLiteral("-id"), winId, QStringLiteral("_NET_WM_STATE")});
-                    if (procWin.waitForFinished(200)) {
-                        QString winOut = QString::fromUtf8(procWin.readAllStandardOutput());
-                        if (winOut.contains(QLatin1String("_NET_WM_STATE_FULLSCREEN"))) {
-                            isFs = true;
-                        }
-                    }
-                }
-            }
-        }
+        program = QStandardPaths::findExecutable(QStringLiteral("hyprctl"));
+        arguments = {QStringLiteral("activewindow"), QStringLiteral("-j")};
+        isHyprland = true;
+    } else if (qEnvironmentVariableIsSet("SWAYSOCK")) {
+        program = QStandardPaths::findExecutable(QStringLiteral("swaymsg"));
+        arguments = {QStringLiteral("-t"), QStringLiteral("get_tree")};
+        isSway = true;
+    } else if (qEnvironmentVariableIsSet("DISPLAY")) {
+        program = QStandardPaths::findExecutable(QStringLiteral("xprop"));
+        arguments = {QStringLiteral("-root"), QStringLiteral("_NET_ACTIVE_WINDOW")};
     }
 
-    if (m_isFullscreen != isFs) {
-        m_isFullscreen = isFs;
-        emit fullscreenDetected(m_isFullscreen);
-        m_client->dispatchEvent(m_isFullscreen ? QStringLiteral("FULLSCREEN_ON") : QStringLiteral("FULLSCREEN_OFF"));
-    }
+    if (program.isEmpty())
+        return;
+
+    m_checkInFlight = true;
+    auto *proc = new QProcess(this);
+    proc->setProcessChannelMode(QProcess::SeparateChannels);
+    connect(proc, &QProcess::errorOccurred, this, [this, proc](QProcess::ProcessError) {
+        m_checkInFlight = false;
+        proc->deleteLater();
+    });
+    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+            [this, proc, isHyprland, isSway](int, QProcess::ExitStatus status) {
+        m_checkInFlight = false;
+        const QByteArray out = proc->readAllStandardOutput();
+        proc->deleteLater();
+
+        if (status != QProcess::NormalExit)
+            return;
+
+        if (isHyprland) {
+            applyFullscreenState(parseHyprlandFullscreen(out));
+            return;
+        }
+        if (isSway) {
+            applyFullscreenState(parseSwayFullscreen(out));
+            return;
+        }
+
+        // X11 / XWayland: resolve the active window, then query its state.
+        const QString rootOut = QString::fromUtf8(out);
+        const int hashIdx = rootOut.indexOf(QLatin1String("0x"));
+        if (hashIdx < 0)
+            return;
+        const QString winId = rootOut.mid(hashIdx).trimmed().split(QLatin1Char(' ')).first();
+        if (winId.isEmpty())
+            return;
+
+        const QString xprop = QStandardPaths::findExecutable(QStringLiteral("xprop"));
+        if (xprop.isEmpty())
+            return;
+
+        auto *winProc = new QProcess(this);
+        connect(winProc, &QProcess::errorOccurred, this, [winProc](QProcess::ProcessError) {
+            winProc->deleteLater();
+        });
+        connect(winProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+                [this, winProc](int, QProcess::ExitStatus winStatus) {
+            const QString winOut = QString::fromUtf8(winProc->readAllStandardOutput());
+            winProc->deleteLater();
+            if (winStatus != QProcess::NormalExit)
+                return;
+            applyFullscreenState(winOut.contains(QLatin1String("_NET_WM_STATE_FULLSCREEN")));
+        });
+        winProc->start(xprop, {QStringLiteral("-id"), winId, QStringLiteral("_NET_WM_STATE")});
+    });
+    proc->start(program, arguments);
 }
