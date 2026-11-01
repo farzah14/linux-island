@@ -23,8 +23,14 @@ public:
     //
     // Interactive sign-in hosts always require a handoff. Passive account
     // pages only do when no imported Google session is available.
+    //
+    // `isMainFrame` is part of the policy, not just a QML detail: Google's
+    // result pages embed accounts.google.com subframes (RotateCookiesPage,
+    // GSI). Those navigations must never hand off, or every search would
+    // pop the user's browser open while the page itself loads fine.
     Q_INVOKABLE bool requiresSystemBrowser(const QString &url,
-                                           bool hasGoogleSession = false) const;
+                                           bool hasGoogleSession = false,
+                                           bool isMainFrame = true) const;
 
 signals:
     void openEmbeddedRequested(const QString &url);

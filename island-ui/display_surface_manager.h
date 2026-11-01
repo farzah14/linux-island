@@ -13,6 +13,7 @@ class DisplaySurfaceManager : public QObject {
 
 public:
     explicit DisplaySurfaceManager(QQuickWindow *window, IslandClient *client, QObject *parent = nullptr);
+    void attachWindow(QQuickWindow *window);
 
     int windowWidth() const { return 440; }
     int windowHeight() const { return 360; }
@@ -33,4 +34,6 @@ private:
     IslandClient *m_client = nullptr;
     QTimer m_fullscreenTimer;
     bool m_isFullscreen = false;
+    QRect m_currentMaskRect;
+    int m_currentMaskRadius = 0;
 };

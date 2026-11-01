@@ -61,6 +61,9 @@ export class SearchSection {
             btn.connect('clicked', () => {
                 this.setEngine(engine.id);
                 this._onEngineChanged?.(engine.id);
+                // The chip is a focusable St.Button, so clicking it steals key
+                // focus from the entry; hand it straight back for typing.
+                this.focus();
             });
             this._engineButtons[engine.id] = btn;
             this._engineRow.add_child(btn);
@@ -82,8 +85,15 @@ export class SearchSection {
         });
         this._entry.clutter_text?.connect?.('activate', () => this._submit());
         this._entry.connect('key-press-event', (_actor, event) => {
-            if (event.get_key_symbol() === Clutter.KEY_Escape) {
+            const sym = event.get_key_symbol();
+            if (sym === Clutter.KEY_Escape) {
                 this._onDismiss?.();
+                return Clutter.EVENT_STOP;
+            }
+            if ((Clutter.KEY_Return !== undefined && sym === Clutter.KEY_Return) ||
+                (Clutter.KEY_KP_Enter !== undefined && sym === Clutter.KEY_KP_Enter) ||
+                (Clutter.KEY_ISO_Enter !== undefined && sym === Clutter.KEY_ISO_Enter)) {
+                this._submit();
                 return Clutter.EVENT_STOP;
             }
             return Clutter.EVENT_PROPAGATE;
@@ -141,6 +151,7 @@ export class SearchSection {
 
     focus() {
         this._entry?.grab_key_focus?.();
+        this._entry?.clutter_text?.grab_key_focus?.();
     }
 
     destroy() {

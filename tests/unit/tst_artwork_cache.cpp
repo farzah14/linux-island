@@ -15,6 +15,7 @@ private slots:
     void testCacheHitExistingFile();
     void testCancelPlayer();
     void testPruneCache();
+    void cancelInFlightDoesNotCrash();
 };
 
 void TestArtworkCache::testLocalFilePassThrough() {
@@ -104,6 +105,28 @@ void TestArtworkCache::testCancelPlayer() {
 
     // cancelPlayer on unknown player must not crash
     cache.cancelPlayer(QStringLiteral("nonexistent"));
+}
+
+void TestArtworkCache::cancelInFlightDoesNotCrash() {
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    ArtworkCache cache(tempDir.path());
+
+    bool callbackCalled = false;
+    cache.fetchArtwork(QStringLiteral("player1"), QStringLiteral("http://127.0.0.1:1/art.png"), [&](const QString &) {
+        callbackCalled = true;
+    });
+
+    cache.cancelPlayer(QStringLiteral("player1"));
+    cache.cancelPlayer(QStringLiteral("player1"));
+    QCoreApplication::processEvents();
+
+    // Destructor with in-flight fetch must not mutate container during iteration
+    {
+        ArtworkCache scopedCache(tempDir.path());
+        scopedCache.fetchArtwork(QStringLiteral("player2"), QStringLiteral("http://127.0.0.1:1/art2.png"), [&](const QString &) {});
+    }
+    QCoreApplication::processEvents();
 }
 
 void TestArtworkCache::testPruneCache() {

@@ -65,3 +65,6 @@ target_link_libraries(linux-island-ui PRIVATE
     Qt6::Sql
     OpenSSL::Crypto
 )
+target_compile_definitions(linux-island-ui PRIVATE ISLAND_VERSION="${PROJECT_VERSION}")
+
+install(TARGETS linux-island-ui RUNTIME DESTINATION ${CMAKE_INSTALL_LIBEXECDIR})

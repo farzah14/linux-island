@@ -38,7 +38,7 @@
 ## Acceptance & Milestone Status
 
 - **M0 Task 01 Qt build verification:** **PASSED** (CMake bootstrap, Qt 6 Core/DBus link, and executable build verified).
-- **M0 Task 02 live GNOME enable/disable:** **PENDING / BLOCKED** (Extension runtime enable/disable requires an isolated test user or VM; live daily-use desktop testing prohibited by safety rules).
+- **M0 Task 02 live GNOME enable/disable:** **PASSED (GNOME 50.1 Isolated Headless)** (Extension runtime enable/disable verified via `scripts/dev/dev-session.sh` running `gnome-shell --headless --virtual-monitor` under private D-Bus session; both `island-dev@local` and `linux-island@local` reached `State: ACTIVE` without touching the primary desktop session).
 - **M0 Task 04 Smart Adaptive fullscreen:** **PASSED (Logic & Contract)** (Card M0-04A pure policy verified with 5 tests; Card M0-04B controller and adapter verified with 10 unit tests under Node & GJS; live acceptance pending isolated session).
 - **M1 Core + D-Bus Architecture (Cards M1-05 through M1-09):** **PASSED**
   - **Task 05 (M1-05A):** Core1 schema frozen with 6 methods and 3 signals (`test_schema.py` in CTest).
@@ -52,7 +52,7 @@
 | Target Platform | Shell Version | Lifecycle Status | Fullscreen Status | Notes |
 |---|---|---|---|---|
 | **Ubuntu 24.04 LTS (Canonical Baseline)** | GNOME 46 | Baseline target; code compatible; runtime acceptance pending VM/test user | Policy & Adapter verified (M0-04A/B); runtime acceptance pending VM/test user | Canonical v0.1 release target |
-| **Ubuntu 26.04.1 LTS (Host Environment)** | GNOME 50.1 | Code audit PASS (M0-02); runtime validation BLOCKED (primary desktop) | Policy & Adapter verified (M0-04A/B); runtime validation BLOCKED (primary desktop) | Additional target; requires isolated session for live testing |
+| **Ubuntu 26.04.1 LTS (Host Environment)** | GNOME 50.1 | Verified PASS in isolated headless Wayland session (`dev-session.sh`) | Policy & Adapter verified (M0-04A/B); live headless runtime PASS | Additional target; isolated runtime verified |
 
 ## GNOME Fullscreen API Feasibility (M0-04B)
 
@@ -77,7 +77,7 @@ Verified against GNOME Shell and Mutter sources (`libshell-18.so`, `layout.js`, 
 - **Actor Hierarchy:** `Capsule` allocates `PanelMenu.Button`, `St.BoxLayout`, and `St.Label`. Child actors are destroyed upon button destruction.
 - **Review Guidelines Adherence:** Zero actors, side effects, or signal connections in module scope; all resources allocated in `enable()` and torn down in `disable()`.
 - **Metadata:** `extension/metadata.json` remains strictly `"shell-version": ["46"]` until live runtime verification succeeds in an isolated GNOME 50 environment.
-- **Runtime Validation Gate:** BLOCKED. The host is an active primary daily-use session (`Session: wayland`, `GNOME Shell 50.1`). Live extension installation and enable/disable tests require an isolated test user or VM to prevent session disruption.
+- **Runtime Validation Gate:** **PASSED (Isolated)**. Executed in isolated headless GNOME 50.1 Wayland session (`scripts/dev/dev-session.sh`) with private D-Bus bus and isolated XDG runtime/data dirs (`/tmp/...`). Both `island-dev@local` and `linux-island@local` verified `State: ACTIVE` via `gnome-extensions info` with `linux-island-core` connected.
 
 ## Isolated Testing Preparation (M0-02A)
 
@@ -96,3 +96,16 @@ Verified against GNOME Shell and Mutter sources (`libshell-18.so`, `layout.js`, 
 - **Rollback Plan:**
   - Delete test account via `sudo userdel -r gnometest`.
   - Remove build staging artifacts via `rm -rf build/test-compat-gnome50/`.
+
+## Distribution and desktop-environment support
+
+Linux Island ships one build for every desktop: the GNOME Shell extension on
+GNOME 45–50 in Dynamic Mode, and the Qt overlay (via XWayland where available)
+everywhere else. The full matrix, including which window rules are optional
+refinements, lives in [`desktop-environments.md`](desktop-environments.md).
+
+Supported GNOME Shell versions: **45, 46, 47, 48, 49, 50**.
+
+`BLOCKED: no disposable GNOME 45/46/47/48/49 session` — runtime acceptance of
+the extension on those majors still requires a throwaway user or VM. The
+metadata list is a static compatibility claim, not runtime proof.

@@ -7,6 +7,7 @@ Item {
 
     implicitWidth: parent ? parent.width : 340
     implicitHeight: 200
+    property double lastUnmutedVolume: 1.0
 
     function formatPlayerName(id) {
         if (!id) return "Player";
@@ -196,6 +197,99 @@ Item {
                     text: islandClient.timeTotalText
                     font.pixelSize: 10
                     color: IslandTheme.textTertiary
+                }
+            }
+        }
+
+        // Volume Row: Mute Toggle + Volume Slider
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            // Mute button
+            Rectangle {
+                implicitWidth: 24
+                implicitHeight: 24
+                radius: 12
+                color: muteMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
+
+                Text {
+                    anchors.centerIn: parent
+                    text: islandClient.volume <= 0.0 ? "🔇" : "🔊"
+                    font.pixelSize: 12
+                    color: IslandTheme.textPrimary
+                }
+
+                MouseArea {
+                    id: muteMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (islandClient.volume > 0.0) {
+                            root.lastUnmutedVolume = islandClient.volume;
+                            islandClient.setVolume(0.0);
+                        } else {
+                            islandClient.setVolume(root.lastUnmutedVolume <= 0.0 ? 1.0 : root.lastUnmutedVolume);
+                        }
+                    }
+                }
+            }
+
+            // Volume bar
+            Item {
+                Layout.fillWidth: true
+                implicitHeight: 14
+
+                // Track background
+                Rectangle {
+                    id: volBg
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width
+                    height: 6
+                    radius: 3
+                    color: IslandTheme.surfaceRaised
+                }
+
+                // Volume fill
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: volBg.x
+                    width: Math.max(0, Math.min(volBg.width, volBg.width * (volMouse.pressed ? volMouse.volDragFraction : islandClient.volume)))
+                    height: 6
+                    radius: 3
+                    color: IslandTheme.accentPrimary
+                }
+
+                // Thumb handle
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: Math.max(0, Math.min(volBg.width - 10, (volBg.width * (volMouse.pressed ? volMouse.volDragFraction : islandClient.volume)) - 5))
+                    width: 10
+                    height: 10
+                    radius: 5
+                    color: volMouse.containsMouse || volMouse.pressed ? IslandTheme.accentHover : IslandTheme.textPrimary
+                }
+
+                MouseArea {
+                    id: volMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    property real volDragFraction: 1.0
+
+                    function updateFrac(mouseX) {
+                        volDragFraction = Math.max(0.0, Math.min(1.0, mouseX / width));
+                    }
+
+                    onPressed: (mouse) => updateFrac(mouse.x)
+                    onPositionChanged: (mouse) => {
+                        if (pressed) updateFrac(mouse.x);
+                    }
+                    onReleased: (mouse) => {
+                        updateFrac(mouse.x);
+                        islandClient.setVolume(volDragFraction);
+                    }
                 }
             }
         }

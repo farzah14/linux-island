@@ -49,12 +49,9 @@ Item {
                 Item { Layout.fillWidth: true }
 
                 // 5h Button
-                Rectangle {
+                Item {
                     implicitWidth: 54
                     implicitHeight: 18
-                    radius: 4
-                    color: rowRoot.activeMode === "5h" ? IslandTheme.accentPrimary : (btn5Mouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceIsland)
-                    border.color: IslandTheme.borderSubtle
 
                     Text {
                         anchors.centerIn: parent
@@ -63,24 +60,24 @@ Item {
                             : "5h: --%"
                         font.pixelSize: 9
                         font.bold: true
-                        color: rowRoot.activeMode === "5h" ? IslandTheme.surfaceIsland : IslandTheme.textPrimary
+                        color: rowRoot.activeMode === "5h"
+                            ? IslandTheme.accentPrimary
+                            : (btn5Mouse.containsMouse ? IslandTheme.textPrimary : IslandTheme.textSecondary)
                     }
 
                     MouseArea {
                         id: btn5Mouse
                         anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: rowRoot.activeMode = "5h"
                     }
                 }
 
                 // 7d Button
-                Rectangle {
+                Item {
                     implicitWidth: 54
                     implicitHeight: 18
-                    radius: 4
-                    color: rowRoot.activeMode === "7d" ? IslandTheme.accentPrimary : (btn7Mouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceIsland)
-                    border.color: IslandTheme.borderSubtle
 
                     Text {
                         anchors.centerIn: parent
@@ -89,12 +86,15 @@ Item {
                             : "7d: --%"
                         font.pixelSize: 9
                         font.bold: true
-                        color: rowRoot.activeMode === "7d" ? IslandTheme.surfaceIsland : IslandTheme.textPrimary
+                        color: rowRoot.activeMode === "7d"
+                            ? IslandTheme.accentPrimary
+                            : (btn7Mouse.containsMouse ? IslandTheme.textPrimary : IslandTheme.textSecondary)
                     }
 
                     MouseArea {
                         id: btn7Mouse
                         anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: rowRoot.activeMode = "7d"
                     }

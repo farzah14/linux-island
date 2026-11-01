@@ -1,201 +1,195 @@
 #!/usr/bin/env bash
+# Per-user Linux Island installer.
+#
+# Delegates the file layout to CMake (the same rules used by the packages) and
+# only adds the two things that are per-user by nature: the systemd user unit
+# in ~/.config/systemd/user and the XDG autostart entry.
 set -euo pipefail
 
-# Linux Island — Universal User-level installer for all Linux distributions and DEs
-# Does NOT require sudo or root privileges.
-
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+BUILD_DIR="$ROOT_DIR/build/dev"
 
-# Check for --build flag
-for arg in "$@"; do
-    if [[ "$arg" == "--build" ]]; then
-        echo "Building Linux Island targets with preset 'dev'..."
-        cmake --preset dev "$ROOT_DIR"
-        cmake --build "$ROOT_DIR/build/dev"
-    fi
-done
+PREFIX="${HOME}/.local"
+DO_BUILD=false
+WITH_SYSTEMD=true
+WITH_AUTOSTART=true
 
-CORE_BIN="$ROOT_DIR/build/dev/core/linux-island-core"
-UI_BIN="$ROOT_DIR/build/dev/island-ui/linux-island-ui"
-SETTINGS_BIN="$ROOT_DIR/build/dev/settings-app/linux-island-settings"
-LAUNCH_BIN="$ROOT_DIR/packaging/bin/linux-island-launch"
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [options]
 
-CORE_SERVICE="$ROOT_DIR/packaging/systemd-user/linux-island-core.service"
-UI_SERVICE="$ROOT_DIR/packaging/systemd-user/linux-island-ui.service"
-AUTOSTART_FILE="$ROOT_DIR/packaging/autostart/linux-island.desktop"
+Install Linux Island for the current user only (no sudo).
 
-DESKTOP_UI_FILE="$ROOT_DIR/packaging/desktop/linux-island.desktop"
-DESKTOP_SETTINGS_FILE="$ROOT_DIR/packaging/desktop/linux-island-settings.desktop"
-EXTENSION_DIR="$ROOT_DIR/extension"
-
-if [[ ! -f "$CORE_BIN" || ! -f "$UI_BIN" ]]; then
-    echo "ERROR: Binaries not found in $ROOT_DIR/build/dev"
-    echo "Run with --build: ./packaging/dev/install-local.sh --build"
-    exit 1
-fi
-
-DEST_LIBEXEC="$HOME/.local/libexec"
-DEST_BIN="$HOME/.local/bin"
-DEST_APPS="$HOME/.local/share/applications"
-DEST_AUTOSTART="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
-DEST_SYSTEMD="$HOME/.config/systemd/user"
-DEST_EXT="$HOME/.local/share/gnome-shell/extensions/linux-island@local"
-
-echo "Installing Linux Island per-user files across Linux desktop environments..."
-
-mkdir -p "$DEST_LIBEXEC" "$DEST_BIN" "$DEST_APPS" "$DEST_AUTOSTART" "$DEST_SYSTEMD" "$DEST_EXT"
-
-# 1. Daemon & UI executables
-cp --remove-destination "$CORE_BIN" "$DEST_LIBEXEC/linux-island-core"
-chmod +x "$DEST_LIBEXEC/linux-island-core"
-
-cp --remove-destination "$UI_BIN" "$DEST_LIBEXEC/linux-island-ui"
-chmod +x "$DEST_LIBEXEC/linux-island-ui"
-
-# 2. CLI launcher & Settings
-cp --remove-destination "$LAUNCH_BIN" "$DEST_BIN/linux-island-launch"
-chmod +x "$DEST_BIN/linux-island-launch"
-
-if [[ -f "$SETTINGS_BIN" ]]; then
-    cp --remove-destination "$SETTINGS_BIN" "$DEST_BIN/linux-island-settings"
-    chmod +x "$DEST_BIN/linux-island-settings"
-fi
-
-# 3. Systemd user units
-cp "$CORE_SERVICE" "$DEST_SYSTEMD/linux-island-core.service"
-cp "$UI_SERVICE" "$DEST_SYSTEMD/linux-island-ui.service"
-
-# 4. XDG Autostart entry (for WMs / non-systemd sessions)
-cp "$AUTOSTART_FILE" "$DEST_AUTOSTART/linux-island.desktop"
-
-# 5. Application menu desktop entries
-if [[ -f "$DESKTOP_UI_FILE" ]]; then
-    cp "$DESKTOP_UI_FILE" "$DEST_APPS/linux-island.desktop"
-fi
-if [[ -f "$DESKTOP_SETTINGS_FILE" ]]; then
-    cp "$DESKTOP_SETTINGS_FILE" "$DEST_APPS/linux-island-settings.desktop"
-fi
-if command -v update-desktop-database &>/dev/null; then
-    update-desktop-database "$DEST_APPS" || true
-fi
-
-# 6. GNOME Shell extension files (for native GNOME dynamic mode)
-# Count what actually changes first: the Shell caches ES modules per URL for the
-# lifetime of the process, so the final message must say whether a restart is
-# needed. A silent no-op here is what makes a new feature "not show up".
-EXT_FILES_CHANGED=0
-while IFS= read -r -d '' src; do
-    rel="${src#"$EXTENSION_DIR"/}"
-    if ! cmp -s "$src" "$DEST_EXT/$rel" 2>/dev/null; then
-        EXT_FILES_CHANGED=$((EXT_FILES_CHANGED + 1))
-    fi
-done < <(find "$EXTENSION_DIR" -type f -print0)
-
-cp -a "$EXTENSION_DIR/." "$DEST_EXT/"
-
-# 6a. Drop files that no longer exist in the repo. `cp -a` only adds and
-#     overwrites, so a renamed or deleted module would otherwise linger in the
-#     install tree and shadow the new layout.
-while IFS= read -r -d '' dest; do
-    rel="${dest#"$DEST_EXT"/}"
-    if [[ ! -f "$EXTENSION_DIR/$rel" ]]; then
-        echo "Removing stale extension file: $rel"
-        rm -f "$dest"
-        EXT_FILES_CHANGED=$((EXT_FILES_CHANGED + 1))
-    fi
-done < <(find "$DEST_EXT" -type f -print0)
-
-# 7. Reload systemd user daemon and enable units if systemctl is present
-if command -v systemctl &>/dev/null; then
-    systemctl --user daemon-reload || true
-    systemctl --user enable linux-island-core.service || true
-    systemctl --user enable linux-island-ui.service || true
-
-    if systemctl --user is-active --quiet linux-island-core.service 2>/dev/null; then
-        echo "Restarting linux-island-core.service..."
-        systemctl --user restart linux-island-core.service || true
-    fi
-    if systemctl --user is-active --quiet linux-island-ui.service 2>/dev/null; then
-        echo "Restarting linux-island-ui.service..."
-        systemctl --user restart linux-island-ui.service || true
-    fi
-fi
-
-echo "Installation complete!"
-echo "Files installed to:"
-echo " - $DEST_LIBEXEC/linux-island-core"
-echo " - $DEST_LIBEXEC/linux-island-ui"
-echo " - $DEST_BIN/linux-island-launch"
-echo " - $DEST_BIN/linux-island-settings"
-echo " - $DEST_SYSTEMD/linux-island-core.service"
-echo " - $DEST_SYSTEMD/linux-island-ui.service"
-echo " - $DEST_AUTOSTART/linux-island.desktop"
-echo " - $DEST_APPS/linux-island.desktop"
-echo " - $DEST_APPS/linux-island-settings.desktop"
-echo " - $DEST_EXT"
-
-# --- 8. Verify the install actually matches the build ----------------------
-# A stale install is indistinguishable from a missing feature at runtime, so
-# fail loudly rather than reporting success on a partial copy.
-VERIFY_FAILED=0
-
-fail_verify() {
-    echo "VERIFY FAILED: $*" >&2
-    VERIFY_FAILED=1
+Options:
+  --build            Configure and build build/dev before installing
+  --prefix DIR       Install prefix (default: \$HOME/.local)
+  --no-systemd       Do not install or enable the systemd user unit
+  --no-autostart     Do not install the XDG autostart entry
+  --help             Show this help
+EOF
 }
 
-for pair in \
-    "$CORE_BIN:$DEST_LIBEXEC/linux-island-core" \
-    "$UI_BIN:$DEST_LIBEXEC/linux-island-ui" \
-    "$LAUNCH_BIN:$DEST_BIN/linux-island-launch"; do
-    src="${pair%%:*}"
-    dest="${pair#*:}"
-    if [[ ! -f "$dest" ]]; then
-        fail_verify "missing $dest"
-    elif ! cmp -s "$src" "$dest"; then
-        fail_verify "$dest does not match $src"
-    fi
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --build) DO_BUILD=true ;;
+        --prefix)
+            shift
+            [[ $# -gt 0 ]] || { echo "ERROR: --prefix needs a directory" >&2; exit 2; }
+            PREFIX="$1"
+            ;;
+        --prefix=*) PREFIX="${1#*=}" ;;
+        --no-systemd) WITH_SYSTEMD=false ;;
+        --no-autostart) WITH_AUTOSTART=false ;;
+        --help|-h) usage; exit 0 ;;
+        *) echo "ERROR: unknown option: $1" >&2; usage >&2; exit 2 ;;
+    esac
+    shift
 done
 
-if [[ -f "$SETTINGS_BIN" ]]; then
-    cmp -s "$SETTINGS_BIN" "$DEST_BIN/linux-island-settings" \
-        || fail_verify "$DEST_BIN/linux-island-settings does not match $SETTINGS_BIN"
-fi
+PREFIX="${PREFIX%/}"
+BIN_DIR="$PREFIX/bin"
+LIBEXEC_DIR="$PREFIX/libexec"
+DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+SYSTEMD_USER_DIR="$CONFIG_HOME/systemd/user"
+AUTOSTART_DIR="$CONFIG_HOME/autostart"
+MANIFEST_DIR="$DATA_HOME/linux-island"
+MANIFEST="$MANIFEST_DIR/installed-files.txt"
+LAUNCHER="$BIN_DIR/linux-island-launch"
 
-# Extension tree must be byte-identical, and must not contain extra files.
-while IFS= read -r -d '' src; do
-    rel="${src#"$EXTENSION_DIR"/}"
-    cmp -s "$src" "$DEST_EXT/$rel" || fail_verify "extension file differs: $rel"
-done < <(find "$EXTENSION_DIR" -type f -print0)
-
-while IFS= read -r -d '' dest; do
-    rel="${dest#"$DEST_EXT"/}"
-    [[ -f "$EXTENSION_DIR/$rel" ]] || fail_verify "stale extension file: $rel"
-done < <(find "$DEST_EXT" -type f -print0)
-
-if [[ "$VERIFY_FAILED" -ne 0 ]]; then
-    echo "ERROR: installation verification failed; the installed tree does not match the build." >&2
-    exit 1
-fi
-echo "Verified: installed files match the build."
-
-# --- 9. Tell the user what still needs doing ------------------------------
-if [[ "$EXT_FILES_CHANGED" -gt 0 ]]; then
-    echo
-    echo "NOTE: $EXT_FILES_CHANGED GNOME Shell extension file(s) changed."
-    echo "      GNOME caches ES modules for the lifetime of the Shell process, and"
-    echo "      ReloadExtension is not implemented on GNOME 49+. The new code is"
-    echo "      already on disk but will NOT load until the Shell restarts:"
-    echo "        - sign out and back in, or"
-    echo "        - use scripts/dev/dev.sh reload extension --target primary (dev loader)."
+if [[ "$DO_BUILD" == true ]]; then
+    echo "Building Linux Island (preset: dev)..."
+    ( cd "$ROOT_DIR" && cmake --preset dev )
+    cmake --build "$BUILD_DIR"
 else
-    echo "GNOME Shell extension files unchanged; no Shell restart needed."
+    if [[ ! -f "$BUILD_DIR/CMakeCache.txt" ]]; then
+        echo "ERROR: no build tree at $BUILD_DIR" >&2
+        echo "Run with --build, or configure it first: cmake --preset dev" >&2
+        exit 1
+    fi
+    for bin in core/linux-island-core island-ui/linux-island-ui settings-app/linux-island-settings; do
+        if [[ ! -x "$BUILD_DIR/$bin" ]]; then
+            echo "ERROR: missing $BUILD_DIR/$bin" >&2
+            echo "Run with --build to rebuild." >&2
+            exit 1
+        fi
+    done
 fi
 
-if command -v systemctl &>/dev/null; then
-    if ! systemctl --user is-active --quiet linux-island-core.service 2>/dev/null; then
-        echo
-        echo "NOTE: linux-island-core.service is not running; start it with:"
-        echo "        systemctl --user start linux-island-core.service"
+echo "Installing into $PREFIX ..."
+cmake --install "$BUILD_DIR" --prefix "$PREFIX"
+
+# The shipped desktop files use bare command names so system packages work.
+# A user-level prefix is not on PATH, so point Exec= at the real paths.
+rewrite_exec() {
+    local file="$1" pattern="$2" replacement="$3"
+    [[ -f "$file" ]] || return 0
+    sed -i "s|^Exec=$pattern|Exec=$replacement|" "$file"
+}
+
+rewrite_tryexec() {
+    local file="$1" pattern="$2" replacement="$3"
+    [[ -f "$file" ]] || return 0
+    sed -i "s|^TryExec=$pattern|TryExec=$replacement|" "$file"
+}
+
+rewrite_exec "$PREFIX/share/applications/linux-island.desktop" \
+    'linux-island-launch.*' "$LAUNCHER --standalone"
+rewrite_tryexec "$PREFIX/share/applications/linux-island.desktop" \
+    'linux-island-launch.*' "$LAUNCHER"
+rewrite_exec "$PREFIX/share/applications/linux-island-settings.desktop" \
+    'linux-island-settings.*' "$BIN_DIR/linux-island-settings"
+rewrite_tryexec "$PREFIX/share/applications/linux-island-settings.desktop" \
+    'linux-island-settings.*' "$BIN_DIR/linux-island-settings"
+rewrite_exec "$PREFIX/share/linux-island/linux-island-autostart.desktop" \
+    'linux-island-launch.*' "$LAUNCHER --autostart"
+rewrite_tryexec "$PREFIX/share/linux-island/linux-island-autostart.desktop" \
+    'linux-island-launch.*' "$LAUNCHER"
+
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "$PREFIX/share/applications" >/dev/null 2>&1 || true
+fi
+
+STAGED_UNIT="$PREFIX/share/linux-island/linux-island-core.service"
+PREFIX_UNIT="$PREFIX/lib/systemd/user/linux-island-core.service"
+INSTALLED_UNIT="$SYSTEMD_USER_DIR/linux-island-core.service"
+
+if [[ "$WITH_SYSTEMD" == true && -f "$STAGED_UNIT" ]]; then
+    mkdir -p "$SYSTEMD_USER_DIR"
+    cp "$STAGED_UNIT" "$INSTALLED_UNIT"
+    rm -f "$STAGED_UNIT"
+    # A user prefix is not a systemd system unit directory; the copy in
+    # ~/.config/systemd/user is the one systemd --user reads.
+    rm -f "$PREFIX_UNIT"
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl --user daemon-reload >/dev/null 2>&1 || true
+        systemctl --user enable --now linux-island-core.service >/dev/null 2>&1 || true
     fi
 fi
+
+AUTOSTART_FILE="$AUTOSTART_DIR/linux-island.desktop"
+if [[ "$WITH_AUTOSTART" == true && -x "$LAUNCHER" ]]; then
+    "$LAUNCHER" --install-autostart >/dev/null
+fi
+
+# --- manifest --------------------------------------------------------------
+
+mkdir -p "$MANIFEST_DIR"
+NEW_MANIFEST="$(mktemp)"
+trap 'rm -f "$NEW_MANIFEST"' EXIT
+
+if [[ -f "$BUILD_DIR/install_manifest.txt" ]]; then
+    if [[ "$WITH_SYSTEMD" == true ]]; then
+        # The staging copy is moved into ~/.config/systemd/user and the prefix
+        # copy is dropped, so neither may be listed as an installed path.
+        grep -vxF -e "$STAGED_UNIT" -e "$PREFIX_UNIT" \
+            "$BUILD_DIR/install_manifest.txt" >"$NEW_MANIFEST" || true
+    else
+        cp "$BUILD_DIR/install_manifest.txt" "$NEW_MANIFEST"
+    fi
+else
+    echo "ERROR: $BUILD_DIR/install_manifest.txt is missing" >&2
+    exit 1
+fi
+# install_manifest.txt has no trailing newline; without this the first append
+# would concatenate onto the last path.
+if [[ -s "$NEW_MANIFEST" && "$(tail -c1 "$NEW_MANIFEST")" != "" ]]; then
+    printf '\n' >>"$NEW_MANIFEST"
+fi
+if [[ "$WITH_SYSTEMD" == true && -f "$INSTALLED_UNIT" ]]; then
+    printf '%s\n' "$INSTALLED_UNIT" >>"$NEW_MANIFEST"
+fi
+if [[ "$WITH_AUTOSTART" == true && -f "$AUTOSTART_FILE" ]]; then
+    printf '%s\n' "$AUTOSTART_FILE" >>"$NEW_MANIFEST"
+fi
+sort -u -o "$NEW_MANIFEST" "$NEW_MANIFEST"
+
+# Files from a previous install that this install no longer produces would
+# otherwise linger forever (for example a renamed extension module).
+if [[ -f "$MANIFEST" ]]; then
+    while IFS= read -r old; do
+        [[ -n "$old" ]] || continue
+        if ! grep -qxF "$old" "$NEW_MANIFEST"; then
+            rm -f "$old"
+        fi
+    done <"$MANIFEST"
+fi
+
+cp "$NEW_MANIFEST" "$MANIFEST"
+
+missing=0
+while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    if [[ ! -e "$path" ]]; then
+        echo "VERIFY FAILED: missing $path" >&2
+        missing=$((missing + 1))
+    fi
+done <"$MANIFEST"
+
+if [[ "$missing" -ne 0 ]]; then
+    echo "ERROR: $missing installed file(s) missing after install." >&2
+    exit 1
+fi
+echo "Verified: $(wc -l <"$MANIFEST") installed files."
+echo "Manifest: $MANIFEST"
+echo "Launch from a terminal with: $LAUNCHER --standalone"

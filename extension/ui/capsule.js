@@ -514,7 +514,10 @@ export class Capsule {
         const x = Math.round(monitor.x + (monitor.width - width) / 2) + this._horizontalOffset;
         // Position at top with configurable vertical offset from the screen edge
         const y = monitor.y + this._verticalOffset;
-        this._widget.set_position(x, y);
+        const [curX, curY] = this._widget.get_position ? this._widget.get_position() : (this._widget.position ?? []);
+        if (curX !== x || curY !== y) {
+            this._widget.set_position(x, y);
+        }
     }
 
     mount() {
@@ -566,7 +569,14 @@ export class Capsule {
             this._circleResizing = false;
             this._cancelCircleFades();
             this._clearIdleTimer();
-            this._exitIdleCircle();
+            if (state !== 'EXPANDED') {
+                this._exitIdleCircle();
+            } else {
+                this._isIdleCircle = false;
+                this._isPillExpanded = false;
+                this._widget?.remove_style_class_name('linux-island__capsule--circle');
+                if (this._circleArtBox) this._circleArtBox.visible = false;
+            }
         }
 
         if (state === 'HIDDEN') {
@@ -633,7 +643,16 @@ export class Capsule {
             this._mediaView._searchSection?.focus();
         }
         // The Shell also scales animation time according to accessibility settings.
-        if (state === 'EXPANDED' && previousState !== 'EXPANDED') this._onMediaOpen();
+        if (state === 'EXPANDED' && previousState !== 'EXPANDED') {
+            if (typeof GLib !== 'undefined' && GLib?.idle_add) {
+                GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                    this._onMediaOpen();
+                    return GLib.SOURCE_REMOVE;
+                });
+            } else {
+                this._onMediaOpen();
+            }
+        }
         // Replace transitions rather than queueing them during rapid pointer input.
         if (state !== previousState && !hoverOnly && !(state === 'COMPACT' && this._capsuleSize === 'circle') && this._animationEnabled && St.Settings.get().enable_animations) {
             // Measure the destination after swapping content, then animate from

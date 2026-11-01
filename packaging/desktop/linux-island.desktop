@@ -1,9 +1,11 @@
 [Desktop Entry]
 Type=Application
 Name=Linux Island
-Comment=Launch Linux Island Dynamic Island Overlay
+Comment=Launch the Linux Island overlay
 Exec=linux-island-launch --standalone
-Icon=preferences-system
+TryExec=linux-island-launch
+Icon=io.github.linuxisland
 Terminal=false
-Categories=Utility;DesktopSettings;
+Categories=Utility;
 Keywords=island;capsule;notch;media;overlay;
+StartupWMClass=linux-island-ui

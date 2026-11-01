@@ -1,146 +1,324 @@
 #!/usr/bin/env bash
+# Linux Island cross-desktop launcher.
+#
+# Picks one of two paths for the current session:
+#   extension — GNOME 45-50 Dynamic Mode, drawn by the Shell extension
+#   overlay   — the Qt6 capsule, via XWayland when available
+# and starts the Core service either through systemd or a detached process.
 set -euo pipefail
 
-# Linux Island Cross-DE & Universal Session Launcher
-# Detects Desktop Environment and displayMode, orchestrates Core service,
-# and activates either the native GNOME Shell extension or the standalone Qt6 overlay.
+ISLAND_VERSION="0.1.0"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/../.." 2>/dev/null && pwd || echo "")"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." 2>/dev/null && pwd || true)"
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+SETTINGS_FILE="$CONFIG_HOME/linux-island/settings.json"
+PREFIX="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Find binaries
-CORE_BIN=""
-UI_BIN=""
-SETTINGS_BIN=""
+# --- binary resolution -----------------------------------------------------
 
-# 1. Check build tree first if in repository
-if [[ -n "$ROOT_DIR" && -f "$ROOT_DIR/build/dev/core/linux-island-core" ]]; then
-    CORE_BIN="$ROOT_DIR/build/dev/core/linux-island-core"
-    UI_BIN="$ROOT_DIR/build/dev/island-ui/linux-island-ui"
-    SETTINGS_BIN="$ROOT_DIR/build/dev/settings-app/linux-island-settings"
-fi
-
-# 2. Check installed paths
-if [[ -z "$CORE_BIN" || ! -f "$CORE_BIN" ]]; then
-    if [[ -f "$HOME/.local/libexec/linux-island-core" ]]; then
-        CORE_BIN="$HOME/.local/libexec/linux-island-core"
-    elif command -v linux-island-core &>/dev/null; then
-        CORE_BIN="$(command -v linux-island-core)"
+find_core() {
+    local dir
+    for dir in "${ISLAND_LIBEXECDIR:-}" "$PREFIX/libexec" "$HOME/.local/libexec" \
+               /usr/libexec /usr/local/libexec /app/libexec; do
+        [[ -n "$dir" && -x "$dir/linux-island-core" ]] && { printf '%s\n' "$dir/linux-island-core"; return 0; }
+    done
+    if [[ -n "${ROOT_DIR:-}" && -f "$ROOT_DIR/build/dev/core/linux-island-core" ]]; then
+        printf '%s\n' "$ROOT_DIR/build/dev/core/linux-island-core"
+        return 0
     fi
-fi
+    command -v linux-island-core 2>/dev/null || return 1
+}
 
-if [[ -z "$UI_BIN" || ! -f "$UI_BIN" ]]; then
-    if [[ -f "$HOME/.local/libexec/linux-island-ui" ]]; then
-        UI_BIN="$HOME/.local/libexec/linux-island-ui"
-    elif command -v linux-island-ui &>/dev/null; then
-        UI_BIN="$(command -v linux-island-ui)"
+find_ui() {
+    local dir
+    for dir in "${ISLAND_LIBEXECDIR:-}" "$PREFIX/libexec" "$HOME/.local/libexec" \
+               /usr/libexec /usr/local/libexec /app/libexec; do
+        [[ -n "$dir" && -x "$dir/linux-island-ui" ]] && { printf '%s\n' "$dir/linux-island-ui"; return 0; }
+    done
+    if [[ -n "${ROOT_DIR:-}" && -f "$ROOT_DIR/build/dev/island-ui/linux-island-ui" ]]; then
+        printf '%s\n' "$ROOT_DIR/build/dev/island-ui/linux-island-ui"
+        return 0
     fi
-fi
+    command -v linux-island-ui 2>/dev/null || return 1
+}
 
-if [[ -z "$SETTINGS_BIN" || ! -f "$SETTINGS_BIN" ]]; then
-    if [[ -f "$HOME/.local/bin/linux-island-settings" ]]; then
-        SETTINGS_BIN="$HOME/.local/bin/linux-island-settings"
-    elif command -v linux-island-settings &>/dev/null; then
-        SETTINGS_BIN="$(command -v linux-island-settings)"
+find_settings() {
+    if [[ -x "$SCRIPT_DIR/linux-island-settings" ]]; then
+        printf '%s\n' "$SCRIPT_DIR/linux-island-settings"
+        return 0
     fi
-fi
-
-MODE_FLAG="${1:-}"
-STANDALONE_OVERRIDE=false
-SMOKE_TEST=false
-COMPANION_MODE=false
-
-for arg in "$@"; do
-    if [[ "$arg" == "--standalone" ]]; then
-        STANDALONE_OVERRIDE=true
-    elif [[ "$arg" == "--smoke-test" ]]; then
-        SMOKE_TEST=true
-    elif [[ "$arg" == "--companion"* ]]; then
-        COMPANION_MODE=true
+    if [[ -x "$(dirname "$SCRIPT_DIR")/bin/linux-island-settings" ]]; then
+        printf '%s\n' "$(dirname "$SCRIPT_DIR")/bin/linux-island-settings"
+        return 0
     fi
-done
+    command -v linux-island-settings 2>/dev/null || return 1
+}
 
-# Detect Desktop Environment
+CORE_BIN="$(find_core || true)"
+UI_BIN="$(find_ui || true)"
+SETTINGS_BIN="$(find_settings || true)"
+
+# --- session facts ---------------------------------------------------------
+
 DE="${XDG_CURRENT_DESKTOP:-${DESKTOP_SESSION:-unknown}}"
+SESSION="${XDG_SESSION_TYPE:-unknown}"
 IS_GNOME=false
-if echo "$DE" | grep -qi "gnome"; then
+if [[ "${DE,,}" == *gnome* ]]; then
     IS_GNOME=true
 fi
 
-# Read displayMode preference
-CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/linux-island/settings.json"
-DISPLAY_MODE="dynamic"
-if [[ -f "$CONFIG_FILE" ]]; then
-    if command -v python3 &>/dev/null; then
-        DISPLAY_MODE="$(python3 -c "import json; print(json.load(open('$CONFIG_FILE')).get('displayMode', 'dynamic'))" 2>/dev/null || echo "dynamic")"
+read_display_mode() {
+    local mode="dynamic" match
+    if [[ -r "$SETTINGS_FILE" ]]; then
+        match="$(grep -o '"displayMode"[[:space:]]*:[[:space:]]*"[^"]*"' "$SETTINGS_FILE" 2>/dev/null | head -n1 || true)"
+        if [[ -n "$match" ]]; then
+            mode="$(printf '%s\n' "$match" | sed 's/.*"\([^"]*\)"$/\1/')"
+        fi
+    fi
+    printf '%s\n' "${mode:-dynamic}"
+}
+
+DISPLAY_MODE="$(read_display_mode)"
+
+STANDALONE=false
+SMOKE_TEST=false
+COMPANION=false
+AUTOSTART=false
+SYSTEMD_UI=false
+PRINT_CONFIG=false
+STATUS=false
+
+for arg in "$@"; do
+    case "$arg" in
+        --standalone) STANDALONE=true ;;
+        --smoke-test) SMOKE_TEST=true ;;
+        --companion|--companion=*) COMPANION=true ;;
+        --autostart) AUTOSTART=true ;;
+        --systemd-ui) SYSTEMD_UI=true ;;
+        --print-config) PRINT_CONFIG=true ;;
+        --status) STATUS=true ;;
+    esac
+done
+
+if [[ "$IS_GNOME" == true && "$DISPLAY_MODE" == "dynamic" && "$STANDALONE" == false &&
+      "$SMOKE_TEST" == false && "$COMPANION" == false ]]; then
+    MODE="extension"
+else
+    MODE="overlay"
+fi
+
+# Wayland sessions can still reach an XWayland server. Prefer it unless the
+# caller explicitly asks for native Wayland; a Wayland session with no DISPLAY
+# has no XWayland at all.
+PLATFORM="default"
+if [[ "$SESSION" == "wayland" ]]; then
+    if [[ "${ISLAND_NATIVE_WAYLAND:-}" == "1" ]]; then
+        PLATFORM="wayland"
+    elif [[ -n "${DISPLAY:-}" ]]; then
+        PLATFORM="xcb"
+    else
+        PLATFORM="wayland"
     fi
 fi
 
-# Function to check if Core D-Bus name is owned
+print_config() {
+    printf 'de=%s\n' "$DE"
+    printf 'session=%s\n' "$SESSION"
+    printf 'display_mode=%s\n' "$DISPLAY_MODE"
+    printf 'mode=%s\n' "$MODE"
+    printf 'platform=%s\n' "$PLATFORM"
+    printf 'core=%s\n' "${CORE_BIN:-}"
+    printf 'ui=%s\n' "${UI_BIN:-}"
+    printf 'settings=%s\n' "${SETTINGS_BIN:-}"
+}
+
+# --- core supervision ------------------------------------------------------
+
 is_core_running() {
-    if command -v gdbus &>/dev/null; then
+    if command -v gdbus >/dev/null 2>&1; then
         local reply
-        reply="$(gdbus call --session --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus --method org.freedesktop.DBus.NameHasOwner io.github.linuxisland.Core 2>/dev/null || echo "(false,)")"
-        if echo "$reply" | grep -q "true"; then
-            return 0
-        fi
+        reply="$(gdbus call --session --dest org.freedesktop.DBus \
+            --object-path /org/freedesktop/DBus \
+            --method org.freedesktop.DBus.NameHasOwner \
+            io.github.linuxisland.Core 2>/dev/null || true)"
+        [[ "$reply" == *true* ]] && return 0
+        return 1
+    fi
+    if command -v dbus-send >/dev/null 2>&1; then
+        dbus-send --session --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus \
+            org.freedesktop.DBus.NameHasOwner string:io.github.linuxisland.Core 2>/dev/null |
+            grep -q true
+        return $?
     fi
     return 1
 }
 
 ensure_core() {
-    if ! is_core_running; then
-        if command -v systemctl &>/dev/null && systemctl --user is-active --quiet linux-island-core.service 2>/dev/null; then
-            # Already starting or active
-            sleep 0.3
-        elif command -v systemctl &>/dev/null && systemctl --user list-unit-files linux-island-core.service &>/dev/null; then
-            systemctl --user start linux-island-core.service || true
-            sleep 0.5
-        elif [[ -n "$CORE_BIN" && -x "$CORE_BIN" ]]; then
-            "$CORE_BIN" >/dev/null 2>&1 &
-            sleep 0.5
-        fi
+    is_core_running && return 0
+
+    local started=false
+    if command -v systemctl >/dev/null 2>&1 &&
+       systemctl --user cat linux-island-core.service >/dev/null 2>&1; then
+        systemctl --user start linux-island-core.service >/dev/null 2>&1 && started=true || true
     fi
+    if [[ "$started" == false && -n "${CORE_BIN:-}" && -x "$CORE_BIN" ]]; then
+        nohup "$CORE_BIN" >/dev/null 2>&1 &
+        started=true
+    fi
+    [[ "$started" == true ]] || return 0
+
+    local i
+    for i in $(seq 1 20); do
+        is_core_running && return 0
+        sleep 0.1
+    done
+    return 0
 }
 
-if [[ "$MODE_FLAG" == "--status" ]]; then
-    echo "Linux Island Desktop Environment: $DE"
-    echo "Display Mode Preference: $DISPLAY_MODE"
-    if is_core_running; then
-        echo "Core Service: RUNNING (io.github.linuxisland.Core)"
-    else
-        echo "Core Service: STOPPED"
-    fi
-    exit 0
-fi
+# --- autostart -------------------------------------------------------------
 
+autostart_file() {
+    printf '%s/autostart/linux-island.desktop\n' "$CONFIG_HOME"
+}
+
+install_autostart() {
+    local dest template
+    dest="$(autostart_file)"
+    mkdir -p "$(dirname "$dest")"
+
+    template="$PREFIX/share/linux-island/linux-island-autostart.desktop"
+    if [[ ! -f "$template" && -n "${ROOT_DIR:-}" ]]; then
+        template="$ROOT_DIR/packaging/autostart/linux-island.desktop"
+    fi
+
+    if [[ -f "$template" ]]; then
+        sed "s|^Exec=.*|Exec=$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}") --autostart|" "$template" >"$dest"
+    else
+        cat >"$dest" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Linux Island
+Comment=Start Linux Island at login
+Exec=$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}") --autostart
+TryExec=$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")
+Icon=io.github.linuxisland
+Terminal=false
+Categories=Utility;
+X-GNOME-Autostart-enabled=true
+X-systemd-skip=true
+StartupWMClass=linux-island-ui
+EOF
+    fi
+    echo "Installed autostart entry: $dest"
+}
+
+remove_autostart() {
+    local dest
+    dest="$(autostart_file)"
+    rm -f "$dest"
+    echo "Removed autostart entry: $dest"
+}
+
+# --- argument-only commands ------------------------------------------------
+
+for arg in "$@"; do
+    case "$arg" in
+        --version)
+            echo "linux-island-launch $ISLAND_VERSION"
+            exit 0
+            ;;
+        --print-config)
+            print_config
+            exit 0
+            ;;
+        --status)
+            print_config
+            if is_core_running; then
+                echo "core_running=yes"
+            else
+                echo "core_running=no"
+            fi
+            if [[ -f "$(autostart_file)" ]]; then
+                echo "autostart=yes"
+            else
+                echo "autostart=no"
+            fi
+            exit 0
+            ;;
+        --install-autostart)
+            install_autostart
+            exit 0
+            ;;
+        --remove-autostart)
+            remove_autostart
+            exit 0
+            ;;
+    esac
+done
+
+# Core serves both paths: the extension talks to it over D-Bus and the overlay
+# reads settings from it. Start it before the mode branch so the extension does
+# not come up against a dead bus name.
 ensure_core
 
-# Determine whether to use GNOME extension or standalone Qt6 overlay
-if [[ "$IS_GNOME" == "true" && "$DISPLAY_MODE" == "dynamic" && "$STANDALONE_OVERRIDE" == "false" && "$SMOKE_TEST" == "false" && "$COMPANION_MODE" == "false" ]]; then
-    if command -v gnome-extensions &>/dev/null; then
-        # Terminate any lingering standalone Qt6 UI to prevent double overlay rendering
-        pkill -f "linux-island-ui" 2>/dev/null || true
-        gnome-extensions enable linux-island@local || true
-        # If launched via autostart or systemd-ui, extension owns the top bar
-        if [[ "$MODE_FLAG" == "--autostart" || "$MODE_FLAG" == "--systemd-ui" ]]; then
+# --- extension path --------------------------------------------------------
+
+if [[ "$MODE" == "extension" ]]; then
+    if command -v gnome-extensions >/dev/null 2>&1; then
+        pkill -x linux-island-ui 2>/dev/null || true
+        gnome-extensions enable linux-island@local >/dev/null 2>&1 || true
+        if [[ "$AUTOSTART" == true || "$SYSTEMD_UI" == true ]]; then
             exit 0
         fi
         echo "Linux Island: GNOME Shell extension enabled for Dynamic Mode."
         exit 0
     fi
+    echo "WARNING: gnome-extensions not found; falling back to the Qt overlay." >&2
+    MODE="overlay"
 fi
 
-# In non-GNOME or Floating mode or --standalone:
-# If running on GNOME in floating mode or standalone, disable extension to avoid double rendering
-if [[ "$IS_GNOME" == "true" && "$COMPANION_MODE" == "false" && ( "$DISPLAY_MODE" == "floating" || "$STANDALONE_OVERRIDE" == "true" ) ]]; then
-    if command -v gnome-extensions &>/dev/null; then
-        gnome-extensions disable linux-island@local 2>/dev/null || true
-    fi
+# --- overlay path ----------------------------------------------------------
+
+if [[ "$IS_GNOME" == true ]] && command -v gnome-extensions >/dev/null 2>&1; then
+    gnome-extensions disable linux-island@local >/dev/null 2>&1 || true
 fi
-if [[ -z "$UI_BIN" || ! -x "$UI_BIN" ]]; then
+
+if [[ -z "${UI_BIN:-}" || ! -x "$UI_BIN" ]]; then
     echo "ERROR: linux-island-ui binary not found or not executable." >&2
     exit 1
+fi
+
+if [[ "$PLATFORM" != "default" ]]; then
+    export QT_QPA_PLATFORM="$PLATFORM"
+    if [[ "$PLATFORM" == "wayland" && -z "${DISPLAY:-}" ]]; then
+        echo "WARNING: native Wayland overlay has no top-center placement or input shaping." >&2
+    fi
+fi
+
+# One overlay per session. The lock file lives on the runtime dir so it dies
+# with the session; without flock we simply launch, as before.
+LOCK_HELD=false
+LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/linux-island-ui.lock"
+if [[ "$COMPANION" == false && "$SMOKE_TEST" == false ]] && command -v flock >/dev/null 2>&1; then
+    # A runtime dir we cannot write is not a reason to refuse to launch.
+    if exec 9>"$LOCK_FILE" 2>/dev/null; then
+        if ! flock -n 9; then
+            if [[ "$STANDALONE" == true ]]; then
+                pkill -x linux-island-ui 2>/dev/null || true
+                sleep 0.2
+                if flock -n 9; then
+                    LOCK_HELD=true
+                fi
+            fi
+            if [[ "$LOCK_HELD" == false ]]; then
+                echo "Linux Island overlay already running."
+                exit 0
+            fi
+        else
+            LOCK_HELD=true
+        fi
+    fi
 fi
 
 exec "$UI_BIN" "$@"

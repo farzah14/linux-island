@@ -139,6 +139,16 @@ wlp58s0: 10000000  1000    0    0    0     0          0         0  5000000   100
             if (mockFiles[path]) return mockFiles[path]();
             return null;
         },
+        readStorage: (mountPath) => {
+            if (mountPath === '/') {
+                return {
+                    size: 250 * 1024 ** 3,
+                    free: 100 * 1024 ** 3,
+                    used: 135 * 1024 ** 3,
+                };
+            }
+            return null;
+        },
     });
 
     // First collect initializes previous CPU sample
@@ -159,6 +169,11 @@ wlp58s0: 10000000  1000    0    0    0     0          0         0  5000000   100
     const m2 = collector.collect();
     assertEqual(m2.cpu.percent, 37.5);
     assertEqual(m2.cpu.text, '38%');
+    assert(m2.storage);
+    assertEqual(m2.storage.label, 'DISK');
+    assertEqual(m2.storage.used, 135 * 1024 ** 3);
+    assertEqual(m2.storage.compactDetailText, '135/250 GB');
+    assertEqual(m2.storage.text, '57%'); // 135 / (135 + 100) * 100 = 57.4%
 }
 
 console.log('PASS: system metrics parser, calculations and collector tests');

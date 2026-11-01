@@ -148,6 +148,16 @@ stage_dev_loader() {
     # Reuse the single source of truth for the loader source.
     ISLAND_EMIT_LOADER="$dest" bash "$loader_src" emit-loader >/dev/null
     declare_host_version "$dest/metadata.json"
+
+    # Seed an initial generation so island-dev@local can enable immediately
+    # without waiting for a manual dev-reload.sh run.
+    local dev_runtime="$STATE_DIR/runtime/linux-island-dev"
+    local gen0="$dev_runtime/run-initial"
+    mkdir -p "$dev_runtime"
+    rm -rf "$gen0"
+    cp -a "$SRC_EXT" "$gen0"
+    declare_host_version "$gen0/metadata.json"
+    printf '%s' "$gen0" > "$dev_runtime/current.txt"
     printf '%s' "$dest"
 }
 

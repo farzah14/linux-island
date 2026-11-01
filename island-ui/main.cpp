@@ -1,6 +1,8 @@
 #include <QGuiApplication>
 #include <csignal>
+#include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
@@ -20,6 +22,15 @@
 #include "display_surface_manager.h"
 
 int main(int argc, char *argv[]) {
+    // Must run before QtWebEngineQuick::initialize(), which is expensive and
+    // would otherwise print Chromium noise for a plain version query.
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--version") == 0) {
+            std::printf("linux-island-ui %s\n", ISLAND_VERSION);
+            return 0;
+        }
+    }
+
     bool smokeTest = false;
     bool isCompanionMode = false;
     QString companionUrl;
@@ -43,9 +54,15 @@ int main(int argc, char *argv[]) {
         qputenv("QT_QPA_PLATFORM", "offscreen");
     }
 
+    // X11 WM_CLASS instance comes from RESOURCE_NAME (or argv0), the class from
+    // applicationName. Pin both so the shipped window rules and
+    // StartupWMClass=linux-island-ui actually match.
+    qputenv("RESOURCE_NAME", "linux-island-ui");
+
     QtWebEngineQuick::initialize();
     QGuiApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("linux-island-ui"));
+    app.setDesktopFileName(QStringLiteral("linux-island"));
     app.setOrganizationName(QStringLiteral("LinuxIsland"));
 
     IslandClient client;
@@ -151,9 +168,12 @@ int main(int argc, char *argv[]) {
 
     QQuickWindow *rootWindow = qobject_cast<QQuickWindow*>(engine.rootObjects().first());
     if (rootWindow) {
-        delete surfaceMgr;
-        surfaceMgr = new DisplaySurfaceManager(rootWindow, &client, &app);
-        engine.rootContext()->setContextProperty(QStringLiteral("surfaceManager"), surfaceMgr);
+        surfaceMgr->attachWindow(rootWindow);
+    }
+
+    if (smokeTest && rootWindow && rootWindow->mask().isEmpty()) {
+        std::cerr << "Smoke test error: rootWindow mask is empty!" << std::endl;
+        return 7;
     }
 
     if (smokeTest) {

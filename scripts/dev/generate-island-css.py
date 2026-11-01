@@ -81,6 +81,8 @@ def generate():
             f'{root} .linux-island__beat-bar': {'background-color': colors['accent.primary']},
             f'{root} .linux-island__progress-track': {'background-color': colors['progress.track']},
             f'{root} .linux-island__progress-fill': {'background-color': colors['progress.fill']},
+            f'{root} .linux-island__volume-track': {'background-color': colors['progress.track']},
+            f'{root} .linux-island__volume-fill': {'background-color': colors['progress.fill']},
             f'{root} .linux-island__progress-time': {'color': colors['text.secondary']},
             f'{root} .linux-island__metric-tile': {'background-color': 'transparent'},
             f'{root} .linux-island__metric-icon': {'color': colors['text.secondary']},

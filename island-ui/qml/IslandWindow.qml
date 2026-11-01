@@ -74,13 +74,23 @@ Window {
             NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
         }
         // Notify surface manager of input mask whenever allocation updates
-        onXChanged: updateMask()
-        onYChanged: updateMask()
-        onWidthChanged: updateMask()
-        onHeightChanged: updateMask()
-        onVisibleChanged: updateMask()
+        property bool _maskUpdatePending: false
+
+        onXChanged: queueMaskUpdate()
+        onYChanged: queueMaskUpdate()
+        onWidthChanged: queueMaskUpdate()
+        onHeightChanged: queueMaskUpdate()
+        onVisibleChanged: queueMaskUpdate()
+        Component.onCompleted: updateMask()
+
+        function queueMaskUpdate() {
+            if (_maskUpdatePending) return;
+            _maskUpdatePending = true;
+            Qt.callLater(updateMask);
+        }
 
         function updateMask() {
+            _maskUpdatePending = false;
             if (!visible || islandClient.uiState === "HIDDEN") {
                 surfaceManager.updateInputMask(0, 0, 0, 0);
             } else {

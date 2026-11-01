@@ -10,7 +10,8 @@ export class GnomeDisplayAdapter {
      */
     constructor(options = {}) {
         this._display = options.display ?? (typeof global !== 'undefined' ? global.display : null);
-        this._workspaceManager = options.workspaceManager ?? (typeof global !== 'undefined' ? global.workspace_manager : null);
+        this._workspaceManager = options.workspaceManager ??
+            (typeof global !== 'undefined' ? (global.workspace_manager ?? global.display?.get_workspace_manager?.()) : null);
         this._layoutManager = options.layoutManager ?? null;
 
         this._listeners = new Set();

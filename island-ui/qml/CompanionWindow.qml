@@ -13,6 +13,24 @@ Window {
     property string initialUrl: typeof initialCompanionUrl !== "undefined" ? initialCompanionUrl : ""
     property bool standaloneProcess: typeof isStandaloneCompanion !== "undefined" ? isStandaloneCompanion : false
 
+    // In overlay mode IslandWindow's Loader assigns initialUrl from
+    // onLoaded, which runs *after* WebEngineView.Component.onCompleted.
+    // Without this flag the URL was read while still empty and the view
+    // stayed on about:blank. Navigation is deferred until the view (and its
+    // cookie import) exists, then every later assignment still navigates.
+    property bool readyForNavigation: false
+
+    onInitialUrlChanged: {
+        // webView may not exist yet while the Loader is still instantiating;
+        // the WebEngineView's own Component.onCompleted covers that case.
+        if (!windowRoot.readyForNavigation || !webView)
+            return;
+        if (!windowRoot.initialUrl || windowRoot.initialUrl.length === 0)
+            return;
+        if (webView.url.toString() !== windowRoot.initialUrl)
+            webView.url = windowRoot.initialUrl;
+    }
+
     width: 720
     height: 520
 
@@ -36,11 +54,17 @@ Window {
     // and passive account pages need a real Google session, not just any one.
     property bool googleSessionImported: false
 
-    function requiresSystemBrowser(urlStr) {
+    // `isMainFrame` matters: Google pages embed https://accounts.google.com
+    // subframes (e.g. RotateCookiesPage, GSI). Handing those off opened the
+    // user's browser on every single search even though the page itself was
+    // loading fine in the companion. Only a top-level navigation to a
+    // sign-in host is a real "this must happen in the real browser" event.
+    function requiresSystemBrowser(urlStr, isMainFrame) {
         if (typeof searchProvider === "undefined") {
             return false;
         }
-        return searchProvider.requiresSystemBrowser(urlStr, windowRoot.googleSessionImported);
+        return searchProvider.requiresSystemBrowser(urlStr, windowRoot.googleSessionImported,
+                                                   isMainFrame !== false);
     }
 
     property bool handedOff: false
@@ -357,7 +381,11 @@ Window {
                 var urlStr = request.url.toString();
                 // Google blocks embedded-browser sign-in; send it to the real
                 // browser instead of letting the user hit "Couldn't sign you in".
-                if (windowRoot.requiresSystemBrowser(urlStr)) {
+                // Subframe navigations are excluded: Google's search pages load
+                // accounts.google.com iframes and those must not trigger a
+                // browser handoff on an otherwise working search.
+                var isMainFrame = typeof request.isMainFrame === "boolean" ? request.isMainFrame : true;
+                if (windowRoot.requiresSystemBrowser(urlStr, isMainFrame)) {
                     if (typeof request.reject === "function") {
                         request.reject();
                     } else {
@@ -420,6 +448,7 @@ Window {
                         console.log("linux-island: cookie import skipped: " + cookieImporter.lastError());
                     }
                 }
+                windowRoot.readyForNavigation = true;
                 if (windowRoot.initialUrl && windowRoot.initialUrl.length > 0) {
                     webView.url = windowRoot.initialUrl;
                 }

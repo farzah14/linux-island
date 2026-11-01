@@ -4,3 +4,9 @@
 __pycache__/
 git-history.bundle
 RELEASE_MANIFEST_SHA256.txt
+/build/dist/
+*.deb
+*.rpm
+*.tar.gz
+packaging/arch/pkg/
+packaging/arch/src/

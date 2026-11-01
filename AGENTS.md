@@ -4,7 +4,7 @@ This file is automatically discoverable by many coding agents. Follow it before 
 
 ## Product facts
 
-- Linux Island MVP v0.1 targets **Ubuntu 24.04 / GNOME 46 / Wayland** only for first runtime acceptance.
+- GNOME 45–50 Wayland is the primary target; other desktops use the Qt overlay via XWayland. First runtime acceptance is still gated on a disposable GNOME session.
 - Long-term: multiple Linux desktop environments and Dynamic/Floating/Integrated modes; **v0.1** requires Dynamic Mode only.
 - Approved architecture: GNOME Shell Extension GJS for live Island UI; C++20 + Qt6 Core for data/settings and D-Bus Session Bus; Qt Quick/QML for Settings.
 - UI states are `HIDDEN`, `COMPACT`, `PREVIEW`, `EXPANDED`, `PEEK`; fullscreen visibility wins; GNOME native notifications remain authoritative.

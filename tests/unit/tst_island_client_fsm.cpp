@@ -1,3 +1,4 @@
+#include <limits>
 #include <QtTest>
 #include "../../island-ui/island_client.h"
 #include "../../island-ui/notification_watcher.h"
@@ -9,6 +10,7 @@ private slots:
     void testStateTransitions();
     void testFormatTime();
     void testIsWhatsAppSource();
+    void testClampVolume();
 };
 
 void TestIslandClientFsm::testStateTransitions() {
@@ -45,6 +47,13 @@ void TestIslandClientFsm::testFormatTime() {
     QCOMPARE(IslandClient::formatTime(5000000), QStringLiteral("0:05"));
     QCOMPARE(IslandClient::formatTime(65000000), QStringLiteral("1:05"));
     QCOMPARE(IslandClient::formatTime(3600000000), QStringLiteral("60:00"));
+}
+
+void TestIslandClientFsm::testClampVolume() {
+    QCOMPARE(IslandClient::clampVolume(0.75), 0.75);
+    QCOMPARE(IslandClient::clampVolume(1.8), 1.0);
+    QCOMPARE(IslandClient::clampVolume(-0.2), 0.0);
+    QCOMPARE(IslandClient::clampVolume(std::numeric_limits<double>::quiet_NaN()), 1.0);
 }
 
 void TestIslandClientFsm::testIsWhatsAppSource() {

@@ -19,6 +19,10 @@ Executes all automated C++/Qt unit and integration suites:
 - `search-provider`: search URL building, percent-encoding, and navigation scheme validation.
 - `cookie-importer`: v24+ digest stripping, expiry rejection, and decrypt success/failure separation.
 - `companion-persistence`: two real companion launches share one cookie jar (skips when WebEngine is unavailable).
+- `packaging-install`: staged `cmake --install`, systemd unit substitution, AppStream/desktop validation and CPack TGZ+DEB.
+- `launcher-routing`: GNOME extension vs Qt overlay routing, XWayland platform selection, argument-only commands.
+- `local-install`: `install-local.sh` → `uninstall-local.sh` round trip in a throwaway `$HOME`.
+- `extension-notification-adapter`: the notification bridge under Node (registered when `node` is present).
 
 ### Build Dependencies for Search
 
@@ -68,9 +72,21 @@ python3 design-system/qa/test_warm_palette.py
 
 ### Install
 ```bash
-bash packaging/dev/install-local.sh
+bash packaging/dev/install-local.sh --build
 ```
-Installs binaries to `~/.local/libexec/` and `~/.local/bin/`, user service to `~/.config/systemd/user/`, and extension to `~/.local/share/gnome-shell/extensions/linux-island@local`.
+The script runs `cmake --install` into `~/.local` (override with `--prefix`),
+moves the systemd user unit into `~/.config/systemd/user/`, and installs the
+XDG autostart entry. Binaries land in `~/.local/libexec/` and `~/.local/bin/`,
+the extension in `~/.local/share/gnome-shell/extensions/linux-island@local`.
+
+Every installed path is recorded in
+`~/.local/share/linux-island/installed-files.txt`; the script verifies each one
+exists and prints `Verified: <n> installed files.`.
+
+`--no-systemd` skips the unit (useful on non-systemd sessions) and
+`--no-autostart` skips the autostart entry. There is no UI systemd unit: the Qt
+overlay is a graphical client that exits on GNOME by design, so it is started by
+the XDG autostart entry instead.
 
 ### Start Core Service
 ```bash
@@ -82,7 +98,9 @@ systemctl --user status linux-island-core.service
 ```bash
 bash packaging/dev/uninstall-local.sh
 ```
-Stops the service, disables the extension, removes installed files, and reports preserved user settings location.
+Stops the service, disables the extension, removes every path in the manifest
+plus paths written by older releases, and reports the preserved settings
+location. `--purge-config` deletes `~/.config/linux-island` as well.
 
 ---
 
@@ -103,7 +121,7 @@ does not recover it for a subsequent desktop session. Do not add
 services, and the reverse ordering would create a cycle.
 
 For an existing installation, back up the installed service file, copy
-`packaging/systemd-user/linux-island-core.service` into
+`packaging/systemd-user/linux-island-core.service.in` into
 `~/.config/systemd/user/linux-island-core.service`, then run:
 
 ```bash
@@ -116,6 +134,6 @@ systemctl --user start linux-island-core.service
 `graphical-session.target.wants`. This changes Core startup only and does not
 install or reload the Shell extension. Validate the unit with
 `python3 tests/integration/test_session_service.py` and
-`systemd-analyze --user verify packaging/systemd-user/linux-island-core.service`.
+`systemd-analyze --user verify ~/.config/systemd/user/linux-island-core.service`.
 A successful logout/login cycle still requires manual runtime acceptance; never
 stop `graphical-session.target` inside the user's active desktop as a test.

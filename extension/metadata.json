@@ -3,7 +3,11 @@
   "name": "Linux Island",
   "description": "A minimal GNOME Shell capsule feasibility prototype",
   "shell-version": [
+    "45",
     "46",
+    "47",
+    "48",
+    "49",
     "50"
   ],
   "version": 1

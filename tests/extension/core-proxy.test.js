@@ -100,4 +100,117 @@ expect(isNewer(5, 4, true), false, 'Stale revision on same instance is rejected'
     expect(proxy.isDestroyed, true, 'Proxy marked destroyed');
 }
 
+// 6. queryAvailablePlayers on MediaChanged and snapshot load
+{
+    let listNamesCount = 0;
+    let receivedPlayers = null;
+    const fakeGio = {
+        DBusCallFlags: { NONE: 0 },
+        DBus: {
+            session: {
+                call(bus, path, iface, method, params, replyType, flags, timeout, cancellable, callback) {
+                    if (method === 'ListNames') {
+                        listNamesCount++;
+                        callback(this, {
+                            deepUnpack: () => [['org.mpris.MediaPlayer2.spotify', 'org.freedesktop.DBus']],
+                        });
+                    }
+                },
+                call_finish(res) {
+                    return res;
+                },
+            },
+        },
+    };
+
+    const proxy = new CoreProxy({
+        gio: fakeGio,
+        onPlayersChanged: players => { receivedPlayers = players; },
+    });
+
+    proxy._state.instanceId = 'test-inst';
+    proxy._onSignal('MediaChanged', [1, { title: 'Song' }]);
+    expect(listNamesCount, 1, 'queryAvailablePlayers invoked on MediaChanged signal');
+    expect(receivedPlayers && receivedPlayers[0], 'org.mpris.MediaPlayer2.spotify', 'available players populated');
+    proxy.destroy();
+
+    // Snapshot load invokes queryAvailablePlayers
+    let snapshotListNamesCount = 0;
+    const snapGio = {
+        DBusCallFlags: { NONE: 0 },
+        DBus: {
+            session: {
+                call(bus, path, iface, method, params, replyType, flags, timeout, cancellable, callback) {
+                    if (method === 'ListNames') {
+                        snapshotListNamesCount++;
+                        callback(this, {
+                            deepUnpack: () => [['org.mpris.MediaPlayer2.vlc']],
+                        });
+                    }
+                },
+                call_finish(res) {
+                    return res;
+                },
+            },
+        },
+    };
+    const snapProxy = new CoreProxy({
+        gio: snapGio,
+    });
+    snapProxy._proxy = {
+        g_name_owner: ':1.99',
+        call(method, params, flags, timeout, cancellable, callback) {
+            if (method === 'GetSnapshot') {
+                callback(this, {
+                    deepUnpack: () => [{
+                        instanceId: 'inst-snap',
+                        mediaRevision: 0,
+                        settingsRevision: 0,
+                        status: 'ready',
+                        media: {},
+                        settings: {},
+                    }],
+                });
+            }
+        },
+        call_finish(res) {
+            return res;
+        },
+    };
+    snapProxy._fetchSnapshot();
+    expect(snapshotListNamesCount, 1, 'queryAvailablePlayers invoked on snapshot load');
+    snapProxy.destroy();
+
+    // Test numeric settings encoding under GJS
+    if (typeof process === 'undefined') {
+        const gi = await import('gi://Gio');
+        const gjsGio = gi.default ?? gi;
+        let updateParams = null;
+        const gjsProxy = new CoreProxy({ gio: gjsGio });
+        gjsProxy._proxy = {
+            g_name_owner: ':1.100',
+            call(method, params, flags, timeout, cancellable, callback) {
+                if (method === 'UpdateSettings') {
+                    updateParams = params;
+                    callback(this, {});
+                }
+            },
+            call_finish() {
+                return { deepUnpack: () => [true] };
+            },
+        };
+        await gjsProxy.updateSettings({
+            theme: 'dark',
+            animationEnabled: false,
+            verticalOffset: 32,
+            opacityFraction: 0.85,
+        });
+        expect(Boolean(updateParams), true, 'UpdateSettings called with params in GJS');
+        const [unpacked] = updateParams.deepUnpack();
+        expect(unpacked.verticalOffset?.deepUnpack?.() ?? unpacked.verticalOffset, 32, 'Integer offset encoded');
+        expect(Math.abs((unpacked.opacityFraction?.deepUnpack?.() ?? unpacked.opacityFraction) - 0.85) < 0.001, true, 'Float encoded');
+        gjsProxy.destroy();
+    }
+}
+
 console.log('PASS: 18 core-proxy and reconciler tests');

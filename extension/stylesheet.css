@@ -125,6 +125,14 @@
     background-color: #D8B77F;
 }
 
+.linux-island--dark .linux-island__volume-track {
+    background-color: #575148;
+}
+
+.linux-island--dark .linux-island__volume-fill {
+    background-color: #D8B77F;
+}
+
 .linux-island--dark .linux-island__progress-time {
     color: #C8C0B5;
 }
@@ -389,6 +397,14 @@
 }
 
 .linux-island--light .linux-island__progress-fill {
+    background-color: #80551F;
+}
+
+.linux-island--light .linux-island__volume-track {
+    background-color: #C7BCAE;
+}
+
+.linux-island--light .linux-island__volume-fill {
     background-color: #80551F;
 }
 

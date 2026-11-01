@@ -294,6 +294,16 @@ export class FeatureCarousel {
         });
     }
 
+    _hasClass(actor, className) {
+        if (!actor) return false;
+        // Real St.Widget actors expose has_style_class_name(); the Node test
+        // doubles only carry a `classes` Set, so support both.
+        if (typeof actor.has_style_class_name === 'function' && actor.has_style_class_name(className)) {
+            return true;
+        }
+        return Boolean(actor.classes?.has?.(className));
+    }
+
     _isInteractiveControl(source) {
         if (!source) return false;
         if (this._navBox) {
@@ -302,23 +312,26 @@ export class FeatureCarousel {
             if (Array.isArray(this._navBox.children) && this._navBox.children.includes(source)) return true;
         }
         if (Array.isArray(this._navButtons) && this._navButtons.includes(source)) return true;
+        const interactiveClasses = [
+            'linux-island__section-btn',
+            'linux-island__media-button',
+            'linux-island__quick-toggle',
+            'linux-island__player-badge',
+            'linux-island__progress-track',
+            'linux-island__progress-fill',
+            'linux-island__volume-track',
+            'linux-island__volume-fill',
+            'linux-island__quota-action',
+            'linux-island__quota-row',
+            'linux-island__search-entry',
+            'linux-island__search-action',
+            'linux-island__search-engine-btn',
+            'linux-island__search-engine-btn--active',
+            'linux-island__carousel-dot',
+        ];
         let curr = source;
         while (curr && curr !== this.actor) {
-            if (curr.classes && (curr.classes.has('linux-island__section-btn') ||
-                curr.classes.has('linux-island__media-button') ||
-                curr.classes.has('linux-island__quick-toggle') ||
-                curr.classes.has('linux-island__player-badge') ||
-                curr.classes.has('linux-island__progress-track') ||
-                curr.classes.has('linux-island__progress-fill') ||
-                curr.classes.has('linux-island__quota-action') ||
-                curr.classes.has('linux-island__quota-row') ||
-                curr.classes.has('linux-island__search-entry') ||
-                curr.classes.has('linux-island__search-action') ||
-                curr.classes.has('linux-island__search-engine-btn') ||
-                curr.classes.has('linux-island__search-engine-btn--active') ||
-                curr.classes.has('linux-island__carousel-dot'))) {
-                return true;
-            }
+            if (interactiveClasses.some(cls => this._hasClass(curr, cls))) return true;
             curr = typeof curr.get_parent === 'function' ? curr.get_parent() : null;
         }
         return false;

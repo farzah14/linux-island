@@ -191,7 +191,7 @@ write_loader() {
   "uuid": "island-dev@local",
   "name": "Linux Island (dev loader)",
   "description": "Development loader: re-imports Linux Island from a fresh path on every enable.",
-  "shell-version": ["46", "48", "49", "50"],
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
   "version": 1
 }
 JSON

@@ -43,6 +43,12 @@
 
 ## 4. Unsupported Scope & Documented Limitations in v0.1
 
-- **Desktop Environments:** GNOME Shell on Wayland only. X11, KDE Plasma, XFCE, and wlroots are out of scope for v0.1.
-- **Display Modes:** Dynamic Mode only. Floating Mode and Integrated Mode are deferred to future roadmap releases.
+- **Desktop Environments:** GNOME 45–50 on Wayland or X11 is the primary target
+  and uses the Shell extension in Dynamic Mode. KDE Plasma (Wayland with the
+  optional KWin rule, X11 without), XFCE, Cinnamon, MATE, i3 and bspwm run the
+  Qt overlay. Sway/Hyprland Wayland and GNOME floating/integrated modes are
+  experimental; a Wayland session without XWayland is unsupported. The full
+  matrix is in [`desktop-environments.md`](desktop-environments.md).
+- **Display Modes:** Dynamic Mode is the supported path. Floating Mode and
+  Integrated Mode remain experimental on GNOME.
 - **Artwork Fetching:** Remote HTTP/HTTPS album art downloads are intentionally disabled for security.

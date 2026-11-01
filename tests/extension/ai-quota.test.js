@@ -338,6 +338,7 @@ const NOW = 1793169738000;
         add_child(child) { this.children.push(child); }
         set_child(child) { this.children = [child]; }
         connect(event, fn) { this.handlers[event] = fn; return event; }
+        disconnect(event) { delete this.handlers[event]; }
         destroy() { this.destroyed = true; }
     }
 
@@ -368,6 +369,7 @@ const NOW = 1793169738000;
         `  add_child(c) { this.children.push(c); }\n` +
         `  set_child(c) { this.children = [c]; }\n` +
         `  connect(ev, fn) { this.handlers[ev] = fn; return ev; }\n` +
+        `  disconnect(ev) { delete this.handlers[ev]; }\n` +
         `  destroy() { this.destroyed = true; }\n` +
         `}\n` +
         `MockSt.Button = MockActor;\nMockSt.BoxLayout = MockActor;\nMockSt.Label = MockActor;\nMockSt.Icon = MockActor;\nMockSt.Widget = MockActor;\n` +
@@ -465,6 +467,42 @@ const NOW = 1793169738000;
 
     section.destroy();
     assert(section.actor === null, 'section destroyed');
+
+    // Test repeat(fn, ms) scheduler receives 15000ms from start()
+    let repeatMsPassed = null;
+    let repeatCancelledId = null;
+    const repeatSched = {
+        repeat: (fn, ms) => {
+            repeatMsPassed = ms;
+            return 'repeat-timer-1';
+        },
+        cancel: (id) => {
+            repeatCancelledId = id;
+        },
+    };
+    const repeatSection = new AiQuotaSection({
+        collector: mockCollector,
+        scheduler: repeatSched,
+    });
+    repeatSection.start();
+    assertEqual(repeatMsPassed, 15000, 'AiQuotaSection passes 15000 ms to repeat scheduler');
+    repeatSection.stop();
+    assertEqual(repeatCancelledId, 'repeat-timer-1', 'AiQuotaSection cancels repeat scheduler');
+    repeatSection.destroy();
+
+    // Test notify::mapped stops section when unmapped
+    const mappedSection = new AiQuotaSection({
+        collector: mockCollector,
+        scheduler: repeatSched,
+    });
+    assert(typeof mappedSection.actor.handlers['notify::mapped'] === 'function', 'notify::mapped listener attached to actor');
+    mappedSection.start();
+    assert(mappedSection._active, 'mappedSection is active');
+    mappedSection.actor.mapped = false;
+    mappedSection.actor.handlers['notify::mapped']();
+    assert(!mappedSection._active, 'mappedSection stops when unmapped');
+    mappedSection.destroy();
+    assertEqual(mappedSection._mappedSignalId, null, 'mapped signal disconnected on destroy');
 }
 
 console.log('PASS: AI quota parsers, multi-window remaining % calculations, fallback, and view lifecycle tests');

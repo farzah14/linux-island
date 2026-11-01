@@ -31,6 +31,7 @@ class IslandClient : public QObject {
     Q_PROPERTY(bool canPrevious READ canPrevious NOTIFY mediaChanged)
     Q_PROPERTY(bool canSeek READ canSeek NOTIFY mediaChanged)
     Q_PROPERTY(QVariantList audioLevels READ audioLevels NOTIFY mediaChanged)
+    Q_PROPERTY(double volume READ volume NOTIFY mediaChanged)
     Q_PROPERTY(QStringList availablePlayers READ availablePlayers NOTIFY availablePlayersChanged)
 
     // Settings properties
@@ -69,6 +70,7 @@ public:
     bool canPrevious() const { return m_canPrevious; }
     bool canSeek() const { return m_canSeek; }
     QVariantList audioLevels() const { return m_audioLevels; }
+    double volume() const { return m_volume; }
     QStringList availablePlayers() const { return m_availablePlayers; }
 
     QString theme() const { return m_theme; }
@@ -86,10 +88,12 @@ public:
 
     static QString transitionState(const QString &currentState, const QString &event);
     static QString formatTime(qlonglong us);
+    static double clampVolume(double value);
 
     Q_INVOKABLE void dispatchEvent(const QString &event);
     Q_INVOKABLE void controlMedia(const QString &action);
     Q_INVOKABLE void seekToFraction(double fraction);
+    Q_INVOKABLE void setVolume(double value);
     Q_INVOKABLE void setActivePlayer(const QString &playerId);
     Q_INVOKABLE void cycleActivePlayer();
     Q_INVOKABLE void updateSettings(const QVariantMap &patch);
@@ -134,6 +138,7 @@ private:
     bool m_canPrevious = false;
     bool m_canSeek = false;
     QVariantList m_audioLevels = {0.0, 0.0, 0.0};
+    double m_volume = 1.0;
     QStringList m_availablePlayers;
 
     // Settings

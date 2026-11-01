@@ -234,6 +234,7 @@ export class CoreProxy {
                         snapshot: snap,
                     });
                     this._setState(next);
+                    this.queryAvailablePlayers();
                 } catch (_) {
                     // Call cancelled or service exited
                 }
@@ -260,6 +261,7 @@ export class CoreProxy {
                     media,
                 });
                 this._setState(next);
+                this.queryAvailablePlayers();
             } else if (sigName === 'SettingsChanged') {
                 const [rev, settings] = unpacked;
                 const next = reconcileState(this._state, {
@@ -335,6 +337,10 @@ export class CoreProxy {
                     dict[key] = new GLib.Variant('s', val);
                 } else if (typeof val === 'boolean') {
                     dict[key] = new GLib.Variant('b', val);
+                } else if (typeof val === 'number' && Number.isFinite(val)) {
+                    dict[key] = Number.isInteger(val)
+                        ? new GLib.Variant('i', val)
+                        : new GLib.Variant('d', val);
                 }
             }
 

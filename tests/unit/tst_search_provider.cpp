@@ -135,6 +135,19 @@ void TestSearchProvider::testRequiresSystemBrowser() {
     QVERIFY(!provider.requiresSystemBrowser(QString()));
     QVERIFY(!provider.requiresSystemBrowser(QStringLiteral("not a url")));
     QVERIFY(!provider.requiresSystemBrowser(QString(), true));
+
+    // Subframe navigations never hand off, even to a sign-in host. Google's
+    // result pages embed accounts.google.com iframes (RotateCookiesPage, GSI);
+    // handing those off opened the system browser on every single search.
+    QVERIFY(!provider.requiresSystemBrowser(
+        QStringLiteral("https://accounts.google.com/RotateCookiesPage?og_pid=1&rot=3"), false, false));
+    QVERIFY(!provider.requiresSystemBrowser(
+        QStringLiteral("https://accounts.google.com/gsi/iframe/select"), true, false));
+    QVERIFY(!provider.requiresSystemBrowser(QStringLiteral("https://accounts.youtube.com/"), true, false));
+
+    // The same URL as a top-level navigation still hands off.
+    QVERIFY(provider.requiresSystemBrowser(
+        QStringLiteral("https://accounts.google.com/RotateCookiesPage?og_pid=1&rot=3"), false, true));
 }
 
 QTEST_MAIN(TestSearchProvider)

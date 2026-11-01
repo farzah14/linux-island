@@ -1,5 +1,7 @@
 # D-Bus integration targets are introduced in milestone M1.
 add_test(NAME dbus-schema COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_schema.py)
+add_test(NAME session-service COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_session_service.py)
+add_test(NAME m0-scaffold COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_m0_scaffold.py)
 
 # Developer workflow tooling (no live shell required).
 add_test(NAME dev-session
@@ -66,4 +68,20 @@ if(DBUS_RUN_SESSION)
     add_test(NAME mpris-flow COMMAND ${DBUS_RUN_SESSION} $<TARGET_FILE:tst_mpris_flow>)
 else()
     add_test(NAME mpris-flow COMMAND tst_mpris_flow)
+endif()
+
+# Installability: the same CMake install rules back every package, so a staged
+# install plus a CPack run is the closest offline proof that a package works.
+add_test(NAME packaging-install
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_packaging.py
+            --build-dir ${CMAKE_BINARY_DIR})
+add_test(NAME launcher-routing
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_launcher.py)
+add_test(NAME local-install
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_local_install.py)
+
+find_program(NODE_EXECUTABLE node)
+if(NODE_EXECUTABLE)
+    add_test(NAME extension-notification-adapter
+        COMMAND ${NODE_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/extension/notification-adapter.test.js)
 endif()

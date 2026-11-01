@@ -88,7 +88,7 @@ globalThis.renderTest = {
     estimateTimeline, formatTime,
     Clutter: {ActorAlign: {CENTER: 1, END: 2}, AnimationMode: {EASE_OUT_CUBIC: 1, EASE_IN_OUT_CUBIC: 2},
         EventType: {BUTTON_PRESS: 1, TOUCH_BEGIN: 2, KEY_PRESS: 3},
-        EVENT_STOP: 1, EVENT_PROPAGATE: 0, KEY_Escape: 27},
+        EVENT_STOP: 1, EVENT_PROPAGATE: 0, KEY_Escape: 27, KEY_Return: 65293},
     Main: {layoutManager: {primaryMonitor: {x: 0, y: 0, width: 1366},
         addTopChrome() {}, removeChrome() {}, connectObject() {}, disconnectObject() {}}},
     SystemMetricsCollector,
@@ -278,19 +278,36 @@ assert.equal(globalThis.renderTest.launchedUris.at(-1), 'https://www.google.com/
     'submitting the search opens the default browser');
 assert.equal(search._entry.get_text(), '', 'search entry clears after a successful launch');
 
-search._engineButtons.duckduckgo.handlers['clicked']();
-assert.equal(search._engine, 'duckduckgo', 'engine chip switches the active engine');
-assert.ok(search._engineButtons.duckduckgo.classes.has('linux-island__search-engine-btn--active'),
-    'DuckDuckGo chip is active');
+// Enter on the outer St.Entry must submit even when key focus sits there
+// instead of on the inner Clutter.Text.
+{
+    const {Clutter} = globalThis.renderTest;
+    search._entry.set_text('keyboard query');
+    const res = search._entry.handlers['key-press-event'](search._entry, {
+        get_key_symbol: () => Clutter.KEY_Return,
+    });
+    assert.equal(res, Clutter.EVENT_STOP, 'Enter is consumed by the search entry');
+    assert.equal(globalThis.renderTest.launchedUris.at(-1),
+        'https://www.google.com/search?q=keyboard%20query', 'Enter submits the query');
+    assert.equal(search._entry.get_text(), '', 'Enter clears the entry after launching');
+}
+
+search._entry.focused = false;
+assert.deepEqual(Object.keys(search._engineButtons), ['google', 'brave'], 'only Google and Brave chips exist');
+search._engineButtons.brave.handlers['clicked']();
+assert.equal(search._engine, 'brave', 'engine chip switches the active engine');
+assert.equal(search._entry.focused, true, 'engine chip click returns focus to the entry');
+assert.ok(search._engineButtons.brave.classes.has('linux-island__search-engine-btn--active'),
+    'Brave chip is active');
 assert.ok(!search._engineButtons.google.classes.has('linux-island__search-engine-btn--active'),
     'Google chip is no longer active');
 
-capsule.setSearchEngine('brave');
-assert.equal(search._engine, 'brave', 'capsule pushes engine changes into the search page');
-assert.ok(search._engineButtons.brave.classes.has('linux-island__search-engine-btn--active'),
-    'Brave chip is active');
-assert.ok(!search._engineButtons.duckduckgo.classes.has('linux-island__search-engine-btn--active'),
-    'DuckDuckGo chip is no longer active');
+capsule.setSearchEngine('google');
+assert.equal(search._engine, 'google', 'capsule pushes engine changes into the search page');
+assert.ok(search._engineButtons.google.classes.has('linux-island__search-engine-btn--active'),
+    'Google chip becomes active');
+assert.ok(!search._engineButtons.brave.classes.has('linux-island__search-engine-btn--active'),
+    'Brave chip becomes inactive');
 
 // Companion subprocess launch and capsule handoff
 {
@@ -331,7 +348,7 @@ assert.ok(!search._engineButtons.duckduckgo.classes.has('linux-island__search-en
 
     assert.ok(subprocessArgs, 'companion subprocess was created');
     assert.equal(subprocessArgs[1], '--companion', 'launched with --companion');
-    assert.equal(subprocessArgs[2], 'https://search.brave.com/search?q=embedded%20companion%20query', 'correct encoded query passed');
+    assert.equal(subprocessArgs[2], 'https://www.google.com/search?q=embedded%20companion%20query', 'correct encoded query passed');
     assert.ok(capsule._companionActive, 'capsule marks companion active');
     assert.equal(capsule._widget.visible, true, 'capsule widget remains visible as compact pill during companion session');
     assert.equal(capsule._currentState, 'COMPACT', 'capsule switches to compact pill mode');
@@ -381,14 +398,52 @@ assert.ok(!search._engineButtons.duckduckgo.classes.has('linux-island__search-en
     delete globalThis.renderTest.Gio.Subprocess;
 }
 
+// A companion that fails to start must fall back to the default browser.
+{
+    let waitCallback = null;
+    let exitStatus = 1;
+    globalThis.renderTest.Gio.SubprocessFlags = {NONE: 0};
+    globalThis.renderTest.Gio.Subprocess = class {
+        constructor() {}
+        init() {}
+        wait_async(_cancellable, cb) { waitCallback = cb; }
+        wait_finish() { return true; }
+        send_signal() {}
+        force_exit() {}
+        get_if_exited() { return true; }
+        get_exit_status() { return exitStatus; }
+    };
+
+    const before = globalThis.renderTest.launchedUris.length;
+    const url = 'https://duckduckgo.com/?q=fallback%20search';
+    capsule._mediaView._openSearch(url);
+    assert.ok(waitCallback, 'wait callback registered for fallback test');
+    waitCallback(null, {});
+    assert.equal(globalThis.renderTest.launchedUris.length, before + 1,
+        'non-zero companion exit launches the default browser');
+    assert.equal(globalThis.renderTest.launchedUris.at(-1), url, 'fallback opens the search URL');
+    assert.equal(capsule._mediaView._companionSubprocess, null, 'subprocess cleared after failed start');
+
+    // A clean exit must not launch the browser a second time.
+    exitStatus = 0;
+    capsule._mediaView._openSearch(url);
+    waitCallback(null, {});
+    assert.equal(globalThis.renderTest.launchedUris.length, before + 1,
+        'clean companion exit does not reopen the URL');
+    delete globalThis.renderTest.Gio.Subprocess;
+}
+
 
 carousel._navButtons[0].handlers['clicked']();
 assert.equal(carousel.currentPage, 0, 'clicking button 0 navigates to page 0');
 assert.ok(carousel._navButtons[0].classes.has('linux-island__section-btn--active'), 'button 0 active again');
 assert.ok(!carousel._navButtons[1].classes.has('linux-island__section-btn--active'), 'button 1 inactive again');
 assert.ok(!carousel._navButtons[2].classes.has('linux-island__section-btn--active'), 'button 2 inactive again');
-assert.equal(capsule._mediaView._mediaSection.children.length, 3, 'track, duration progress line, and controls rows in media section');
+assert.equal(capsule._mediaView._mediaSection.children.length, 4, 'track, duration progress line, controls, and volume rows in media section');
 assert.ok(capsule._mediaView._mediaSection.children.includes(capsule._mediaView._progressTrack), 'duration line is restored in media section');
+assert.ok(capsule._mediaView._mediaSection.children.includes(capsule._mediaView._volumeRow), 'volume row is present in media section');
+assert.ok(capsule._mediaView._volumeRow.children.includes(capsule._mediaView._volumeTrack), 'volume track lives in the volume row');
+assert.ok(capsule._mediaView._volumeTrack.children.includes(capsule._mediaView._volumeFill), 'volume fill lives in the volume track');
 assert.equal(capsule._mediaView._systemSection.children.length, 3,
     'metrics, centred NET, and quick toggles in system section');
 assert.equal(capsule._mediaView._systemSection.vertical, false, 'system section is horizontal');
@@ -805,6 +860,58 @@ assert.equal(timelineTicks.size, 1);
 timelineView.destroy();
 assert.equal(timelineTicks.size, 0, 'destroy cancels timeline timer');
 
+// Volume row: click commits one action, mute toggles and remembers the level.
+{
+    let volumeNow = 1000000;
+    const volumeView = new MediaView({clock: () => volumeNow});
+    const volumeActions = [];
+    volumeView._onControlAction = action => volumeActions.push(action);
+    volumeView._volumeTrack.width = 200;
+    volumeView.setMedia({playerId: 'test', title: 'V', playbackStatus: 'Paused', volume: 0.5});
+    assert.equal(volumeView._volumeFraction, 0.5, 'presentation volume seeds the slider');
+    assert.equal(volumeView._volumeFill.width, 100, 'fill reflects the reported volume');
+    assert.equal(volumeView._volumeButton.accessible_name, 'Mute', 'audible state offers Mute');
+    assert.equal(volumeView._volumeIcon.icon_name, 'audio-volume-high-symbolic');
+
+    volumeView._volumeTrack.transform_stage_point = () => [true, 150, 0];
+    const consumed = volumeView._volumeTrack.handlers['button-press-event'](volumeView._volumeTrack, {
+        get_button: () => 1,
+        get_coords: () => [400, 10],
+    });
+    assert.equal(consumed, 1, 'volume click is consumed');
+    assert.deepEqual(volumeActions, ['Volume:0.75'], 'click commits exactly one volume action');
+    assert.equal(volumeView._volumeFill.width, 150, 'click previews the new volume immediately');
+
+    // Stale echoes must not roll back the optimistic value.
+    volumeNow += 100000;
+    volumeView.setMedia({playerId: 'test', title: 'V', playbackStatus: 'Paused', volume: 0.5});
+    assert.equal(volumeView._volumeFraction, 0.75, 'stale echo keeps the optimistic volume');
+    // Converged echo releases the lock.
+    volumeNow += 200000;
+    volumeView.setMedia({playerId: 'test', title: 'V', playbackStatus: 'Paused', volume: 0.75});
+    assert.equal(volumeView._lastUserVolume, null, 'matching echo clears the volume lock');
+
+    volumeView._toggleMute();
+    assert.deepEqual(volumeActions, ['Volume:0.75', 'Volume:0.00'], 'mute commits zero');
+    assert.equal(volumeView._volumeFraction, 0, 'mute empties the slider');
+    assert.equal(volumeView._volumeButton.accessible_name, 'Unmute', 'muted state offers Unmute');
+    assert.equal(volumeView._volumeIcon.icon_name, 'audio-volume-muted-symbolic');
+
+    volumeView._toggleMute();
+    assert.deepEqual(volumeActions, ['Volume:0.75', 'Volume:0.00', 'Volume:0.75'],
+        'unmute restores the remembered level');
+
+    // External changes apply once no user action is in flight.
+    volumeNow += 5000000;
+    volumeView.setMedia({playerId: 'test', title: 'V', playbackStatus: 'Paused', volume: 0.25});
+    assert.equal(volumeView._volumeFraction, 0.25, 'external volume updates apply after the lock expires');
+
+    volumeView.destroy();
+    assert.equal(volumeView._volumeTrack, null, 'destroy releases the volume track');
+    assert.equal(volumeView._volumeFill, null, 'destroy releases the volume fill');
+    assert.equal(volumeView._volumeButton, null, 'destroy releases the mute button');
+}
+
 const pendingArtwork = [];
 const mediaView = new MediaView({artworkLoader: (uri, cancellable) =>
     new Promise(resolve => pendingArtwork.push({uri, cancellable, resolve}))});
@@ -1033,6 +1140,15 @@ assert.equal(circleCapsule._widget.classes.has('linux-island__capsule--circle'),
 assert.deepEqual(interactionEvents, ['CLICK']);
 assert.equal(circleCapsule._currentState, 'EXPANDED');
 assert.equal(idleScheduler.count, 0, 'idle timer stopped while EXPANDED');
+let redundantPosCalls = 0;
+const prevSetPos = circleCapsule._widget.set_position;
+circleCapsule._widget.set_position = (x, y) => {
+    redundantPosCalls++;
+    prevSetPos.call(circleCapsule._widget, x, y);
+};
+circleCapsule._relayout();
+assert.equal(redundantPosCalls, 0, 'relayout does not call set_position when position is unchanged');
+circleCapsule._widget.set_position = prevSetPos;
 // A drag starts with a press, including presses picked on the card background.
 // Bubble that press to the capsule before delivering horizontal motion.
 interactionEvents.length = 0;

@@ -80,7 +80,15 @@ bool SearchProvider::openExternal(const QString &url) {
     return QDesktopServices::openUrl(QUrl(trimmed));
 }
 
-bool SearchProvider::requiresSystemBrowser(const QString &url, bool hasGoogleSession) const {
+bool SearchProvider::requiresSystemBrowser(const QString &url, bool hasGoogleSession,
+                                           bool isMainFrame) const {
+    // Subframe traffic is never a sign-in handoff. Google serves its search
+    // results with an accounts.google.com iframe (cookie rotation, GSI), so
+    // treating those as user-initiated sign-in opened the system browser on
+    // every search while the companion was rendering the page correctly.
+    if (!isMainFrame) {
+        return false;
+    }
     const QUrl parsed(url.trimmed());
     if (!parsed.isValid()) {
         return false;

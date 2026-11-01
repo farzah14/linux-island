@@ -10,21 +10,19 @@ function assertEqual(actual, expected, message) {
     }
 }
 
-// 1. Engine registry order and shape
+// 1. Only Google and Brave Search are user-selectable
 {
-    assertEqual(SEARCH_ENGINES.length, 4);
+    assertEqual(SEARCH_ENGINES.length, 2);
     assertEqual(DEFAULT_SEARCH_ENGINE, 'google');
-    assertEqual(SEARCH_ENGINES.map(e => e.id).join(','), 'google,duckduckgo,brave,bing');
-    assertEqual(SEARCH_ENGINES.map(e => e.label).join(','), 'Google,DuckDuckGo,Brave,Bing');
+    assertEqual(SEARCH_ENGINES.map(e => e.id).join(','), 'google,brave');
+    assertEqual(SEARCH_ENGINES.map(e => e.label).join(','), 'Google,Brave');
 }
 
 // 2. Every engine builds its own prefix
 {
     const expected = {
         google: 'https://www.google.com/search?q=',
-        duckduckgo: 'https://duckduckgo.com/?q=',
         brave: 'https://search.brave.com/search?q=',
-        bing: 'https://www.bing.com/search?q=',
     };
     for (const [id, prefix] of Object.entries(expected)) {
         assertEqual(buildSearchUrl(id, 'linux island'), `${prefix}linux%20island`, id);
@@ -47,6 +45,8 @@ assert(buildSearchUrl('google', 'a'.repeat(500)).length > 0, '500 character quer
 
 // 6. Unknown engine falls back to Google
 assertEqual(buildSearchUrl('yandex', 'linux island'), 'https://www.google.com/search?q=linux%20island');
+assertEqual(buildSearchUrl('duckduckgo', 'linux island'), 'https://www.google.com/search?q=linux%20island');
+assertEqual(buildSearchUrl('bing', 'linux island'), 'https://www.google.com/search?q=linux%20island');
 
 // 7. Navigation scheme validation
 assert(isValidNavigationUrl('https://www.google.com'), 'https is valid');
@@ -61,5 +61,23 @@ assert(!isValidNavigationUrl(''), 'empty rejected');
 assert(!isValidNavigationUrl('   '), 'whitespace rejected');
 assert(!isValidNavigationUrl(null), 'null rejected');
 assert(!isValidNavigationUrl('not a url'), 'invalid url rejected');
+
+// 8. Empty-host and malformed-authority boundaries
+assert(!isValidNavigationUrl('https://'), 'scheme without host rejected');
+assert(!isValidNavigationUrl('https:///path'), 'empty authority with path rejected');
+assert(!isValidNavigationUrl('http://:80'), 'port-only authority rejected');
+assert(!isValidNavigationUrl('https://example.com:notaport'), 'non-numeric port rejected');
+assert(!isValidNavigationUrl('https://user@'), 'credentials without host rejected');
+assert(isValidNavigationUrl('https://user@example.com:8443/path'), 'credentials, port, and path accepted');
+assert(isValidNavigationUrl('http://[::1]:8080/x'), 'IPv6 literal with port accepted');
+assert(isValidNavigationUrl('https://example.com?q=1'), 'query-only suffix accepted');
+assert(isValidNavigationUrl('https://example.com#frag'), 'fragment-only suffix accepted');
+assert(!isValidNavigationUrl('https://exa mple.com'), 'whitespace in URL rejected');
+
+// 9. Generated search URLs are always navigable
+for (const engine of SEARCH_ENGINES) {
+    assert(isValidNavigationUrl(buildSearchUrl(engine.id, 'linux island')),
+        `${engine.id} generated search URL is valid`);
+}
 
 console.log('PASS: search engine URL builder tests');

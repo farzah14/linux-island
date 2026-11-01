@@ -203,13 +203,19 @@ export function formatStorageCompact(usedBytes, totalBytes) {
     return `${usedValue}/${totalValue} ${units[unit]}`;
 }
 
-export function computeStorageUsage(sizeBytes, freeBytes) {
+export function computeStorageUsage(sizeBytes, freeBytes, usedBytes = null) {
     const size = Number(sizeBytes);
     const free = Number(freeBytes);
     if (!isFinite(size) || size <= 0) return null;
     const clampedFree = isFinite(free) ? Math.max(0, Math.min(size, free)) : 0;
-    const used = size - clampedFree;
-    const percent = Math.max(0, Math.min(100, (used / size) * 100));
+    const rawUsed = usedBytes !== null && usedBytes !== undefined ? Number(usedBytes) : NaN;
+    const used = isFinite(rawUsed) && rawUsed >= 0
+        ? Math.min(size, rawUsed)
+        : Math.max(0, size - clampedFree);
+    // Align with GNU df: percentage of user-accessible capacity (used + free)
+    // rather than raw total blocks, avoiding skew from root-reserved blocks.
+    const basis = (used + clampedFree) > 0 ? (used + clampedFree) : size;
+    const percent = Math.max(0, Math.min(100, (used / basis) * 100));
     return {
         size,
         free: clampedFree,
@@ -248,11 +254,18 @@ export function defaultReadStorage(mountPath = '/') {
     try {
         const file = Gio.File.new_for_path(mountPath);
         const info = file.query_filesystem_info(
-            'filesystem::size,filesystem::free', null);
+            'filesystem::size,filesystem::free,filesystem::used', null);
         if (!info) return null;
         return {
-            size: info.get_attribute_uint64('filesystem::size'),
-            free: info.get_attribute_uint64('filesystem::free'),
+            size: info.has_attribute('filesystem::size')
+                ? info.get_attribute_uint64('filesystem::size')
+                : 0,
+            free: info.has_attribute('filesystem::free')
+                ? info.get_attribute_uint64('filesystem::free')
+                : 0,
+            used: info.has_attribute('filesystem::used')
+                ? info.get_attribute_uint64('filesystem::used')
+                : null,
         };
     } catch {
         return null;
@@ -441,7 +454,7 @@ export class SystemMetricsCollector {
         let storageData = null;
         try {
             const raw = this._readStorage('/');
-            const usage = raw ? computeStorageUsage(raw.size, raw.free) : null;
+            const usage = raw ? computeStorageUsage(raw.size, raw.free, raw.used) : null;
             if (usage) {
                 storageData = {
                     ...usage,

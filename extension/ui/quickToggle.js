@@ -114,15 +114,23 @@ export class QuickTogglesRow {
         this._onThemeToggle = onThemeToggle ?? (() => this._manager.toggleDarkMode());
         this._onOpenStorage = onOpenStorage ?? (() => {});
         this._onOpenSettings = onOpenSettings ?? (() => {
-            try {
-                if (Gio) {
-                    Gio.Subprocess.new(['linux-island-settings'], Gio.SubprocessFlags.NONE);
-                }
-            } catch (_) {
+            // Prefer whatever is on PATH (system packages install to /usr/bin)
+            // and fall back to the per-user install location.
+            const attempts = [];
+            if (GLib?.find_program_in_path) {
+                const found = GLib.find_program_in_path('linux-island-settings');
+                if (found)
+                    attempts.push([found]);
+            }
+            attempts.push(['linux-island-settings']);
+            if (GLib?.get_home_dir)
+                attempts.push([`${GLib.get_home_dir()}/.local/bin/linux-island-settings`]);
+
+            for (const argv of attempts) {
                 try {
-                    if (Gio && GLib) {
-                        const home = GLib.get_home_dir();
-                        Gio.Subprocess.new([`${home}/.local/bin/linux-island-settings`], Gio.SubprocessFlags.NONE);
+                    if (Gio?.Subprocess) {
+                        Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE);
+                        return;
                     }
                 } catch (_) {}
             }

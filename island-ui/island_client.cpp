@@ -122,6 +122,13 @@ QString IslandClient::formatTime(qlonglong us) {
     return QString::number(m) + QStringLiteral(":") + (s < 10 ? QStringLiteral("0") : QStringLiteral("")) + QString::number(s);
 }
 
+double IslandClient::clampVolume(double value) {
+    if (std::isnan(value)) {
+        return 1.0;
+    }
+    return std::clamp(value, 0.0, 1.0);
+}
+
 double IslandClient::progress() const {
     if (m_durationUs > 0 && m_positionUs >= 0) {
         return std::clamp(double(m_positionUs) / double(m_durationUs), 0.0, 1.0);
@@ -171,6 +178,13 @@ void IslandClient::seekToFraction(double fraction) {
         qlonglong targetUs = qlonglong(std::clamp(fraction, 0.0, 1.0) * double(m_durationUs));
         controlMedia(QStringLiteral("SeekTo:") + QString::number(targetUs));
     }
+}
+
+void IslandClient::setVolume(double value) {
+    const double v = clampVolume(value);
+    m_volume = v;
+    emit mediaChanged();
+    controlMedia(QStringLiteral("Volume:") + QString::number(v, 'f', 2));
 }
 
 void IslandClient::setActivePlayer(const QString &playerId) {
@@ -264,6 +278,8 @@ void IslandClient::applyMediaMap(const QVariantMap &media) {
     if (media.contains(QStringLiteral("audioLevels"))) {
         m_audioLevels = media.value(QStringLiteral("audioLevels")).toList();
     }
+
+    m_volume = clampVolume(media.value(QStringLiteral("volume"), 1.0).toDouble());
 
     emit mediaChanged();
 }

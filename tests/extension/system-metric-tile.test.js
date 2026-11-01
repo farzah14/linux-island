@@ -150,6 +150,18 @@ function assertEqual(actual, expected, message) {
     const clamped = computeStorageUsage(1000, 5000);
     assertEqual(clamped.percent, 0, 'free above size clamps to zero used');
 
+    // When actual usedBytes is provided (e.g. ext4 with root-reserved blocks),
+    // used space must not be inflated and percentage must align with df:
+    const realExt4 = computeStorageUsage(233 * 1024 ** 3, 88 * 1024 ** 3, 134 * 1024 ** 3);
+    assert(realExt4, 'ext4 storage usage computed');
+    assertEqual(realExt4.used, 134 * 1024 ** 3);
+    assertEqual(realExt4.compactDetailText, '134/233 GB');
+    assertEqual(realExt4.detailText, '134 GB / 233 GB');
+    assertEqual(realExt4.text, '60%');
+    // Clamps usedBytes to size if it exceeds size
+    const overflow = computeStorageUsage(100 * 1024 ** 3, 10 * 1024 ** 3, 150 * 1024 ** 3);
+    assertEqual(overflow.used, 100 * 1024 ** 3);
+    assertEqual(overflow.percent, 90.9090909090909);
     assertEqual(formatStorage(0), '0 B');
     assertEqual(formatStorage(999), '999 B');
     assertEqual(formatStorage(1024), '1.0 KB');

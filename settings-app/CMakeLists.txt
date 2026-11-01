@@ -23,3 +23,6 @@ target_link_libraries(linux-island-settings PRIVATE
     Qt6::Quick
     Qt6::DBus
 )
+target_compile_definitions(linux-island-settings PRIVATE ISLAND_VERSION="${PROJECT_VERSION}")
+
+install(TARGETS linux-island-settings RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

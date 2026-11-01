@@ -27,3 +27,6 @@ add_executable(linux-island-core
 
 target_include_directories(linux-island-core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(linux-island-core PRIVATE Qt6::Core Qt6::DBus Qt6::Network)
+target_compile_definitions(linux-island-core PRIVATE ISLAND_VERSION="${PROJECT_VERSION}")
+
+install(TARGETS linux-island-core RUNTIME DESTINATION ${CMAKE_INSTALL_LIBEXECDIR})

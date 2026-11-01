@@ -1,12 +1,14 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import QtQuick.Window
 
 Item {
     id: root
 
     implicitWidth: parent ? parent.width : 340
     implicitHeight: 200
+    readonly property string effectiveSearchEngine: islandClient.searchEngine === "brave" ? "brave" : "google"
 
     function forceFocus() {
         searchField.forceActiveFocus();
@@ -16,7 +18,7 @@ Item {
         var q = searchField.text.trim();
         if (q.length === 0 || q.length > 500)
             return;
-        if (searchProvider.openEmbedded(islandClient.searchEngine, q)) {
+        if (searchProvider.openEmbedded(root.effectiveSearchEngine, q)) {
             searchField.text = "";
             islandClient.dispatchEvent("DISMISS");
         }
@@ -26,18 +28,19 @@ Item {
         id: chip
         property string engineId: ""
         property string engineLabel: ""
+        property string activeEngine: ""
 
         Layout.fillWidth: true
         implicitHeight: 22
         radius: 6
-        color: islandClient.searchEngine === chip.engineId ? IslandTheme.accentPrimary : IslandTheme.surfaceRaised
+        color: chip.activeEngine === chip.engineId ? IslandTheme.accentPrimary : IslandTheme.surfaceRaised
 
         Text {
             anchors.centerIn: parent
             text: chip.engineLabel
             font.pixelSize: 9
             font.bold: true
-            color: islandClient.searchEngine === chip.engineId ? IslandTheme.surfaceIsland : IslandTheme.textSecondary
+            color: chip.activeEngine === chip.engineId ? IslandTheme.surfaceIsland : IslandTheme.textSecondary
         }
 
         MouseArea {
@@ -56,10 +59,8 @@ Item {
             Layout.fillWidth: true
             spacing: 4
 
-            EngineChip { engineId: "google"; engineLabel: "Google" }
-            EngineChip { engineId: "duckduckgo"; engineLabel: "DuckDuckGo" }
-            EngineChip { engineId: "brave"; engineLabel: "Brave" }
-            EngineChip { engineId: "bing"; engineLabel: "Bing" }
+            EngineChip { engineId: "google"; engineLabel: "Google"; activeEngine: root.effectiveSearchEngine }
+            EngineChip { engineId: "brave"; engineLabel: "Brave"; activeEngine: root.effectiveSearchEngine }
         }
 
         TextField {
@@ -75,6 +76,14 @@ Item {
             selectByMouse: true
             onAccepted: root.submit()
             Keys.onEscapePressed: islandClient.dispatchEvent("DISMISS")
+            // In standalone/overlay mode the frameless window is not always
+            // the active window; clicking into the field must raise it or
+            // keystrokes never reach the TextField.
+            onActiveFocusChanged: {
+                if (activeFocus && Window.window) {
+                    Window.window.requestActivate();
+                }
+            }
 
             background: Rectangle {
                 radius: 8

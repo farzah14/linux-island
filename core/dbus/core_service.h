@@ -6,6 +6,7 @@
 #include <QString>
 #include <cmath>
 #include <QTimer>
+#include <QPointer>
 #include "events/revision_clock.h"
 #include "settings/settings_store.h"
 #include "media/media_state.h"
@@ -142,17 +143,28 @@ public:
 
         if (ArtworkCache::isRemoteUrl(media.albumArtUri)) {
             QString rawRemote = media.albumArtUri;
-            m_artworkCache.fetchArtwork(media.playerId, rawRemote, [this, playerId = media.playerId, rawRemote](const QString &cachedUri) {
-                if (m_mediaState.playerId == playerId && (m_mediaState.albumArtUri == rawRemote || m_mediaState.albumArtUri.isEmpty())) {
-                    m_mediaState.albumArtUri = cachedUri;
-                    quint64 rev = m_clock.mediaChanged();
-                    m_mediaState.revision = rev;
-                    emit mediaChanged(rev, mediaState());
-                }
-            });
-            if (m_mediaState.albumArtUri == rawRemote) {
-                m_mediaState.albumArtUri = QString();
-            }
+            m_mediaState.albumArtUri = QString();
+            bool syncResolved = false;
+            bool inFetchCall = true;
+            QPointer<CoreService> self(this);
+            m_artworkCache.fetchArtwork(media.playerId, rawRemote,
+                [self, &syncResolved, &inFetchCall, playerId = media.playerId, rawRemote](const QString &cachedUri) {
+                    if (!self) return;
+                    if (inFetchCall) {
+                        self->m_mediaState.albumArtUri = cachedUri;
+                        syncResolved = true;
+                        return;
+                    }
+                    if (self->m_mediaState.playerId == playerId &&
+                        (self->m_mediaState.albumArtUri == rawRemote || self->m_mediaState.albumArtUri.isEmpty())) {
+                        self->m_mediaState.albumArtUri = cachedUri;
+                        quint64 rev = self->m_clock.mediaChanged();
+                        self->m_mediaState.revision = rev;
+                        emit self->mediaChanged(rev, self->mediaState());
+                    }
+                });
+            inFetchCall = false;
+            Q_UNUSED(syncResolved);
         }
 
         quint64 rev = m_clock.mediaChanged();

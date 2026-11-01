@@ -124,6 +124,18 @@ function assertEqual(actual, expected, message) {
     assertEqual(carousel._isInteractiveControl({classes: new Set(['linux-island__search-engine-btn'])}), true);
     assertEqual(carousel._isInteractiveControl({classes: new Set(['linux-island__search-engine-btn--active'])}), true);
     assertEqual(carousel._isInteractiveControl({classes: new Set(['other-class'])}), false);
+    // Real GJS St.Widget actors have no `.classes` Set; they expose
+    // has_style_class_name(). This is the runtime shape that must be detected.
+    const gjsLikeActor = {
+        has_style_class_name: name => name === 'linux-island__search-entry',
+        get_parent: () => null,
+    };
+    assertEqual(carousel._isInteractiveControl(gjsLikeActor), true);
+    const gjsLikePlain = {
+        has_style_class_name: () => false,
+        get_parent: () => null,
+    };
+    assertEqual(carousel._isInteractiveControl(gjsLikePlain), false);
     carousel.destroy();
 }
 

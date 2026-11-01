@@ -264,6 +264,7 @@ export class AiQuotaSection {
         this._destroyed = false;
         this._active = false;
         this._activeMode = '5h';
+        this._mappedSignalId = null;
 
         const rawSched = scheduler ?? {};
         this._scheduler = {
@@ -349,6 +350,15 @@ export class AiQuotaSection {
         if (this._claudeRow.actor) {
             this.actor.add_child(this._claudeRow.actor);
         }
+
+        if (typeof this.actor.connect === 'function') {
+            this._mappedSignalId = this.actor.connect('notify::mapped', () => {
+                if (this._destroyed || !this.actor) return;
+                if (!this.actor.mapped) {
+                    this.stop();
+                }
+            });
+        }
     }
 
     setMode(mode) {
@@ -424,6 +434,10 @@ export class AiQuotaSection {
         this._topBar = null;
         this._titleLabel = null;
         if (this.actor) {
+            if (this._mappedSignalId !== null && typeof this.actor.disconnect === 'function') {
+                try { this.actor.disconnect(this._mappedSignalId); } catch (_) {}
+                this._mappedSignalId = null;
+            }
             this.actor.destroy();
             this.actor = null;
         }

@@ -82,4 +82,28 @@ function expect(actual, expected, label) {
     expect(pres.canPrevious, false, 'Read-only previous disabled');
 }
 
-console.log('PASS: 18 media presentation mapper tests');
+// 5. Volume is passed through and clamped to [0, 1]
+{
+    const base = {
+        playerId: 'org.mpris.MediaPlayer2.spotify',
+        title: 'Song Name',
+        artist: 'Band Name',
+        playbackStatus: 'Playing',
+        durationUs: 0,
+    };
+
+    expect(formatMediaPresentation({...base, volume: 0.75}).volume, 0.75,
+        'Volume passes through unchanged');
+    expect(formatMediaPresentation({...base, volume: 2}).volume, 1.0,
+        'Over-unity volume clamps to 1.0');
+    expect(formatMediaPresentation({...base, volume: -1}).volume, 0.0,
+        'Negative volume clamps to 0.0');
+    expect(formatMediaPresentation({...base}).volume, 1.0,
+        'Missing volume key falls back to 1.0');
+    expect(formatMediaPresentation({...base, volume: 'bad'}).volume, 1.0,
+        'Non-numeric volume falls back to 1.0');
+    expect(formatMediaPresentation(null).volume, 1.0,
+        'No-player presentation still reports 1.0');
+}
+
+console.log('PASS: 24 media presentation mapper tests');

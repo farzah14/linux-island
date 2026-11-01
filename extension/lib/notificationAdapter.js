@@ -68,9 +68,6 @@ export class NotificationAdapter {
 
     setLocked(locked) {
         this._whatsappModel.setLocked(locked);
-        if (locked) {
-            this._nativeNotifs.clear();
-        }
     }
 
     notifyPeek(meta = {}) {
@@ -152,52 +149,66 @@ export class NotificationAdapter {
                     this._nativeNotifs.set(opaqueId, notif);
                     this._whatsappModel.onNotificationAdded(opaqueId, true);
                 }
+                this.notifyPeek({
+                    appName: sourceInfo.title || sourceInfo.appId || 'App',
+                });
             }
         });
 
-        const onRemovedId = source.connect('notification-removed', (_src, notif) => {
-            if (notif) {
-                const opaqueId = notif.id ?? null;
-                if (opaqueId) {
-                    this._nativeNotifs.delete(opaqueId);
-                    this._whatsappModel.onNotificationRemoved(opaqueId);
-                } else {
-                    for (const [key, val] of this._nativeNotifs.entries()) {
-                        if (val === notif) {
-                            this._nativeNotifs.delete(key);
-                            this._whatsappModel.onNotificationRemoved(key);
-                            break;
+        // GNOME 45's MessageTray.Source defines only destroy, icon-updated,
+        // notification-added and notification-show. Connecting to a missing
+        // signal throws, which would abort tracking for every source.
+        let onRemovedId = null;
+        try {
+            onRemovedId = source.connect('notification-removed', (_src, notif) => {
+                if (notif) {
+                    const opaqueId = notif.id ?? null;
+                    if (opaqueId) {
+                        this._nativeNotifs.delete(opaqueId);
+                        this._whatsappModel.onNotificationRemoved(opaqueId);
+                    } else {
+                        for (const [key, val] of this._nativeNotifs.entries()) {
+                            if (val === notif) {
+                                this._nativeNotifs.delete(key);
+                                this._whatsappModel.onNotificationRemoved(key);
+                                break;
+                            }
                         }
                     }
                 }
-            }
-        });
+            });
+        } catch (_) {
+            onRemovedId = null;
+        }
 
         const onDestroyId = source.connect('destroy', () => {
             this._untrackSource(source);
         });
 
-        signalIds.push(onAddedId, onRemovedId, onDestroyId);
-        this._sourceSubscriptions.set(source, signalIds);
+        signalIds.push(onAddedId, onDestroyId);
+        if (onRemovedId !== null)
+            signalIds.push(onRemovedId);
+        this._sourceSubscriptions.set(source, {signalIds, isWA});
     }
 
     _untrackSource(source) {
-        const signalIds = this._sourceSubscriptions.get(source);
-        if (signalIds) {
-            for (const sigId of signalIds) {
+        const sub = this._sourceSubscriptions.get(source);
+        if (sub) {
+            for (const sigId of sub.signalIds) {
                 try { source.disconnect(sigId); } catch (_) {}
             }
             this._sourceSubscriptions.delete(source);
+            if (sub.isWA) {
+                this._whatsappModel.onSourceDisconnected();
+            }
         }
-        this._whatsappModel.onSourceDisconnected();
     }
-
     destroy() {
         this._isDestroyed = true;
         this._enabled = false;
 
-        for (const [source, signalIds] of this._sourceSubscriptions.entries()) {
-            for (const sigId of signalIds) {
+        for (const [source, sub] of this._sourceSubscriptions.entries()) {
+            for (const sigId of (sub.signalIds || sub)) {
                 try { source.disconnect(sigId); } catch (_) {}
             }
         }

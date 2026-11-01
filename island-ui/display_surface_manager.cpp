@@ -6,23 +6,14 @@
 #include <QStandardPaths>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QPainterPath>
 
 DisplaySurfaceManager::DisplaySurfaceManager(QQuickWindow *window, IslandClient *client, QObject *parent)
     : QObject(parent),
-      m_window(window),
+      m_window(nullptr),
       m_client(client) {
-    if (m_window) {
-        // Qt::Tool keeps the overlay out of the taskbar on X11, where tool
-        // windows still accept keyboard focus. On Wayland a tool window is a
-        // transient popup that compositors refuse to focus, which would break
-        // typing into the Search page, so only set it for X11.
-        Qt::WindowFlags flags = Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint;
-        if (QGuiApplication::platformName().startsWith(QLatin1String("xcb"))) {
-            flags |= Qt::Tool;
-        }
-        m_window->setFlags(flags);
-        m_window->setColor(QColor(0, 0, 0, 0));
-        updateWindowPosition();
+    if (window) {
+        attachWindow(window);
     }
 
     if (m_client) {
@@ -32,6 +23,34 @@ DisplaySurfaceManager::DisplaySurfaceManager(QQuickWindow *window, IslandClient 
     connect(&m_fullscreenTimer, &QTimer::timeout, this, &DisplaySurfaceManager::checkFullscreen);
     m_fullscreenTimer.setInterval(1500);
     m_fullscreenTimer.start();
+}
+
+void DisplaySurfaceManager::attachWindow(QQuickWindow *window) {
+    m_window = window;
+    if (!m_window) return;
+
+    Qt::WindowFlags flags = Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint;
+    if (QGuiApplication::platformName().startsWith(QLatin1String("xcb"))) {
+        flags |= Qt::Tool;
+    }
+    m_window->setFlags(flags);
+    m_window->setColor(QColor(0, 0, 0, 0));
+    updateWindowPosition();
+
+    if (!m_currentMaskRect.isEmpty()) {
+        // Re-apply through the mask builder so the rounded shape survives
+        // window (re)attachment instead of collapsing to a plain rectangle.
+        // QML usually calls updateInputMask before the window exists, which
+        // caches the geometry but cannot apply it; invalidate the cache so the
+        // call below is not skipped by the "unchanged" guard.
+        const QRect pendingRect = m_currentMaskRect;
+        const int pendingRadius = m_currentMaskRadius;
+        m_currentMaskRect = QRect();
+        m_currentMaskRadius = -1;
+        updateInputMask(pendingRect.x(), pendingRect.y(),
+                        pendingRect.width(), pendingRect.height(),
+                        pendingRadius);
+    }
 }
 
 void DisplaySurfaceManager::onSettingsChanged() {
@@ -51,20 +70,46 @@ void DisplaySurfaceManager::updateWindowPosition() {
     int posX = screenGeo.x() + (screenGeo.width() - windowWidth()) / 2 + hOffset;
     int posY = screenGeo.y() + vOffset;
 
+    // Wayland compositors place toplevels themselves and ignore a requested
+    // origin; keep the size in sync but skip the move there. X11 and XWayland
+    // still honour the top-centre position.
+    const bool isWayland = QGuiApplication::platformName().startsWith(QLatin1String("wayland"));
+    if (isWayland) {
+        static bool warned = false;
+        if (!warned) {
+            qInfo("Wayland session: compositor placement is in effect for the overlay.");
+            warned = true;
+        }
+        m_window->resize(windowWidth(), windowHeight());
+        return;
+    }
     m_window->setGeometry(posX, posY, windowWidth(), windowHeight());
 }
 
 void DisplaySurfaceManager::updateInputMask(int x, int y, int width, int height, int radius) {
-    Q_UNUSED(radius);
+    QRect targetRect = (width <= 0 || height <= 0) ? QRect() : QRect(x, y, width, height);
+    if (m_currentMaskRect == targetRect && m_currentMaskRadius == radius && m_window) return;
+    m_currentMaskRect = targetRect;
+    m_currentMaskRadius = radius;
+
     if (!m_window) return;
 
-    if (width <= 0 || height <= 0) {
+    if (targetRect.isEmpty()) {
         m_window->setMask(QRegion());
         return;
     }
 
-    // Set interactive region to strictly cover the capsule / card
-    m_window->setMask(QRegion(x, y, width, height, QRegion::Rectangle));
+    // Wayland maps the region onto wl_surface.set_input_region, which has no
+    // notion of a rounded shape, so the plain rectangle stays correct there.
+    // X11/XWayland masks are a real pixel mask and can follow the capsule.
+    if (radius > 0 && QGuiApplication::platformName().startsWith(QLatin1String("xcb"))) {
+        QPainterPath path;
+        path.addRoundedRect(QRectF(targetRect), radius, radius);
+        m_window->setMask(QRegion(path.toFillPolygon().toPolygon()));
+        return;
+    }
+
+    m_window->setMask(QRegion(targetRect, QRegion::Rectangle));
 }
 
 void DisplaySurfaceManager::checkFullscreen() {

@@ -8,6 +8,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QStandardPaths>
+#include <QPointer>
 
 ArtworkCache::ArtworkCache(const QString &cacheDir, QObject *parent)
     : QObject(parent)
@@ -29,13 +30,15 @@ ArtworkCache::ArtworkCache(const QString &cacheDir, QObject *parent)
 
 ArtworkCache::~ArtworkCache()
 {
-    for (auto &fetch : m_activeFetches) {
+    auto fetches = std::move(m_activeFetches);
+    m_activeFetches.clear();
+    for (auto &fetch : fetches) {
         if (fetch.reply) {
+            fetch.reply->disconnect(this);
             fetch.reply->abort();
             fetch.reply->deleteLater();
         }
     }
-    m_activeFetches.clear();
 }
 
 QString ArtworkCache::cacheDirectory() const
@@ -60,11 +63,13 @@ void ArtworkCache::cancelPlayer(const QString &playerId)
 {
     auto it = m_activeFetches.find(playerId);
     if (it != m_activeFetches.end()) {
-        if (it->reply) {
-            it->reply->abort();
-            it->reply->deleteLater();
-        }
+        QPointer<QNetworkReply> reply = it->reply;
         m_activeFetches.erase(it);
+        if (reply) {
+            reply->disconnect(this);
+            reply->abort();
+            reply->deleteLater();
+        }
     }
 }
 

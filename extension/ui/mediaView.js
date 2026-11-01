@@ -21,6 +21,15 @@ export const CAPSULE_SIZES = Object.freeze({
         title: 14, artist: 13, compactFont: 14, padding: '8px 22px', limit: 44},
 });
 
+// The media page stacks four rows: artwork, progress track, transport and
+// volume. Its height must include the volume row, otherwise the carousel's
+// clip_to_allocation cuts it off.
+export const MEDIA_ROW_SPACING = 4;
+export const VOLUME_ROW_HEIGHT = 28;
+export function mediaSectionHeight(preset) {
+    return preset.artwork + 6 + preset.button + VOLUME_ROW_HEIGHT + MEDIA_ROW_SPACING * 3;
+}
+
 let St = null;
 let Clutter = null;
 let Gio = null;
@@ -56,6 +65,7 @@ export function formatMediaPresentation(media) {
             canNext: false,
             canPrevious: false,
             progress: 0.0,
+            volume: 1.0,
         };
     }
 
@@ -79,6 +89,9 @@ export function formatMediaPresentation(media) {
         progress = Math.min(1.0, Math.max(0.0, pos / dur));
     }
 
+    const volume = (typeof media?.volume === 'number' && !Number.isNaN(media.volume))
+        ? Math.max(0, Math.min(1, media.volume)) : 1.0;
+
     return {
         hasPlayer: true,
         title,
@@ -89,7 +102,31 @@ export function formatMediaPresentation(media) {
         canNext,
         canPrevious,
         progress,
+        volume,
     };
+}
+
+// Resolve the Settings binary before spawning it: on systems where only the
+// system package is installed there is no ~/.local/bin copy to fall back to.
+export function openSettingsApp() {
+    const attempts = [];
+    if (GLib?.find_program_in_path) {
+        const found = GLib.find_program_in_path('linux-island-settings');
+        if (found)
+            attempts.push([found]);
+    }
+    attempts.push(['linux-island-settings']);
+    if (GLib?.get_home_dir)
+        attempts.push([`${GLib.get_home_dir()}/.local/bin/linux-island-settings`]);
+
+    for (const argv of attempts) {
+        try {
+            if (Gio?.Subprocess)
+                Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE);
+            return true;
+        } catch (_) {}
+    }
+    return false;
 }
 
 export class MediaView {
@@ -130,23 +167,40 @@ export class MediaView {
         this._progressMedia = null;
         this._progressTimer = null;
         this._lastUserSeek = null;
+        this._controlsBox = null;
+        this._volumeButton = null;
+        this._volumeTrack = null;
+        this._volumeFill = null;
+        this._volumeFraction = 1.0;
+        this._lastUnmutedVolume = 1.0;
+        this._lastUserVolume = null;
         this._scheduler = scheduler ?? {
-            repeat: fn => GLib ? GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+            repeat: (fn, ms = 250) => GLib ? GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
                 fn(); return GLib.SOURCE_CONTINUE;
             }) : null,
-            cancel: id => { if (GLib) GLib.source_remove(id); },
+            cancel: id => { if (GLib && id) GLib.source_remove(id); },
         };
         this._aiQuotaSection = null;
         this._searchSection = null;
         this._netView = null;
         this._metricsSlot = null;
         this._togglesSlot = null;
+        this._mappedSignalId = null;
 
         if (St && Clutter) {
             this._buildUi();
-            this._actor.connect('notify::mapped', () => {
+            this._mappedSignalId = this._actor.connect('notify::mapped', () => {
                 this._renderProgress();
+                this._renderVolume();
                 this._syncProgressTimer();
+                if (!this._actor?.mapped) {
+                    this._metricsRow?.stop();
+                    this._aiQuotaSection?.stop();
+                } else if (this._carousel?.activeIndex === 1) {
+                    this._metricsRow?.start();
+                } else if (this._carousel?.activeIndex === 2) {
+                    this._aiQuotaSection?.start();
+                }
             });
             this.setMedia(null);
         }
@@ -166,7 +220,7 @@ export class MediaView {
         // Section 1: Pure Media Player section
         this._mediaSection = new St.BoxLayout({
             vertical: true,
-            style: 'width: 328px; height: 98px; spacing: 4px;',
+            style: `width: 328px; height: ${mediaSectionHeight(CAPSULE_SIZES.medium)}px; spacing: ${MEDIA_ROW_SPACING}px;`,
             x_expand: true,
         });
 
@@ -322,6 +376,7 @@ export class MediaView {
             y_align: Clutter.ActorAlign.CENTER,
             x_expand: true,
         });
+        this._controlsBox = controlsBox;
         this._elapsedLabel = new St.Label({
             text: '0:00',
             y_align: Clutter.ActorAlign.CENTER,
@@ -389,6 +444,89 @@ export class MediaView {
         controlsBox.add_child(this._durationLabel);
         this._mediaSection.add_child(controlsBox);
 
+        // Volume row: [ mute ] [ track ]
+        const volumeRow = new St.BoxLayout({
+            style: 'spacing: 8px; height: 28px;',
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        this._volumeButton = new St.Button({
+            style: 'width: 28px; height: 28px; padding: 0; border-radius: 12px;',
+            style_class: 'linux-island__media-button',
+            accessible_name: 'Mute',
+            reactive: true,
+            can_focus: true,
+        });
+        this._volumeIcon = new St.Icon({
+            icon_name: 'audio-volume-high-symbolic',
+            fallback_icon_name: 'audio-volume-high-symbolic',
+            icon_size: 14,
+        });
+        this._volumeButton.set_child(this._volumeIcon);
+        this._volumeButton.connect('clicked', () => this._toggleMute());
+        volumeRow.add_child(this._volumeButton);
+
+        this._volumeTrack = new St.BoxLayout({
+            style: 'height: 6px; border-radius: 3px;',
+            style_class: 'linux-island__volume-track',
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+            reactive: true,
+            track_hover: true,
+        });
+        this._volumeFill = new St.Widget({
+            style: 'height: 6px; border-radius: 3px;',
+            style_class: 'linux-island__volume-fill',
+            x_align: Clutter.ActorAlign.START,
+            y_align: Clutter.ActorAlign.CENTER,
+            reactive: false,
+        });
+        this._volumeFill.set_pivot_point(0, 0.5);
+        this._volumeTrack.add_child(this._volumeFill);
+        this._volumeTrack.connect('notify::allocation', () => this._renderVolume());
+        this._volumeTrack.connect('button-press-event', (_actor, event) => {
+            if (typeof event.get_button === 'function' && event.get_button() !== 1) {
+                return Clutter.EVENT_PROPAGATE;
+            }
+            let clickX = 0;
+            if (typeof event.get_coords === 'function') {
+                const [x, y] = event.get_coords();
+                let transformed = false;
+                if (typeof this._volumeTrack.transform_stage_point === 'function') {
+                    const res = this._volumeTrack.transform_stage_point(x, y);
+                    if (Array.isArray(res)) {
+                        if (res.length === 3 && typeof res[0] === 'boolean') {
+                            if (res[0]) {
+                                clickX = res[1];
+                                transformed = true;
+                            }
+                        } else if (res.length >= 2) {
+                            clickX = res[0];
+                            transformed = true;
+                        }
+                    }
+                }
+                if (!transformed) {
+                    const [stageX] = this._volumeTrack.get_transformed_position?.() ?? [0];
+                    clickX = x - stageX;
+                }
+            }
+            const width = this._volumeTrack.width;
+            if (width > 0) {
+                const ratio = Math.max(0, Math.min(1, clickX / width));
+                this._volumeFraction = ratio;
+                this._lastUserVolume = { at: this._clock() };
+                this._renderVolume();
+                this._onControlAction(`Volume:${ratio.toFixed(2)}`);
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+        volumeRow.add_child(this._volumeTrack);
+        this._mediaSection.add_child(volumeRow);
+        this._volumeRow = volumeRow;
+
         // Section 2: Pure System & Controls section (CPU, RAM, Battery on LEFT, and Icon Quick Controls on RIGHT)
         this._systemSection = new St.BoxLayout({
             vertical: false,
@@ -425,18 +563,7 @@ export class MediaView {
             onThemeToggle: this._onThemeToggle,
             onOpenStorage: () => this._openStorageSettings(),
             onOpenSettings: () => {
-                try {
-                    if (Gio) {
-                        Gio.Subprocess.new(['linux-island-settings'], Gio.SubprocessFlags.NONE);
-                    }
-                } catch (_) {
-                    try {
-                        if (Gio && GLib) {
-                            const home = GLib.get_home_dir();
-                            Gio.Subprocess.new([`${home}/.local/bin/linux-island-settings`], Gio.SubprocessFlags.NONE);
-                        }
-                    } catch (_) {}
-                }
+                openSettingsApp();
                 this._onDismiss?.();
             },
         });
@@ -579,7 +706,7 @@ export class MediaView {
         // short of the card edge (26px left margin vs 54px right).
         const contentWidth = preset.width;
         if (this._mediaSection) {
-            this._mediaSection.style = `width: ${contentWidth}px; height: 98px; spacing: 4px;`;
+            this._mediaSection.style = `width: ${contentWidth}px; height: ${mediaSectionHeight(preset)}px; spacing: ${MEDIA_ROW_SPACING}px;`;
             this._mediaSection.width = contentWidth;
         }
         // The section's own 4px horizontal padding sits outside its CSS width,
@@ -623,6 +750,9 @@ export class MediaView {
         }
         this._playPauseBtn.style = `width: ${preset.play}px; height: ${preset.button}px; padding: 0; border-radius: 14px;`;
         this._playIcon.icon_size = preset.icon + 2;
+        if (this._controlsBox) {
+            this._controlsBox.style = `spacing: 4px; height: ${preset.button}px;`;
+        }
     }
 
     setConnected(connected) {
@@ -670,6 +800,22 @@ export class MediaView {
         this._progressMedia = effectiveMedia;
         const pres = formatMediaPresentation(this._connected ? effectiveMedia : null);
         this._beatBars?.setPlayback(pres.isPlaying, pres.hasPlayer, effectiveMedia?.audioLevels);
+
+        // Volume: keep the optimistic value while the core echo is still in
+        // flight (the wpctl-only path emits no MPRIS PropertiesChanged), then
+        // reconcile with whatever the core reports.
+        const volumeAge = this._lastUserVolume?.at ? this._clock() - this._lastUserVolume.at : Infinity;
+        if (this._lastUserVolume?.at && volumeAge < 1200000) {
+            if (Math.abs(pres.volume - this._volumeFraction) < 0.005) {
+                this._lastUserVolume = null;
+            } else {
+                this._lastUserVolume = { at: this._clock() };
+            }
+        } else {
+            this._lastUserVolume = null;
+            this._volumeFraction = pres.volume;
+        }
+        this._renderVolume();
 
         const trackChanged = (effectiveMedia?.playerId !== prevMedia?.playerId ||
             effectiveMedia?.title !== prevMedia?.title ||
@@ -744,6 +890,55 @@ export class MediaView {
         }
     }
 
+    _renderVolume() {
+        if (!this._volumeTrack || !this._volumeFill) return;
+        try {
+            const fraction = Math.max(0, Math.min(1, Number(this._volumeFraction) || 0));
+            // Icon and accessibility state need no theme node, so they stay
+            // correct even while the card is still off-stage.
+            if (this._volumeIcon) {
+                const muted = fraction <= 0;
+                this._volumeIcon.icon_name = muted
+                    ? 'audio-volume-muted-symbolic' : 'audio-volume-high-symbolic';
+                this._volumeIcon.fallback_icon_name = this._volumeIcon.icon_name;
+                if (this._volumeButton)
+                    this._volumeButton.accessible_name = muted ? 'Unmute' : 'Mute';
+            }
+            // Reading .width or easing before the actor is in the stage makes
+            // St log st_widget_get_theme_node criticals; the notify::mapped
+            // handler re-runs this render once the card appears.
+            if (!this._actor?.mapped) return;
+            const targetWidth = Math.round(Math.max(0, Number(this._volumeTrack.width) || 0) * fraction);
+            const enableAnim = St?.Settings?.get()?.enable_animations !== false;
+            if (enableAnim && typeof this._volumeFill.ease === 'function') {
+                this._volumeFill.remove_all_transitions();
+                this._volumeFill.ease({
+                    width: targetWidth,
+                    duration: 150,
+                    mode: Clutter?.AnimationMode?.EASE_OUT_CUBIC ?? 1,
+                });
+            } else {
+                this._volumeFill.width = targetWidth;
+            }
+        } catch (_) {}
+    }
+
+    _toggleMute() {
+        if (this._volumeFraction > 0) {
+            this._lastUnmutedVolume = this._volumeFraction;
+            this._volumeFraction = 0;
+            this._lastUserVolume = { at: this._clock() };
+            this._renderVolume();
+            this._onControlAction('Volume:0.00');
+        } else {
+            const restore = this._lastUnmutedVolume <= 0 ? 1.0 : this._lastUnmutedVolume;
+            this._volumeFraction = restore;
+            this._lastUserVolume = { at: this._clock() };
+            this._renderVolume();
+            this._onControlAction(`Volume:${restore.toFixed(2)}`);
+        }
+    }
+
     _setArtwork(media) {
         const uri = media?.albumArtUri ?? '';
         const key = JSON.stringify([media?.playerId, media?.title, uri]);
@@ -775,6 +970,8 @@ export class MediaView {
                 const home = GLib?.get_home_dir ? GLib.get_home_dir() : '';
                 const candidates = [
                     home + '/.local/libexec/linux-island-ui',
+                    '/usr/libexec/linux-island-ui',
+                    '/app/libexec/linux-island-ui',
                     'linux-island-ui',
                     'linux-island-launch',
                 ];
@@ -818,6 +1015,15 @@ export class MediaView {
                     if (this._companionSubprocess !== proc) return;
                     this._companionSubprocess = null;
                     this._onCompanionEnd?.();
+                    // A companion that died on startup (missing WebEngine,
+                    // broken profile) must not swallow the search: hand the
+                    // URL to the default browser instead of failing silently.
+                    if (typeof proc.get_if_exited === 'function' && proc.get_if_exited() &&
+                        typeof proc.get_exit_status === 'function' && proc.get_exit_status() !== 0) {
+                        try {
+                            Gio?.AppInfo?.launch_default_for_uri(url, null);
+                        } catch (_) {}
+                    }
                 });
             } catch (_) {}
         }
@@ -868,6 +1074,12 @@ export class MediaView {
         this._artCancellable = null;
         this._artIcon = null;
         if (this._actor) {
+            if (this._mappedSignalId !== null) {
+                try {
+                    this._actor.disconnect(this._mappedSignalId);
+                } catch (_) {}
+                this._mappedSignalId = null;
+            }
             try {
                 this._actor.destroy();
             } catch (_) {}
@@ -877,10 +1089,17 @@ export class MediaView {
         this._durationLabel = null;
         this._progressTrack = null;
         this._progressFill = null;
+        this._volumeButton = null;
+        this._volumeIcon = null;
+        this._volumeTrack = null;
+        this._volumeFill = null;
+        this._volumeRow = null;
+        this._lastUserVolume = null;
         this._titleLabel = null;
         this._artistLabel = null;
         this._playPauseBtn = null;
         this._nextBtn = null;
         this._prevBtn = null;
+        this._controlsBox = null;
     }
 }

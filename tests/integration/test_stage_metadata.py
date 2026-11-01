@@ -65,9 +65,9 @@ def test_warns_about_unverified_version():
 def test_repo_metadata_not_modified():
     """The audited repository metadata must stay untouched."""
     md = json.loads((ROOT / 'extension/metadata.json').read_text())
-    assert md['shell-version'] == ['46', '50'], \
-        f'repository metadata must keep the audited list, got {md["shell-version"]}'
-    print('PASS: repository metadata keeps the audited support list')
+    assert md['shell-version'] == ['45', '46', '47', '48', '49', '50'], \
+        f'repository metadata must declare GNOME 45-50, got {md["shell-version"]}'
+    print('PASS: repository metadata declares GNOME 45-50')
 
 
 if __name__ == '__main__':

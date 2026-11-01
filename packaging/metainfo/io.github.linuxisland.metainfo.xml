@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.linuxisland</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Linux Island</name>
+  <summary>Dynamic Island-style status capsule for Linux desktops</summary>
+  <description>
+    <p>
+      Linux Island places a Dynamic Island-style capsule at the top of the screen.
+      It shows now-playing media, quick settings, system metrics, AI quota and
+      notifications without taking over the desktop.
+    </p>
+    <p>
+      On GNOME 45 to 50 the capsule is drawn by a native Shell extension. Other
+      desktops run the Qt overlay through XWayland, optionally refined by the
+      shipped KWin, Sway or Hyprland window rules.
+    </p>
+  </description>
+  <launchable type="desktop-id">linux-island.desktop</launchable>
+  <provides>
+    <binary>linux-island-ui</binary>
+    <binary>linux-island-settings</binary>
+  </provides>
+  <categories>
+    <category>Utility</category>
+  </categories>
+  <url type="homepage">https://github.com/farzah14/linux-island</url>
+  <developer id="io.github.linuxisland">
+    <name>Linux Island contributors</name>
+  </developer>
+  <content_rating type="oars-1.1"/>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/farzah14/linux-island/main/design-system/previews/Linux_Island_Warm_Minimalist_Preview.png</image>
+      <caption>The Linux Island capsule in its expanded state</caption>
+    </screenshot>
+  </screenshots>
+  <releases>
+    <release version="0.1.0" date="2026-11-01"/>
+  </releases>
+</component>
