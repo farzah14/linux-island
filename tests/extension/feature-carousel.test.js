@@ -1,4 +1,4 @@
-import {CarouselModel, FeatureCarousel, getPageIcon} from '../../extension/ui/featureCarousel.js';
+import {CarouselModel, FeatureCarousel, getPageIcon, getLocalNavGIcon} from '../../extension/ui/featureCarousel.js';
 
 function assert(condition, message = 'Assertion failed') {
     if (!condition) throw new Error(message);
@@ -76,6 +76,8 @@ function assertEqual(actual, expected, message) {
     assertEqual(getPageIcon({id: 'ai-quota'}), 'applications-science-symbolic');
     assertEqual(getPageIcon({id: 'search'}), 'system-search-symbolic');
     assertEqual(getPageIcon(null), 'view-more-symbolic');
+    assertEqual(getLocalNavGIcon(null), null);
+    assertEqual(getLocalNavGIcon({id: 'unknown'}), null);
 }
 
 

@@ -1,12 +1,11 @@
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Controls
 
 Item {
     id: root
 
-    implicitWidth: parent ? parent.width : 340
-    implicitHeight: 200
+    implicitWidth: parent ? parent.width : 320
+    implicitHeight: 120
 
     readonly property bool shouldPoll: visible && SwipeView.isCurrentItem && islandClient.uiState === "EXPANDED"
 
@@ -22,253 +21,287 @@ Item {
         systemMetrics.setPollingActive(false);
     }
 
-    ColumnLayout {
+    RowLayout {
         anchors.fill: parent
-        anchors.margins: 10
-        spacing: 12
+        anchors.margins: 6
+        spacing: 10
 
-        // Top Row: 3 Metric Cards
-        RowLayout {
+        // Slot 1: Left Metrics Column (CPU, RAM, BAT)
+        ColumnLayout {
             Layout.fillWidth: true
-            spacing: 8
+            Layout.preferredWidth: 100
+            Layout.alignment: Qt.AlignVCenter
+            spacing: 6
 
-            // 1. CPU Card
-            Rectangle {
+            // CPU Tile
+            ColumnLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 74
-                radius: 10
-                color: IslandTheme.surfaceRaised
-                border.color: IslandTheme.borderSubtle
+                spacing: 2
 
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 8
-                    spacing: 4
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Text { text: "⚡"; font.pixelSize: 12 }
-                        Text { text: "CPU"; font.pixelSize: 11; font.bold: true; color: IslandTheme.textPrimary }
-                        Item { Layout.fillWidth: true }
-                        Text { text: systemMetrics.cpuText; font.pixelSize: 12; font.bold: true; color: IslandTheme.accentPrimary }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        height: 4
-                        radius: 2
-                        color: IslandTheme.surfaceHover
-                        Rectangle {
-                            height: parent.height
-                            width: Math.max(0, Math.min(parent.width, parent.width * (systemMetrics.cpuPercent / 100.0)))
-                            radius: 2
-                            color: IslandTheme.accentPrimary
-                        }
-                    }
-
+                RowLayout {
+                    Layout.fillWidth: true
                     Text {
-                        text: "Active Load"
-                        font.pixelSize: 9
-                        color: IslandTheme.textTertiary
+                        text: "CPU"
+                        font.pixelSize: 11
+                        font.bold: true
+                        color: IslandTheme.textSecondary
+                    }
+                    Item { Layout.fillWidth: true }
+                    Text {
+                        text: systemMetrics.cpuText
+                        font.pixelSize: 11
+                        font.bold: true
+                        color: systemMetrics.cpuPercent > 85 ? IslandTheme.statusWarning : IslandTheme.textPrimary
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 2
+                    radius: 1
+                    color: IslandTheme.surfaceHover
+                    Rectangle {
+                        height: parent.height
+                        width: Math.max(0, Math.min(parent.width, parent.width * (systemMetrics.cpuPercent / 100.0)))
+                        radius: 1
+                        color: systemMetrics.cpuPercent > 85 ? IslandTheme.statusWarning : IslandTheme.accentPrimary
                     }
                 }
             }
 
-            // 2. RAM Card
-            Rectangle {
+            // RAM Tile
+            ColumnLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 74
-                radius: 10
-                color: IslandTheme.surfaceRaised
-                border.color: IslandTheme.borderSubtle
+                spacing: 2
 
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 8
-                    spacing: 4
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Text { text: "🧠"; font.pixelSize: 12 }
-                        Text { text: "RAM"; font.pixelSize: 11; font.bold: true; color: IslandTheme.textPrimary }
-                        Item { Layout.fillWidth: true }
-                        Text { text: systemMetrics.memText; font.pixelSize: 12; font.bold: true; color: IslandTheme.accentPrimary }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        height: 4
-                        radius: 2
-                        color: IslandTheme.surfaceHover
-                        Rectangle {
-                            height: parent.height
-                            width: Math.max(0, Math.min(parent.width, parent.width * (systemMetrics.memPercent / 100.0)))
-                            radius: 2
-                            color: IslandTheme.accentPrimary
-                        }
-                    }
-
+                RowLayout {
+                    Layout.fillWidth: true
                     Text {
-                        text: systemMetrics.memDetailText ? systemMetrics.memDetailText : "System Memory"
-                        font.pixelSize: 9
-                        color: IslandTheme.textTertiary
-                        elide: Text.ElideRight
+                        text: "RAM"
+                        font.pixelSize: 11
+                        font.bold: true
+                        color: IslandTheme.textSecondary
+                    }
+                    Item { Layout.fillWidth: true }
+                    Text {
+                        text: systemMetrics.memText
+                        font.pixelSize: 11
+                        font.bold: true
+                        color: systemMetrics.memPercent > 85 ? IslandTheme.statusWarning : IslandTheme.textPrimary
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 2
+                    radius: 1
+                    color: IslandTheme.surfaceHover
+                    Rectangle {
+                        height: parent.height
+                        width: Math.max(0, Math.min(parent.width, parent.width * (systemMetrics.memPercent / 100.0)))
+                        radius: 1
+                        color: systemMetrics.memPercent > 85 ? IslandTheme.statusWarning : IslandTheme.accentPrimary
                     }
                 }
             }
 
-            // 3. Battery or Network Card
-            Rectangle {
+            // Battery Tile (if battery hardware present)
+            ColumnLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 74
-                radius: 10
-                color: IslandTheme.surfaceRaised
-                border.color: IslandTheme.borderSubtle
+                spacing: 2
+                visible: systemMetrics.hasBattery
 
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 8
-                    spacing: 4
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Text { text: systemMetrics.hasBattery ? (systemMetrics.batteryCharging ? "⚡" : "🔋") : "🌐"; font.pixelSize: 12 }
-                        Text { text: systemMetrics.hasBattery ? "Battery" : "Net"; font.pixelSize: 11; font.bold: true; color: IslandTheme.textPrimary }
-                        Item { Layout.fillWidth: true }
-                        Text {
-                            text: systemMetrics.hasBattery ? systemMetrics.batteryText : systemMetrics.netText
-                            font.pixelSize: 12
-                            font.bold: true
-                            color: IslandTheme.accentPrimary
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        height: 4
-                        radius: 2
-                        color: IslandTheme.surfaceHover
-                        Rectangle {
-                            height: parent.height
-                            width: systemMetrics.hasBattery
-                                ? Math.max(0, Math.min(parent.width, parent.width * (systemMetrics.batteryPercent / 100.0)))
-                                : parent.width * 0.5
-                            radius: 2
-                            color: systemMetrics.hasBattery && systemMetrics.batteryPercent < 20 ? IslandTheme.statusDanger : IslandTheme.accentPrimary
-                        }
-                    }
-
+                RowLayout {
+                    Layout.fillWidth: true
                     Text {
-                        text: systemMetrics.hasBattery
-                            ? (systemMetrics.batteryCharging ? "Charging" : "Discharging")
-                            : systemMetrics.netDetailText
-                        font.pixelSize: 9
-                        color: IslandTheme.textTertiary
-                        elide: Text.ElideRight
+                        text: systemMetrics.batteryCharging ? "BAT ⚡" : "BAT"
+                        font.pixelSize: 11
+                        font.bold: true
+                        color: IslandTheme.textSecondary
+                    }
+                    Item { Layout.fillWidth: true }
+                    Text {
+                        text: systemMetrics.batteryText
+                        font.pixelSize: 11
+                        font.bold: true
+                        color: systemMetrics.batteryPercent < 20 ? IslandTheme.statusDanger : IslandTheme.textPrimary
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 2
+                    radius: 1
+                    color: IslandTheme.surfaceHover
+                    Rectangle {
+                        height: parent.height
+                        width: Math.max(0, Math.min(parent.width, parent.width * (systemMetrics.batteryPercent / 100.0)))
+                        radius: 1
+                        color: systemMetrics.batteryPercent < 20 ? IslandTheme.statusDanger : IslandTheme.accentPrimary
                     }
                 }
             }
         }
 
-        // Bottom Row: 4 Quick Toggle Buttons
-        RowLayout {
+        // Slot 2: Centre NET Monitor
+        ColumnLayout {
+            Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+            Layout.preferredWidth: 80
+            spacing: 3
+
+            RowLayout {
+                Layout.alignment: Qt.AlignHCenter
+                spacing: 4
+
+                NavIcon {
+                    size: 12
+                    source: "qrc:/linuxisland/ui/icons/ui/system-symbolic.svg"
+                    color: IslandTheme.textSecondary
+                }
+
+                Text {
+                    text: "NET"
+                    font.pixelSize: 11
+                    font.bold: true
+                    color: IslandTheme.textSecondary
+                }
+            }
+
+            Text {
+                text: {
+                    var parts = systemMetrics.netDetailText.split(" · ");
+                    return parts.length > 0 ? parts[0] : "↓ 0 B/s";
+                }
+                font.pixelSize: 10
+                font.bold: true
+                color: IslandTheme.textPrimary
+                Layout.alignment: Qt.AlignHCenter
+            }
+
+            Text {
+                text: {
+                    var parts = systemMetrics.netDetailText.split(" · ");
+                    return parts.length > 1 ? parts[1] : "↑ 0 B/s";
+                }
+                font.pixelSize: 10
+                font.bold: true
+                color: IslandTheme.textPrimary
+                Layout.alignment: Qt.AlignHCenter
+            }
+        }
+
+        // Slot 3: Right Quick Toggles & Storage Readout
+        ColumnLayout {
             Layout.fillWidth: true
+            Layout.preferredWidth: 100
+            Layout.alignment: Qt.AlignVCenter
             spacing: 8
 
-            // 1. Theme toggle
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 38
-                radius: 8
-                color: themeBtnMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
-                border.color: IslandTheme.borderSubtle
+            // 4 Icon Quick Toggles
+            RowLayout {
+                Layout.alignment: Qt.AlignRight
+                spacing: 4
 
-                RowLayout {
-                    anchors.centerIn: parent
-                    spacing: 4
-                    Text { text: quickSettings.darkMode ? "🌙" : "☀️"; font.pixelSize: 12 }
-                    Text { text: quickSettings.darkMode ? "Dark" : "Light"; font.pixelSize: 11; font.bold: true; color: IslandTheme.textPrimary }
+                // Theme Toggle
+                Rectangle {
+                    implicitWidth: 24
+                    implicitHeight: 24
+                    radius: 6
+                    color: themeMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
+
+                    NavIcon {
+                        anchors.centerIn: parent
+                        size: 13
+                        source: "qrc:/linuxisland/ui/icons/ui/theme-symbolic.svg"
+                        color: quickSettings.darkMode ? IslandTheme.accentPrimary : IslandTheme.textSecondary
+                    }
+
+                    MouseArea {
+                        id: themeMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: quickSettings.toggleDarkMode()
+                    }
                 }
 
-                MouseArea {
-                    id: themeBtnMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: quickSettings.toggleDarkMode()
+                // Night Light Toggle
+                Rectangle {
+                    implicitWidth: 24
+                    implicitHeight: 24
+                    radius: 6
+                    color: nightMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
+
+                    NavIcon {
+                        anchors.centerIn: parent
+                        size: 13
+                        source: "qrc:/linuxisland/ui/icons/ui/night-light-symbolic.svg"
+                        color: quickSettings.nightLight ? IslandTheme.accentPrimary : IslandTheme.textSecondary
+                    }
+
+                    MouseArea {
+                        id: nightMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: quickSettings.toggleNightLight()
+                    }
+                }
+
+                // DND Toggle
+                Rectangle {
+                    implicitWidth: 24
+                    implicitHeight: 24
+                    radius: 6
+                    color: dndMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
+
+                    NavIcon {
+                        anchors.centerIn: parent
+                        size: 13
+                        source: "qrc:/linuxisland/ui/icons/ui/dnd-symbolic.svg"
+                        color: quickSettings.dnd ? IslandTheme.statusDanger : IslandTheme.textSecondary
+                    }
+
+                    MouseArea {
+                        id: dndMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: quickSettings.toggleDnd()
+                    }
+                }
+
+                // Settings Launcher
+                Rectangle {
+                    implicitWidth: 24
+                    implicitHeight: 24
+                    radius: 6
+                    color: settingsMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
+
+                    NavIcon {
+                        anchors.centerIn: parent
+                        size: 13
+                        source: "qrc:/linuxisland/ui/icons/ui/system-symbolic.svg"
+                        color: IslandTheme.textSecondary
+                    }
+
+                    MouseArea {
+                        id: settingsMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: quickSettings.openSettingsApp()
+                    }
                 }
             }
 
-            // 2. Night Light toggle
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 38
-                radius: 8
-                color: quickSettings.nightLight ? IslandTheme.surfaceHover : (nightBtnMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised)
-                border.color: quickSettings.nightLight ? IslandTheme.accentPrimary : IslandTheme.borderSubtle
-
-                RowLayout {
-                    anchors.centerIn: parent
-                    spacing: 4
-                    Text { text: "👁️"; font.pixelSize: 12 }
-                    Text { text: "Night"; font.pixelSize: 11; font.bold: true; color: quickSettings.nightLight ? IslandTheme.accentPrimary : IslandTheme.textPrimary }
-                }
-
-                MouseArea {
-                    id: nightBtnMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: quickSettings.toggleNightLight()
-                }
-            }
-
-            // 3. DND toggle
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 38
-                radius: 8
-                color: quickSettings.dnd ? IslandTheme.surfaceHover : (dndBtnMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised)
-                border.color: quickSettings.dnd ? IslandTheme.statusDanger : IslandTheme.borderSubtle
-
-                RowLayout {
-                    anchors.centerIn: parent
-                    spacing: 4
-                    Text { text: quickSettings.dnd ? "🔕" : "🔔"; font.pixelSize: 12 }
-                    Text { text: "DND"; font.pixelSize: 11; font.bold: true; color: quickSettings.dnd ? IslandTheme.statusDanger : IslandTheme.textPrimary }
-                }
-
-                MouseArea {
-                    id: dndBtnMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: quickSettings.toggleDnd()
-                }
-            }
-
-            // 4. Settings launcher
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 38
-                radius: 8
-                color: settingsBtnMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
-                border.color: IslandTheme.borderSubtle
-
-                RowLayout {
-                    anchors.centerIn: parent
-                    spacing: 4
-                    Text { text: "⚙"; font.pixelSize: 12; color: IslandTheme.textPrimary }
-                    Text { text: "Config"; font.pixelSize: 11; font.bold: true; color: IslandTheme.textPrimary }
-                }
-
-                MouseArea {
-                    id: settingsBtnMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: quickSettings.openSettingsApp()
-                }
+            // Memory detail readout
+            Text {
+                text: systemMetrics.memDetailText ? systemMetrics.memDetailText : "System Memory"
+                font.pixelSize: 9
+                color: IslandTheme.textTertiary
+                Layout.alignment: Qt.AlignRight
+                elide: Text.ElideRight
             }
         }
     }

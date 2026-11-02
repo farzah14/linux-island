@@ -124,5 +124,8 @@ MIT. See `LICENSE`.
 - `docs/compatibility.md`: Target platform compatibility matrix and host audit facts.
 - `docs/desktop-environments.md`: Which desktops use the Shell extension or the Qt overlay.
 - `docs/packaging.md`: DEB, RPM, Arch, tarball and per-user install instructions.
+- `docs/ui-parity/UI_CONTRACT.md`: Frozen visual and behavioral cross-desktop UI contract.
+- `docs/ui-parity/TEST_MATRIX.md`: Complete cross-desktop parity test matrix and target status.
+- `tests/ui-parity/README.md`: Deterministic testing guide and fixture catalog.
 - `schemas/io.github.linuxisland.Core1.xml`: Immutable D-Bus Core1 XML specification.
 - `design-system/DESIGN_SYSTEM.md`: Warm Minimalist design system reference.

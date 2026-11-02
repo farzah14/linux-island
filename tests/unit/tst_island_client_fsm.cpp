@@ -14,6 +14,8 @@ private slots:
     void testClampVolume();
     void testCoreStatusConnectedMapping();
     void testFullscreenJsonParsing();
+    void testDisplaySurfaceManagerGeometry();
+    void testVolumeSetAndMute();
 };
 
 void TestIslandClientFsm::testStateTransitions() {
@@ -34,7 +36,7 @@ void TestIslandClientFsm::testStateTransitions() {
 
     // PEEK transitions
     QCOMPARE(IslandClient::transitionState(QStringLiteral("PEEK"), QStringLiteral("PEEK_TIMEOUT")), QStringLiteral("COMPACT"));
-    QCOMPARE(IslandClient::transitionState(QStringLiteral("PEEK"), QStringLiteral("CLICK")), QStringLiteral("EXPANDED"));
+    QCOMPARE(IslandClient::transitionState(QStringLiteral("PEEK"), QStringLiteral("CLICK")), QStringLiteral("PEEK"));
     QCOMPARE(IslandClient::transitionState(QStringLiteral("PEEK"), QStringLiteral("FULLSCREEN_ON")), QStringLiteral("HIDDEN"));
 
     // HIDDEN transitions
@@ -75,14 +77,28 @@ void TestIslandClientFsm::testCoreStatusConnectedMapping() {
     QMetaObject::invokeMethod(&client, "onCoreStatusChanged",
                               Qt::DirectConnection, Q_ARG(QString, QStringLiteral("ready")));
     QVERIFY2(client.connected(), "status 'ready' must mark the client connected");
-
     QMetaObject::invokeMethod(&client, "onCoreStatusChanged",
                               Qt::DirectConnection, Q_ARG(QString, QStringLiteral("active")));
     QVERIFY2(client.connected(), "status 'active' must keep the client connected");
 
+    // Simulate active media
+    QVariantMap media;
+    media[QStringLiteral("playerId")] = QStringLiteral("spotify");
+    media[QStringLiteral("title")] = QStringLiteral("Test Song");
+    media[QStringLiteral("canSeek")] = true;
+    media[QStringLiteral("canPlay")] = true;
+    QMetaObject::invokeMethod(&client, "onMediaChanged",
+                              Qt::DirectConnection, Q_ARG(quint64, 1), Q_ARG(QVariantMap, media));
+    QCOMPARE(client.title(), QStringLiteral("Test Song"));
+    QVERIFY(client.canSeek());
+    QVERIFY(client.canPlayPause());
+
     QMetaObject::invokeMethod(&client, "onCoreStatusChanged",
                               Qt::DirectConnection, Q_ARG(QString, QStringLiteral("stopping")));
     QVERIFY2(!client.connected(), "status 'stopping' must mark the client disconnected");
+    QVERIFY2(client.title().isEmpty(), "stopping must clear title");
+    QVERIFY2(!client.canSeek(), "stopping must disable seek");
+    QVERIFY2(!client.canPlayPause(), "stopping must disable playback controls");
 }
 
 void TestIslandClientFsm::testFullscreenJsonParsing() {
@@ -126,6 +142,36 @@ void TestIslandClientFsm::testFullscreenJsonParsing() {
     })";
     QVERIFY(DisplaySurfaceManager::parseSwayFullscreen(swayNested));
     QVERIFY(!DisplaySurfaceManager::parseSwayFullscreen("{}"));
+}
+
+void TestIslandClientFsm::testDisplaySurfaceManagerGeometry() {
+    DisplaySurfaceManager mgr(nullptr, nullptr);
+    QCOMPARE(mgr.windowWidth(), 440);
+    QCOMPARE(mgr.windowHeight(), 360);
+    // Contract dimensions (medium 328x148, large 388x174) must fit within window bounds
+    QVERIFY(328 <= mgr.windowWidth());
+    QVERIFY(148 <= mgr.windowHeight());
+    QVERIFY(388 <= mgr.windowWidth());
+}
+
+void TestIslandClientFsm::testVolumeSetAndMute() {
+    IslandClient client;
+    QCOMPARE(client.volume(), 1.0);
+
+    client.setVolume(0.65);
+    QCOMPARE(client.volume(), 0.65);
+
+    // Mute: volume to 0.0
+    client.setVolume(0.0);
+    QCOMPARE(client.volume(), 0.0);
+
+    // Over-range clamping
+    client.setVolume(1.5);
+    QCOMPARE(client.volume(), 1.0);
+
+    // Under-range clamping
+    client.setVolume(-0.5);
+    QCOMPARE(client.volume(), 0.0);
 }
 
 QTEST_MAIN(TestIslandClientFsm)

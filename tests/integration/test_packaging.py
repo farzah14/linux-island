@@ -42,6 +42,8 @@ def check_layout(prefix: Path):
         'libexec/linux-island-core',
         'libexec/linux-island-ui',
         'share/gnome-shell/extensions/linux-island@local/metadata.json',
+        'share/gnome-shell/extensions/linux-island@local/icons/ui/media-symbolic.svg',
+        'share/gnome-shell/extensions/linux-island@local/icons/ui/system-symbolic.svg',
         'share/applications/linux-island.desktop',
         'share/applications/linux-island-settings.desktop',
         'share/metainfo/io.github.linuxisland.metainfo.xml',
@@ -124,6 +126,10 @@ def check_packages(build_dir: Path, tmp: Path):
     require(fields.returncode == 0, 'dpkg-deb -f failed')
     require('qml6-module-qtwebengine' in fields.stdout,
             f'Depends lacks qml6-module-qtwebengine:\n{fields.stdout}')
+    require('qml6-module-qtquick-effects' in fields.stdout,
+            f'Depends lacks qml6-module-qtquick-effects:\n{fields.stdout}')
+    require('libqt6svg6' in fields.stdout,
+            f'Depends lacks libqt6svg6:\n{fields.stdout}')
 
     if not shutil.which('rpmbuild'):
         skip('rpmbuild not installed')
@@ -142,6 +148,8 @@ def main():
         prefix = tmp / 'prefix'
         result = run(['cmake', '--install', str(build_dir), '--prefix', str(prefix)])
         require(result.returncode == 0, f'cmake --install failed:\n{result.stdout}{result.stderr}')
+        smoke_res = run([str(prefix / 'libexec/linux-island-ui'), '--smoke-test'], cwd=str(tmp))
+        require(smoke_res.returncode == 0, f'staged linux-island-ui smoke check failed:\n{smoke_res.stderr}')
         check_layout(prefix)
         check_desktop_files()
         check_appstream()

@@ -5,9 +5,9 @@ import QtQuick.Controls
 Item {
     id: root
 
-    implicitWidth: parent ? parent.width : 340
-    implicitHeight: 130
-
+    implicitWidth: parent ? parent.width : 328
+    implicitHeight: 140
+    property double lastUnmutedVolume: 1.0
     function formatPlayerName(id) {
         if (!id) return "Player";
         var prefix = "org.mpris.MediaPlayer2.";
@@ -21,7 +21,7 @@ Item {
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 6
-        spacing: 8
+        spacing: 6
 
         // Row 1: Album Artwork + Track Information (Title + BeatBars, Artist + Player Pill)
         RowLayout {
@@ -46,10 +46,11 @@ Item {
                     visible: status === Image.Ready
                 }
 
-                Text {
+                NavIcon {
                     anchors.centerIn: parent
-                    text: "🎵"
-                    font.pixelSize: 20
+                    size: 24
+                    source: "qrc:/linuxisland/ui/icons/ui/media-symbolic.svg"
+                    color: IslandTheme.textSecondary
                     visible: !islandClient.albumArtUri || albumArtImage.status !== Image.Ready
                 }
             }
@@ -66,7 +67,7 @@ Item {
 
                     Text {
                         Layout.fillWidth: true
-                        text: islandClient.title ? islandClient.title : "No Media Playing"
+                        text: !islandClient.connected ? "Core offline" : (islandClient.title ? islandClient.title : "No Media Playing")
                         font.pixelSize: 13
                         font.bold: true
                         color: IslandTheme.textPrimary
@@ -87,7 +88,7 @@ Item {
 
                     Text {
                         Layout.fillWidth: true
-                        text: islandClient.artist ? islandClient.artist : "Desktop Audio"
+                        text: islandClient.artist ? islandClient.artist : ""
                         font.pixelSize: 12
                         color: IslandTheme.textSecondary
                         elide: Text.ElideRight
@@ -157,14 +158,14 @@ Item {
                 height: 8
                 radius: 4
                 color: seekMouse.containsMouse || seekMouse.pressed ? IslandTheme.accentHover : IslandTheme.textPrimary
-                visible: seekMouse.containsMouse || seekMouse.pressed
+                visible: (seekMouse.containsMouse || seekMouse.pressed) && islandClient.canSeek && islandClient.durationUs > 0
             }
 
             MouseArea {
                 id: seekMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
+                enabled: islandClient.canSeek && islandClient.durationUs > 0
+                hoverEnabled: enabled
+                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                 property real dragFraction: 0.0
 
                 function updatePos(mouseX) {
@@ -208,11 +209,11 @@ Item {
                     color: prevMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
                     opacity: islandClient.canPrevious ? 1.0 : 0.4
 
-                    Text {
+                    NavIcon {
                         anchors.centerIn: parent
-                        text: "⏮"
-                        font.pixelSize: 13
-                        color: IslandTheme.textPrimary
+                        size: 14
+                        source: "qrc:/linuxisland/ui/icons/ui/prev-symbolic.svg"
+                        color: islandClient.canPrevious ? IslandTheme.textPrimary : IslandTheme.textTertiary
                     }
 
                     MouseArea {
@@ -232,10 +233,10 @@ Item {
                     color: playMouse.containsMouse ? IslandTheme.accentHover : IslandTheme.accentPrimary
                     opacity: islandClient.canPlay || islandClient.canPause ? 1.0 : 0.4
 
-                    Text {
+                    NavIcon {
                         anchors.centerIn: parent
-                        text: islandClient.isPlaying ? "⏸" : "▶"
-                        font.pixelSize: 15
+                        size: 16
+                        source: islandClient.isPlaying ? "qrc:/linuxisland/ui/icons/ui/pause-symbolic.svg" : "qrc:/linuxisland/ui/icons/ui/play-symbolic.svg"
                         color: IslandTheme.surfaceIsland
                     }
 
@@ -256,13 +257,12 @@ Item {
                     color: nextMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
                     opacity: islandClient.canNext ? 1.0 : 0.4
 
-                    Text {
+                    NavIcon {
                         anchors.centerIn: parent
-                        text: "⏭"
-                        font.pixelSize: 13
-                        color: IslandTheme.textPrimary
+                        size: 14
+                        source: "qrc:/linuxisland/ui/icons/ui/next-symbolic.svg"
+                        color: islandClient.canNext ? IslandTheme.textPrimary : IslandTheme.textTertiary
                     }
-
                     MouseArea {
                         id: nextMouse
                         anchors.fill: parent
@@ -281,6 +281,99 @@ Item {
                 color: IslandTheme.textTertiary
                 horizontalAlignment: Text.AlignRight
                 Layout.preferredWidth: 36
+            }
+        }
+
+        // Row 4: Volume Row: Mute Button + Volume Slider
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            // Mute button (28x28, radius 12 matching GNOME mediaView.js:455)
+            Rectangle {
+                implicitWidth: 28
+                implicitHeight: 28
+                radius: 12
+                color: muteMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
+
+                NavIcon {
+                    anchors.centerIn: parent
+                    size: 14
+                    source: islandClient.volume <= 0.0 ? "qrc:/linuxisland/ui/icons/ui/volume-muted-symbolic.svg" : "qrc:/linuxisland/ui/icons/ui/volume-high-symbolic.svg"
+                    color: IslandTheme.textPrimary
+                }
+
+                MouseArea {
+                    id: muteMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (islandClient.volume > 0.0) {
+                            root.lastUnmutedVolume = islandClient.volume;
+                            islandClient.setVolume(0.0);
+                        } else {
+                            var restore = root.lastUnmutedVolume <= 0.0 ? 1.0 : root.lastUnmutedVolume;
+                            islandClient.setVolume(restore);
+                        }
+                    }
+                }
+            }
+
+            // Volume track
+            Item {
+                Layout.fillWidth: true
+                implicitHeight: 16
+
+                Rectangle {
+                    id: volBg
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width
+                    height: 4
+                    radius: 2
+                    color: IslandTheme.surfaceRaised
+                }
+
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: volBg.x
+                    width: Math.max(0, Math.min(volBg.width, volBg.width * (volMouse.pressed ? volMouse.volDragFraction : islandClient.volume)))
+                    height: 4
+                    radius: 2
+                    color: IslandTheme.accentPrimary
+                }
+
+                // Thumb handle
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: Math.max(0, Math.min(volBg.width - 8, (volBg.width * (volMouse.pressed ? volMouse.volDragFraction : islandClient.volume)) - 4))
+                    width: 8
+                    height: 8
+                    radius: 4
+                    color: volMouse.containsMouse || volMouse.pressed ? IslandTheme.accentHover : IslandTheme.textPrimary
+                    visible: volMouse.containsMouse || volMouse.pressed
+                }
+
+                MouseArea {
+                    id: volMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    property real volDragFraction: 1.0
+
+                    function updateFrac(mouseX) {
+                        volDragFraction = Math.max(0.0, Math.min(1.0, mouseX / width));
+                    }
+
+                    onPressed: (mouse) => updateFrac(mouse.x)
+                    onPositionChanged: (mouse) => {
+                        if (pressed) updateFrac(mouse.x);
+                    }
+                    onReleased: (mouse) => {
+                        updateFrac(mouse.x);
+                        islandClient.setVolume(volDragFraction);
+                    }
+                }
             }
         }
     }

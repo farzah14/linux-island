@@ -6,8 +6,8 @@ import QtQuick.Window
 Item {
     id: root
 
-    implicitWidth: parent ? parent.width : 340
-    implicitHeight: 200
+    implicitWidth: parent ? parent.width : 320
+    implicitHeight: 110
     readonly property string effectiveSearchEngine: islandClient.searchEngine === "brave" ? "brave" : "google"
 
     function forceFocus() {
@@ -30,55 +30,74 @@ Item {
         property string engineLabel: ""
         property string activeEngine: ""
 
-        Layout.fillWidth: true
+        readonly property bool isActive: chip.activeEngine === chip.engineId
+
+        implicitWidth: 64
         implicitHeight: 22
         radius: 6
-        color: chip.activeEngine === chip.engineId ? IslandTheme.accentPrimary : IslandTheme.surfaceRaised
+        color: chip.isActive
+            ? IslandTheme.surfaceHover
+            : (chipMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised)
+        border.width: 1
+        border.color: chip.isActive ? IslandTheme.accentPrimary : IslandTheme.borderSubtle
 
         Text {
             anchors.centerIn: parent
             text: chip.engineLabel
-            font.pixelSize: 9
+            font.pixelSize: 10
             font.bold: true
-            color: chip.activeEngine === chip.engineId ? IslandTheme.surfaceIsland : IslandTheme.textSecondary
+            color: chip.isActive ? IslandTheme.accentPrimary : IslandTheme.textSecondary
         }
 
         MouseArea {
+            id: chipMouse
             anchors.fill: parent
+            hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: islandClient.updateSettings({"searchEngine": chip.engineId})
+            onClicked: {
+                islandClient.updateSettings({"searchEngine": chip.engineId});
+                searchField.forceActiveFocus();
+            }
         }
     }
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 10
-        spacing: 8
+        anchors.margins: 6
+        spacing: 6
 
+        // Row 1: Engine Selection Chips
         RowLayout {
-            Layout.fillWidth: true
-            spacing: 4
+            Layout.alignment: Qt.AlignHCenter
+            spacing: 6
 
-            EngineChip { engineId: "google"; engineLabel: "Google"; activeEngine: root.effectiveSearchEngine }
-            EngineChip { engineId: "brave"; engineLabel: "Brave"; activeEngine: root.effectiveSearchEngine }
+            EngineChip {
+                engineId: "google"
+                engineLabel: "Google"
+                activeEngine: root.effectiveSearchEngine
+            }
+            EngineChip {
+                engineId: "brave"
+                engineLabel: "Brave"
+                activeEngine: root.effectiveSearchEngine
+            }
         }
 
+        // Row 2: Search Input Field
         TextField {
             id: searchField
             Layout.fillWidth: true
-            implicitHeight: 34
-            leftPadding: 28
+            implicitHeight: 32
+            leftPadding: 26
             rightPadding: 10
-            placeholderText: "Search the web…"
+            placeholderText: "Search the web or type a URL..."
             placeholderTextColor: IslandTheme.textTertiary
             color: IslandTheme.textPrimary
             font.pixelSize: 12
             selectByMouse: true
             onAccepted: root.submit()
             Keys.onEscapePressed: islandClient.dispatchEvent("DISMISS")
-            // In standalone/overlay mode the frameless window is not always
-            // the active window; clicking into the field must raise it or
-            // keystrokes never reach the TextField.
+
             onActiveFocusChanged: {
                 if (activeFocus && Window.window) {
                     Window.window.requestActivate();
@@ -89,36 +108,37 @@ Item {
                 radius: 8
                 color: IslandTheme.surfaceRaised
                 border.width: 1
-                border.color: searchField.activeFocus ? IslandTheme.accentPrimary : IslandTheme.borderSubtle
+                border.color: searchField.activeFocus ? IslandTheme.borderFocus : IslandTheme.borderSubtle
 
-                Text {
+                NavIcon {
                     anchors.left: parent.left
-                    anchors.leftMargin: 10
+                    anchors.leftMargin: 8
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "🔍"
-                    font.pixelSize: 11
+                    size: 13
+                    source: "qrc:/linuxisland/ui/icons/ui/search-symbolic.svg"
                     color: searchField.activeFocus ? IslandTheme.accentPrimary : IslandTheme.textTertiary
                 }
             }
         }
 
+        // Row 3: Hint & Submit Action
         RowLayout {
             Layout.fillWidth: true
             spacing: 6
 
             Text {
                 text: "Enter to search · Esc to close"
-                font.pixelSize: 9
+                font.pixelSize: 10
                 color: IslandTheme.textTertiary
                 Layout.fillWidth: true
             }
 
             Rectangle {
                 implicitWidth: 64
-                implicitHeight: 26
-                radius: 8
-                color: IslandTheme.accentPrimary
-                opacity: searchField.text.trim().length > 0 ? 1 : 0.45
+                implicitHeight: 24
+                radius: 6
+                color: searchActionMouse.containsMouse ? IslandTheme.accentHover : IslandTheme.accentPrimary
+                opacity: searchField.text.trim().length > 0 ? 1.0 : 0.45
 
                 Text {
                     anchors.centerIn: parent
@@ -129,14 +149,14 @@ Item {
                 }
 
                 MouseArea {
+                    id: searchActionMouse
                     anchors.fill: parent
+                    hoverEnabled: true
                     enabled: searchField.text.trim().length > 0
-                    cursorShape: Qt.PointingHandCursor
+                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                     onClicked: root.submit()
                 }
             }
         }
-
-        Item { Layout.fillHeight: true }
     }
 }

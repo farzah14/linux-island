@@ -110,11 +110,18 @@ def main():
         config = parse_config(result.stdout)
         assert config['platform'] == 'wayland', config
 
-        result = run(['--print-config'], XDG_SESSION_TYPE='x11', XDG_CURRENT_DESKTOP='XFCE')
-        config = parse_config(result.stdout)
-        assert config['platform'] == 'default', config
-        assert config['mode'] == 'overlay', config
-        print('PASS: launcher routing')
+        for de in ('XFCE', 'X-Cinnamon', 'MATE', 'i3', 'bspwm'):
+            result = run(['--print-config'], XDG_SESSION_TYPE='x11', XDG_CURRENT_DESKTOP=de)
+            config = parse_config(result.stdout)
+            assert config['platform'] == 'default', config
+            assert config['mode'] == 'overlay', config
+
+        for wl_de in ('sway', 'Hyprland'):
+            result = run(['--print-config'], XDG_SESSION_TYPE='wayland', XDG_CURRENT_DESKTOP=wl_de, DISPLAY=':0')
+            config = parse_config(result.stdout)
+            assert config['platform'] == 'xcb', config
+            assert config['mode'] == 'overlay', config
+        print('PASS: launcher routing across all desktop families')
 
         # Missing UI must fail loudly, not silently do nothing.
         (prefix / 'libexec/linux-island-ui').unlink()

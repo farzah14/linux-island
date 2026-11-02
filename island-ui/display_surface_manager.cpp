@@ -36,8 +36,11 @@ void DisplaySurfaceManager::attachWindow(QQuickWindow *window) {
     }
     m_window->setFlags(flags);
     m_window->setColor(QColor(0, 0, 0, 0));
+    connect(qGuiApp, &QGuiApplication::primaryScreenChanged, this, &DisplaySurfaceManager::updateWindowPosition, Qt::UniqueConnection);
+    if (QScreen *primary = QGuiApplication::primaryScreen()) {
+        connect(primary, &QScreen::geometryChanged, this, &DisplaySurfaceManager::updateWindowPosition, Qt::UniqueConnection);
+    }
     updateWindowPosition();
-
     if (!m_currentMaskRect.isEmpty()) {
         // Re-apply through the mask builder so the rounded shape survives
         // window (re)attachment instead of collapsing to a plain rectangle.

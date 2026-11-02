@@ -4,11 +4,13 @@
 let St = null;
 let Clutter = null;
 let GLib = null;
+let Gio = null;
 if (typeof process === 'undefined') {
     try {
         St = (await import('gi://St')).default;
         Clutter = (await import('gi://Clutter')).default;
         GLib = (await import('gi://GLib')).default;
+        Gio = (await import('gi://Gio')).default;
     } catch (_) {}
 }
 
@@ -81,6 +83,26 @@ export function getPageIcon(page) {
     return 'view-more-symbolic';
 }
 
+export function getLocalNavGIcon(page) {
+    if (!Gio) return null;
+    try {
+        const id = (page?.id || '').toLowerCase();
+        let name = null;
+        if (id === 'media' || id === 'music') name = 'media-symbolic.svg';
+        else if (id === 'system' || id === 'controls' || id === 'metrics') name = 'system-symbolic.svg';
+        else if (id === 'ai' || id === 'quota' || id === 'ai-quota') name = 'ai-symbolic.svg';
+        else if (id === 'search' || id === 'web' || id === 'web-search') name = 'search-symbolic.svg';
+        if (!name) return null;
+
+        const thisFile = Gio.File.new_for_uri(import.meta.url);
+        const iconFile = thisFile.get_parent().get_parent().get_child('icons').get_child('ui').get_child(name);
+        if (iconFile.query_exists(null)) {
+            return new Gio.FileIcon({file: iconFile});
+        }
+    } catch (_) {}
+    return null;
+}
+
 export class FeatureCarousel {
     constructor({pages = [], onPageChanged, showTopNav = true, showDots = false} = {}) {
         this._pages = pages.filter(p => Boolean(p));
@@ -139,13 +161,21 @@ export class FeatureCarousel {
                     x_align: Clutter.ActorAlign.CENTER,
                     y_align: Clutter.ActorAlign.CENTER,
                 });
-                const icon = new St.Icon({
-                    icon_name: getPageIcon(page),
-                    fallback_icon_name: 'view-more-symbolic',
-                    icon_size: 14,
-                    x_align: Clutter.ActorAlign.CENTER,
-                    y_align: Clutter.ActorAlign.CENTER,
-                });
+                const gicon = getLocalNavGIcon(page);
+                const icon = gicon
+                    ? new St.Icon({
+                        gicon,
+                        icon_size: 14,
+                        x_align: Clutter.ActorAlign.CENTER,
+                        y_align: Clutter.ActorAlign.CENTER,
+                    })
+                    : new St.Icon({
+                        icon_name: getPageIcon(page),
+                        fallback_icon_name: 'view-more-symbolic',
+                        icon_size: 14,
+                        x_align: Clutter.ActorAlign.CENTER,
+                        y_align: Clutter.ActorAlign.CENTER,
+                    });
                 btn.set_child(icon);
                 btn.connect('clicked', () => this.setPage(i));
                 this._navButtons.push(btn);

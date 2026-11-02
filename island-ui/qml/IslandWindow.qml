@@ -17,6 +17,12 @@ Window {
         onActivated: islandClient.dispatchEvent("DISMISS")
     }
 
+    onActiveChanged: {
+        if (!active && islandContainer && islandContainer.isExpanded && !companionLoader.active) {
+            islandClient.dispatchEvent("DISMISS");
+        }
+    }
+
     // Function to calculate target capsule width
     function getPillWidth() {
         if (islandClient.capsuleSize === "circle") return 36;
@@ -26,14 +32,14 @@ Window {
     }
 
     function getExpandedWidth() {
-        if (islandClient.capsuleSize === "small" || islandClient.capsuleSize === "circle") return 280;
+        if (islandClient.capsuleSize === "small" || islandClient.capsuleSize === "circle") return 268;
         if (islandClient.capsuleSize === "large") return 388;
-        return 340; // medium default
+        return 328; // medium default
     }
 
     function getExpandedHeight() {
-        if (carouselView && carouselView.currentIndex === 1) return 194;
-        if (carouselView && carouselView.currentIndex === 2) return 198;
+        if (carouselView && carouselView.currentIndex === 1) return 184;
+        if (carouselView && carouselView.currentIndex === 2) return 190;
         return 174;
     }
 
@@ -53,31 +59,25 @@ Window {
         }
 
         width: isExpanded ? windowRoot.getExpandedWidth() : (isCircle ? 36 : windowRoot.getPillWidth())
-        height: isExpanded ? windowRoot.getExpandedHeight() : 34
+        height: isExpanded ? windowRoot.getExpandedHeight() : 36
         anchors.horizontalCenter: parent.horizontalCenter
         y: 4
-        radius: isExpanded ? 20 : (isCircle ? 18 : 17)
+        radius: isExpanded ? IslandTheme.radiusXl : (isCircle ? IslandTheme.radiusPill : 18)
         color: IslandTheme.surfaceIsland
         border.color: isHovered || isExpanded ? IslandTheme.borderFocus : IslandTheme.borderSubtle
         border.width: 1
         clip: true
-        scale: (compactMouse.pressed && !islandContainer.isExpanded) ? 0.96 : 1.0
-
         Behavior on width {
             enabled: islandClient.animationEnabled
-            NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: islandContainer.isExpanded ? 300 : 220; easing.type: Easing.OutCubic }
         }
         Behavior on height {
             enabled: islandClient.animationEnabled
-            NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: islandContainer.isExpanded ? 300 : 220; easing.type: Easing.OutCubic }
         }
         Behavior on radius {
             enabled: islandClient.animationEnabled
-            NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
-        }
-        Behavior on scale {
-            enabled: islandClient.animationEnabled
-            NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
         }
         // Notify surface manager of input mask whenever allocation updates
         property bool _maskUpdatePending: false
@@ -176,22 +176,54 @@ Window {
                 }
             }
 
+            Timer {
+                id: hoverEnterTimer
+                interval: islandClient.animationEnabled ? 120 : 0
+                onTriggered: {
+                    if (compactMouse.containsMouse && islandClient.hoverPreviewEnabled && islandClient.uiState === "COMPACT") {
+                        islandClient.dispatchEvent("HOVER_ENTER");
+                    }
+                }
+            }
+
+            Timer {
+                id: hoverExitTimer
+                interval: islandClient.animationEnabled ? 240 : 0
+                onTriggered: {
+                    if (!compactMouse.containsMouse && islandClient.uiState === "PREVIEW") {
+                        islandClient.dispatchEvent("HOVER_LEAVE");
+                    }
+                }
+            }
+
             MouseArea {
                 id: compactMouse
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onEntered: {
+                    hoverExitTimer.stop();
                     if (islandClient.hoverPreviewEnabled && islandClient.uiState === "COMPACT") {
-                        islandClient.dispatchEvent("HOVER_ENTER");
+                        if (islandClient.animationEnabled) {
+                            hoverEnterTimer.start();
+                        } else {
+                            islandClient.dispatchEvent("HOVER_ENTER");
+                        }
                     }
                 }
                 onExited: {
+                    hoverEnterTimer.stop();
                     if (islandClient.uiState === "PREVIEW") {
-                        islandClient.dispatchEvent("HOVER_LEAVE");
+                        if (islandClient.animationEnabled) {
+                            hoverExitTimer.start();
+                        } else {
+                            islandClient.dispatchEvent("HOVER_LEAVE");
+                        }
                     }
                 }
                 onClicked: {
+                    hoverEnterTimer.stop();
+                    hoverExitTimer.stop();
                     islandClient.dispatchEvent("CLICK");
                 }
             }
@@ -271,10 +303,9 @@ Window {
                         radius: 8
                         color: carouselView.currentIndex === 0 ? IslandTheme.accentPrimary : (tab0Mouse.containsMouse ? IslandTheme.surfaceHover : "transparent")
 
-                        Text {
+                        NavIcon {
                             anchors.centerIn: parent
-                            text: "🎵"
-                            font.pixelSize: 11
+                            source: "qrc:/linuxisland/ui/icons/ui/media-symbolic.svg"
                             color: carouselView.currentIndex === 0 ? IslandTheme.surfaceIsland : IslandTheme.textPrimary
                         }
 
@@ -293,10 +324,9 @@ Window {
                         radius: 8
                         color: carouselView.currentIndex === 1 ? IslandTheme.accentPrimary : (tab1Mouse.containsMouse ? IslandTheme.surfaceHover : "transparent")
 
-                        Text {
+                        NavIcon {
                             anchors.centerIn: parent
-                            text: "⚡"
-                            font.pixelSize: 11
+                            source: "qrc:/linuxisland/ui/icons/ui/system-symbolic.svg"
                             color: carouselView.currentIndex === 1 ? IslandTheme.surfaceIsland : IslandTheme.textPrimary
                         }
 
@@ -315,10 +345,9 @@ Window {
                         radius: 8
                         color: carouselView.currentIndex === 2 ? IslandTheme.accentPrimary : (tab2Mouse.containsMouse ? IslandTheme.surfaceHover : "transparent")
 
-                        Text {
+                        NavIcon {
                             anchors.centerIn: parent
-                            text: "🤖"
-                            font.pixelSize: 11
+                            source: "qrc:/linuxisland/ui/icons/ui/ai-symbolic.svg"
                             color: carouselView.currentIndex === 2 ? IslandTheme.surfaceIsland : IslandTheme.textPrimary
                         }
 
@@ -337,10 +366,9 @@ Window {
                         radius: 8
                         color: carouselView.currentIndex === 3 ? IslandTheme.accentPrimary : (tab3Mouse.containsMouse ? IslandTheme.surfaceHover : "transparent")
 
-                        Text {
+                        NavIcon {
                             anchors.centerIn: parent
-                            text: "🔍"
-                            font.pixelSize: 11
+                            source: "qrc:/linuxisland/ui/icons/ui/search-symbolic.svg"
                             color: carouselView.currentIndex === 3 ? IslandTheme.surfaceIsland : IslandTheme.textPrimary
                         }
 
@@ -352,30 +380,7 @@ Window {
                         }
                     }
                 }
-
                 Item { Layout.fillWidth: true }
-
-                // Dismiss Button (✕)
-                Rectangle {
-                    implicitWidth: 22
-                    implicitHeight: 22
-                    radius: 11
-                    color: closeMouse.containsMouse ? IslandTheme.surfaceHover : "transparent"
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "✕"
-                        font.pixelSize: 11
-                        color: IslandTheme.textSecondary
-                    }
-
-                    MouseArea {
-                        id: closeMouse
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: islandClient.dispatchEvent("DISMISS")
-                    }
-                }
             }
 
             // Swipeable Pages

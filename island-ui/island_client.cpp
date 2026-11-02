@@ -82,7 +82,6 @@ QString IslandClient::transitionState(const QString &currentState, const QString
     if (currentState == QLatin1String("PREVIEW")) {
         if (event == QLatin1String("HOVER_LEAVE")) return QStringLiteral("COMPACT");
         if (event == QLatin1String("CLICK")) return QStringLiteral("EXPANDED");
-        if (event == QLatin1String("PEEK_REQUEST")) return QStringLiteral("PEEK");
         return currentState;
     }
     if (currentState == QLatin1String("EXPANDED")) {
@@ -91,7 +90,6 @@ QString IslandClient::transitionState(const QString &currentState, const QString
     }
     if (currentState == QLatin1String("PEEK")) {
         if (event == QLatin1String("PEEK_TIMEOUT")) return QStringLiteral("COMPACT");
-        if (event == QLatin1String("CLICK")) return QStringLiteral("EXPANDED");
         return currentState;
     }
     return currentState;
@@ -141,6 +139,7 @@ QString IslandClient::timeElapsedText() const {
 }
 
 QString IslandClient::timeTotalText() const {
+    if (m_durationUs <= 0) return QStringLiteral("--:--");
     return formatTime(m_durationUs);
 }
 
@@ -236,10 +235,10 @@ void IslandClient::onNameOwnerChanged(const QString &serviceName, const QString 
             emit connectedChanged();
             if (m_connected) {
                 fetchSnapshot();
+            } else {
+                applyMediaMap({});
             }
         }
-    } else if (serviceName.startsWith(QLatin1String("org.mpris.MediaPlayer2."))) {
-        queryAvailablePlayers();
     }
 }
 
@@ -260,6 +259,9 @@ void IslandClient::onCoreStatusChanged(const QString &status) {
     if (m_connected != ready) {
         m_connected = ready;
         emit connectedChanged();
+        if (!ready) {
+            applyMediaMap({});
+        }
     }
 }
 
@@ -279,8 +281,9 @@ void IslandClient::applyMediaMap(const QVariantMap &media) {
 
     if (media.contains(QStringLiteral("audioLevels"))) {
         m_audioLevels = media.value(QStringLiteral("audioLevels")).toList();
+    } else {
+        m_audioLevels = {0.0, 0.0, 0.0};
     }
-
     m_volume = clampVolume(media.value(QStringLiteral("volume"), 1.0).toDouble());
 
     emit mediaChanged();
