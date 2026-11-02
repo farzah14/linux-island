@@ -8,6 +8,8 @@
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QQuickWindow>
+#include <QQuickItem>
+#include <QEventLoop>
 #include <QFile>
 #include <QTimer>
 #include <iostream>
@@ -97,6 +99,11 @@ int main(int argc, char *argv[]) {
                      &notificationWatcher, syncNotificationPrefs);
 
     QQmlApplicationEngine engine;
+    bool qmlWarnings = false;
+    if (smokeTest) {
+        QObject::connect(&engine, &QQmlEngine::warnings, &engine,
+                         [&qmlWarnings](const QList<QQmlError> &) { qmlWarnings = true; });
+    }
 
     engine.rootContext()->setContextProperty(QStringLiteral("islandClient"), &client);
     engine.rootContext()->setContextProperty(QStringLiteral("systemMetrics"), &metrics);
@@ -201,6 +208,41 @@ int main(int argc, char *argv[]) {
             return 3;
         }
 
+        // Exercise the loaded QML rather than treating token/fixture checks as
+        // geometry coverage. Presets must scale artwork and transport together.
+        auto *mediaPage = rootWindow->findChild<QObject *>(QStringLiteral("mediaPage"));
+        if (!mediaPage) {
+            std::cerr << "Smoke test error: media page missing" << std::endl;
+            return 8;
+        }
+        const QStringList presets = {QStringLiteral("circle"), QStringLiteral("small"),
+                                     QStringLiteral("medium"), QStringLiteral("large")};
+        const int artwork[] = {40, 40, 48, 56};
+        const int buttons[] = {28, 28, 32, 36};
+        for (int i = 0; i < presets.size(); ++i) {
+            mediaPage->setProperty("capsuleSize", presets[i]);
+            if (mediaPage->property("artworkSize").toInt() != artwork[i]
+                || mediaPage->property("buttonSize").toInt() != buttons[i]
+                || mediaPage->property("implicitHeight").toInt() != artwork[i] + buttons[i] + 46) {
+                std::cerr << "Smoke test error: media preset geometry "
+                          << presets[i].toStdString() << std::endl;
+                return 8;
+            }
+        }
+        mediaPage->setProperty("capsuleSize", QStringLiteral("medium"));
+        // Let animations/layout finish, then check the allocated content box.
+        QEventLoop layoutLoop;
+        QTimer::singleShot(400, &layoutLoop, &QEventLoop::quit);
+        layoutLoop.exec();
+        auto *mediaItem = qobject_cast<QQuickItem *>(mediaPage);
+        if (!mediaItem || qAbs(mediaItem->width() - 294) > 0.5
+            || qAbs(mediaItem->height() - 126) > 0.5) {
+            std::cerr << "Smoke test error: medium media allocation "
+                      << (mediaItem ? mediaItem->width() : -1) << "x"
+                      << (mediaItem ? mediaItem->height() : -1) << std::endl;
+            return 8;
+        }
+
         client.dispatchEvent(QStringLiteral("DISMISS"));
         if (client.uiState() != QLatin1String("COMPACT")) {
             std::cerr << "Smoke test error: expected COMPACT state, got " << client.uiState().toStdString() << std::endl;
@@ -226,6 +268,10 @@ int main(int argc, char *argv[]) {
             std::cerr << "Smoke test error: could not load CompanionWindow.qml: "
                       << companionComp.errorString().toStdString() << std::endl;
             return 6;
+        }
+        if (qmlWarnings) {
+            std::cerr << "Smoke test error: QML runtime warnings" << std::endl;
+            return 9;
         }
         std::cout << "PASS: linux-island-ui smoke check" << std::endl;
         return 0;

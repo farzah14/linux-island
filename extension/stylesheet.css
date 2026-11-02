@@ -56,18 +56,18 @@
 
 .linux-island--dark.linux-island__capsule:hover {
     background-color: #403B34;
-    border-color: #D8B77F;
+    border-color: transparent;
 }
 
 .linux-island--dark.linux-island__capsule:active {
     background-color: #302D28;
-    border-color: #E9CEA0;
+    border-color: transparent;
 }
 
 .linux-island--dark.linux-island__preview {
     background-color: #191816;
     color: #F4F0E9;
-    border-color: #D8B77F;
+    border-color: transparent;
 }
 
 .linux-island--dark .linux-island__label, .linux-island--dark .linux-island__media-title {
@@ -346,18 +346,18 @@
 
 .linux-island--light.linux-island__capsule:hover {
     background-color: #E5DED3;
-    border-color: #80551F;
+    border-color: transparent;
 }
 
 .linux-island--light.linux-island__capsule:active {
     background-color: #EEE9DF;
-    border-color: #6B471B;
+    border-color: transparent;
 }
 
 .linux-island--light.linux-island__preview {
     background-color: #FBF8F1;
     color: #292621;
-    border-color: #80551F;
+    border-color: transparent;
 }
 
 .linux-island--light .linux-island__label, .linux-island--light .linux-island__media-title {

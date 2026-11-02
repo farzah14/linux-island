@@ -204,21 +204,21 @@ assert.equal(capsule._widget.classes.has('linux-island--light'), true, 'default 
 capsule.applyState('COMPACT');
 capsule.applyState('EXPANDED');
 capsule.setCapsuleSize('small');
-assert.match(capsule._mediaView.actor.style, /width: 268px/);
+assert.match(capsule._mediaView.actor.style, /width: 234px/);
 assert.equal(capsule._mediaView._artIcon.icon_size, 40);
 assert.match(capsule._mediaView._prevBtn.style, /height: 28px/);
 assert.equal(capsule._currentState, 'EXPANDED', 'resizing does not dismiss');
 capsule.setCapsuleSize('large');
-assert.match(capsule._mediaView.actor.style, /width: 388px/);
+assert.match(capsule._mediaView.actor.style, /width: 354px/);
 assert.equal(capsule._mediaView._artIcon.icon_size, 56);
 assert.equal(capsule._mediaView._prevBtn.child.icon_size, 16);
 capsule.applyState('HIDDEN');
 capsule.setCapsuleSize('small');
 assert.equal(capsule._widget.visible, false, 'resize preserves fullscreen hiding');
 capsule.setCapsuleSize('invalid');
-assert.match(capsule._mediaView.actor.style, /width: 268px/, 'unknown size ignored');
+assert.match(capsule._mediaView.actor.style, /width: 234px/, 'unknown size ignored');
 capsule.setCapsuleSize('__proto__');
-assert.match(capsule._mediaView.actor.style, /width: 268px/, 'inherited names are not presets');
+assert.match(capsule._mediaView.actor.style, /width: 234px/, 'inherited names are not presets');
 capsule.setMedia({playerId: 'test', title: 'A long title that needs more room to display in the compact pill',
     playbackStatus: 'Playing', audioLevels: [0.2, 0.4, 0.7]});
 const smallText = capsule._label.text;
@@ -228,7 +228,7 @@ assert.equal(capsule._mediaView._titleLabel.text, 'A long title that needs more 
 capsule.setCapsuleSize('medium');
 capsule.applyState('COMPACT');
 assert.ok(capsule._beatBars, 'compact title needs beat bars');
-assert.match(capsule._mediaView.actor.style, /width: 328px/, 'wide card content width');
+assert.match(capsule._mediaView.actor.style, /width: 294px/, 'wide card content width');
 assert.ok(capsule._mediaView._carousel, 'media card has slideable features carousel');
 assert.equal(capsule._mediaView._carousel.pageCount, 4, 'music, system & controls, AI quota, and search pages');
 const carousel = capsule._mediaView._carousel;
@@ -461,17 +461,16 @@ assert.doesNotMatch(netStyle, /border-radius/, 'NET has no rounded rectangle');
 assert.doesNotMatch(netStyle, /background-color/, 'NET has no filled box');
 assert.equal(capsule._mediaView._metricsSlot.width, capsule._mediaView._togglesSlot.width,
     'side slots share a width so NET lands on the centre line');
-// The medium card measures 364px: MediaView's 328px content box plus 14px
-// padding per side, wrapped by the expanded card's 2px padding/1.5px border.
-// The System page must spend that whole 328px, otherwise its right column stops
-// ~28px short of the card edge and the layout looks lopsided (left 26px vs
-// right 54px in the reported screenshot).
-assert.equal(capsule._mediaView._systemSection.width, 320,
+// Expanded width includes MediaView padding (28px), shell padding (4px)
+// and shell borders (2px). Both renderers must be 328px overall.
+assert.equal(Number(capsule._mediaView.actor.style.match(/width: (\d+)px/)[1]) + 34,
+    CAPSULE_SIZES.medium.width, 'expanded preset is total width, not content width');
+assert.equal(capsule._mediaView._systemSection.width, 286,
     'system section content box spans the page minus its own 4px side padding');
-assert.equal(capsule._mediaView._mediaSection.width, 328,
+assert.equal(capsule._mediaView._mediaSection.width, 294,
     'media section fills the same content box');
 assert.equal(capsule._mediaView._metricsSlot.width + capsule._mediaView._netView.actor.width +
-    capsule._mediaView._togglesSlot.width + 20, 320,
+    capsule._mediaView._togglesSlot.width + 20, 286,
     'slots plus the two 10px gaps consume the full section content width');
 assert.equal(capsule._mediaView._quickTogglesRow._storageIndicator.actor.width,
     capsule._mediaView._togglesSlot.width - 22 - 4,
@@ -714,7 +713,7 @@ extension._onCoreStateChanged({connected: true, media: {playerId: 'test', title:
     settings: {animationEnabled: false, theme: 'dark', capsuleSize: 'large', verticalOffset: 32, horizontalOffset: 16}});
 assert.equal(extension._capsule._verticalOffset, 32, 'Core verticalOffset reaches renderer');
 assert.equal(extension._capsule._horizontalOffset, 16, 'Core horizontalOffset reaches renderer');
-assert.match(extension._capsule._mediaView.actor.style, /width: 388px/, 'Core size reaches renderer');
+assert.match(extension._capsule._mediaView.actor.style, /width: 354px/, 'Core size reaches renderer');
 assert.equal(extension._capsule._widget.classes.has('linux-island--dark'), true, 'Core theme reaches renderer');
 assert.equal(extension._capsule._mediaView._titleLabel.text, 'Recovered track');
 extension._capsule.applyState('EXPANDED');

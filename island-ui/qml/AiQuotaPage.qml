@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 
 Item {
@@ -9,7 +10,7 @@ Item {
 
     Timer {
         interval: 15000
-        running: root.visible && SwipeView.isCurrentItem && islandClient.uiState === "EXPANDED"
+        running: root.visible && root.SwipeView.isCurrentItem && islandClient.uiState === "EXPANDED"
         repeat: true
         triggeredOnStart: true
         onTriggered: aiQuota.refresh()

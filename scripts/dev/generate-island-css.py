@@ -65,9 +65,9 @@ def generate_css():
         root = f'.linux-island--{name}'
         rules = {
             f'{root}.linux-island__capsule': {'background-color': colors['surface.island'], 'color': colors['text.primary']},
-            f'{root}.linux-island__capsule:hover': {'background-color': colors['surface.hover'], 'border-color': colors['accent.primary']},
-            f'{root}.linux-island__capsule:active': {'background-color': colors['surface.raised'], 'border-color': colors['accent.hover']},
-            f'{root}.linux-island__preview': {'background-color': colors['surface.island'], 'color': colors['text.primary'], 'border-color': colors['border.focus']},
+            f'{root}.linux-island__capsule:hover': {'background-color': colors['surface.hover'], 'border-color': 'transparent'},
+            f'{root}.linux-island__capsule:active': {'background-color': colors['surface.raised'], 'border-color': 'transparent'},
+            f'{root}.linux-island__preview': {'background-color': colors['surface.island'], 'color': colors['text.primary'], 'border-color': 'transparent'},
             f'{root} .linux-island__label, {root} .linux-island__media-title': {'color': colors['text.primary']},
             f'{root} .linux-island__media-artist': {'color': colors['text.secondary']},
             f'{root} .linux-island__artwork': {'background-color': colors['surface.raised'], 'border-color': colors['border.subtle'], 'color': colors['icon.secondary']},

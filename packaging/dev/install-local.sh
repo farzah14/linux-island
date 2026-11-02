@@ -193,3 +193,6 @@ fi
 echo "Verified: $(wc -l <"$MANIFEST") installed files."
 echo "Manifest: $MANIFEST"
 echo "Launch from a terminal with: $LAUNCHER --standalone"
+
+echo "GNOME: save your work, then log out and back in to load updated extension code."
+echo "Disabling/re-enabling the extension or restarting Core does not clear GNOME's JavaScript cache."

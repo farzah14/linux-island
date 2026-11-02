@@ -6,7 +6,15 @@ Item {
     id: root
 
     implicitWidth: parent ? parent.width : 328
-    implicitHeight: 140
+    objectName: "mediaPage"
+    property string capsuleSize: "medium"
+    readonly property int artworkSize: capsuleSize === "large" ? 56 : (capsuleSize === "small" || capsuleSize === "circle" ? 40 : 48)
+    readonly property int buttonSize: capsuleSize === "large" ? 36 : (artworkSize === 40 ? 28 : 32)
+    readonly property int playWidth: buttonSize + 8
+    readonly property int controlIconSize: (buttonSize - 4) / 2
+    readonly property int titleSize: artworkSize === 56 ? 14 : (artworkSize === 40 ? 12 : 13)
+    readonly property int artistSize: titleSize - 1
+    implicitHeight: artworkSize + 6 + buttonSize + 28 + 4 * 3
     property double lastUnmutedVolume: 1.0
     function formatPlayerName(id) {
         if (!id) return "Player";
@@ -20,19 +28,19 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 6
-        spacing: 6
+        anchors.margins: 0
+        spacing: 4
 
         // Row 1: Album Artwork + Track Information (Title + BeatBars, Artist + Player Pill)
         RowLayout {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
 
             // Album Artwork (48x48, radius 12)
             Rectangle {
                 id: artContainer
-                implicitWidth: 48
-                implicitHeight: 48
+                implicitWidth: root.artworkSize
+                implicitHeight: root.artworkSize
                 radius: 12
                 color: IslandTheme.surfaceRaised
                 border.color: IslandTheme.borderSubtle
@@ -48,7 +56,7 @@ Item {
 
                 NavIcon {
                     anchors.centerIn: parent
-                    size: 24
+                    size: root.artworkSize
                     source: "qrc:/linuxisland/ui/icons/ui/media-symbolic.svg"
                     color: IslandTheme.textSecondary
                     visible: !islandClient.albumArtUri || albumArtImage.status !== Image.Ready
@@ -68,7 +76,7 @@ Item {
                     Text {
                         Layout.fillWidth: true
                         text: !islandClient.connected ? "Core offline" : (islandClient.title ? islandClient.title : "No Media Playing")
-                        font.pixelSize: 13
+                        font.pixelSize: root.titleSize
                         font.bold: true
                         color: IslandTheme.textPrimary
                         elide: Text.ElideRight
@@ -89,7 +97,7 @@ Item {
                     Text {
                         Layout.fillWidth: true
                         text: islandClient.artist ? islandClient.artist : ""
-                        font.pixelSize: 12
+                        font.pixelSize: root.artistSize
                         color: IslandTheme.textSecondary
                         elide: Text.ElideRight
                     }
@@ -130,7 +138,7 @@ Item {
         // Row 2: Progress Track (Seek Bar)
         Item {
             Layout.fillWidth: true
-            implicitHeight: 10
+            implicitHeight: 6
 
             Rectangle {
                 id: seekBg
@@ -198,20 +206,20 @@ Item {
             Item { Layout.fillWidth: true }
 
             RowLayout {
-                spacing: 12
+                spacing: 4
                 Layout.alignment: Qt.AlignHCenter
 
                 // Prev
                 Rectangle {
-                    implicitWidth: 32
-                    implicitHeight: 32
+                    implicitWidth: root.buttonSize
+                    implicitHeight: root.buttonSize
                     radius: 12
                     color: prevMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
                     opacity: islandClient.canPrevious ? 1.0 : 0.4
 
                     NavIcon {
                         anchors.centerIn: parent
-                        size: 14
+                        size: root.controlIconSize
                         source: "qrc:/linuxisland/ui/icons/ui/prev-symbolic.svg"
                         color: islandClient.canPrevious ? IslandTheme.textPrimary : IslandTheme.textTertiary
                     }
@@ -227,8 +235,8 @@ Item {
 
                 // Play / Pause (Accent Amber Button)
                 Rectangle {
-                    implicitWidth: 40
-                    implicitHeight: 32
+                    implicitWidth: root.playWidth
+                    implicitHeight: root.buttonSize
                     radius: 14
                     color: playMouse.containsMouse ? IslandTheme.accentHover : IslandTheme.accentPrimary
                     opacity: islandClient.canPlay || islandClient.canPause ? 1.0 : 0.4
@@ -251,15 +259,15 @@ Item {
 
                 // Next
                 Rectangle {
-                    implicitWidth: 32
-                    implicitHeight: 32
+                    implicitWidth: root.buttonSize
+                    implicitHeight: root.buttonSize
                     radius: 12
                     color: nextMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
                     opacity: islandClient.canNext ? 1.0 : 0.4
 
                     NavIcon {
                         anchors.centerIn: parent
-                        size: 14
+                        size: root.controlIconSize
                         source: "qrc:/linuxisland/ui/icons/ui/next-symbolic.svg"
                         color: islandClient.canNext ? IslandTheme.textPrimary : IslandTheme.textTertiary
                     }

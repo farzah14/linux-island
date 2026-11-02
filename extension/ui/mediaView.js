@@ -24,6 +24,9 @@ export const CAPSULE_SIZES = Object.freeze({
 // The media page stacks four rows: artwork, progress track, transport and
 // volume. Its height must include the volume row, otherwise the carousel's
 // clip_to_allocation cuts it off.
+// Preset width includes the 14px MediaView padding and 2px shell padding
+// plus 1px shell border on each side (stylesheet.css .linux-island__preview).
+const EXPANDED_HORIZONTAL_INSETS = 2 * (14 + 2 + 1);
 export const MEDIA_ROW_SPACING = 4;
 export const VOLUME_ROW_HEIGHT = 28;
 export function mediaSectionHeight(preset) {
@@ -225,14 +228,14 @@ export class MediaView {
     _buildUi() {
         this._actor = new St.BoxLayout({
             vertical: true,
-            style: 'width: 328px; padding: 8px 14px; spacing: 6px;',
+            style: `width: ${CAPSULE_SIZES.medium.width - EXPANDED_HORIZONTAL_INSETS}px; padding: 8px 14px; spacing: 6px;`,
             reactive: true,
         });
 
         // Section 1: Pure Media Player section
         this._mediaSection = new St.BoxLayout({
             vertical: true,
-            style: `width: 328px; height: ${mediaSectionHeight(CAPSULE_SIZES.medium)}px; spacing: ${MEDIA_ROW_SPACING}px;`,
+            style: `width: ${CAPSULE_SIZES.medium.width - EXPANDED_HORIZONTAL_INSETS}px; height: ${mediaSectionHeight(CAPSULE_SIZES.medium)}px; spacing: ${MEDIA_ROW_SPACING}px;`,
             x_expand: true,
         });
 
@@ -722,13 +725,8 @@ export class MediaView {
     setCapsuleSize(size) {
         if (!Object.hasOwn(CAPSULE_SIZES, size) || !this._actor) return;
         const preset = CAPSULE_SIZES[size];
-        this._actor.style = `width: ${preset.width}px; padding: 8px 14px; spacing: 6px;`;
-        // St's CSS width is the content box: the 14px horizontal padding is
-        // added outside it. MediaView's own content box is therefore
-        // preset.width, not preset.width - 28. The System page used to be
-        // budgeted from the reduced value, so its right column stopped ~28px
-        // short of the card edge (26px left margin vs 54px right).
-        const contentWidth = preset.width;
+        const contentWidth = preset.width - EXPANDED_HORIZONTAL_INSETS;
+        this._actor.style = `width: ${contentWidth}px; padding: 8px 14px; spacing: 6px;`;
         if (this._mediaSection) {
             this._mediaSection.style = `width: ${contentWidth}px; height: ${mediaSectionHeight(preset)}px; spacing: ${MEDIA_ROW_SPACING}px;`;
             this._mediaSection.width = contentWidth;

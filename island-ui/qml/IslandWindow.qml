@@ -39,6 +39,7 @@ Window {
 
     function getExpandedHeight() {
         if (carouselView && carouselView.currentIndex === 2) return 190;
+        if (carouselView && carouselView.currentIndex === 0) return musicPage.implicitHeight + 52;
         return 174;
     }
 
@@ -63,7 +64,7 @@ Window {
         y: 4
         radius: isExpanded ? IslandTheme.radiusXl : (isCircle ? IslandTheme.radiusPill : 18)
         color: IslandTheme.surfaceIsland
-        border.color: isHovered || isExpanded ? IslandTheme.borderFocus : IslandTheme.borderSubtle
+        border.color: "transparent"
         border.width: 1
         clip: true
         Behavior on width {
@@ -232,7 +233,11 @@ Window {
         ColumnLayout {
             id: expandedView
             anchors.fill: parent
-            anchors.margins: 10
+            // Match GNOME: shell padding/border 3px + MediaView 14px/8px.
+            anchors.leftMargin: 17
+            anchors.rightMargin: 17
+            anchors.topMargin: 11
+            anchors.bottomMargin: 11
             spacing: 6
             opacity: islandContainer.isExpanded ? 1 : 0
             visible: opacity > 0
@@ -287,7 +292,7 @@ Window {
             // Minimalist Carousel Section Navigation (matches GNOME FeatureCarousel)
             RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 22
+                Layout.preferredHeight: 24
                 spacing: 6
 
                 Item { Layout.fillWidth: true }
@@ -394,7 +399,7 @@ Window {
                 currentIndex: 0
                 clip: true
 
-                MusicPage {}
+                MusicPage { id: musicPage; capsuleSize: islandClient.capsuleSize }
                 SystemPage {}
                 AiQuotaPage {}
                 SearchPage { id: searchPage }
