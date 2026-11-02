@@ -106,10 +106,51 @@ systemd user unit. Pick the path that matches your distribution.
 Your settings in `~/.config/linux-island` are kept unless you pass
 `--purge-config`.
 
-GNOME 45–50 in Dynamic Mode uses the Shell extension. Other desktops run the Qt
-overlay through XWayland, optionally refined by the shipped KWin, Sway or
-Hyprland rules. See `docs/desktop-environments.md` for the support matrix and
-`docs/packaging.md` for package details.
+## Desktop Environments & Launching
+
+`linux-island-launch` automatically detects your active desktop session and selects the matching renderer:
+
+| Desktop / Compositor | Renderer Used | Placement & Window Rules |
+|---|---|---|
+| **GNOME 45–50 (Wayland / X11)** | GNOME Shell Extension (`extension/`) | Native Shell panel actor; enabled automatically in Dynamic Mode. |
+| **KDE Plasma 6 (Wayland / X11)** | Qt 6 Overlay (`linux-island-ui`) | X11 works out of the box; on Wayland (via XWayland), import `kwin-linux-island.kwinrule`. |
+| **XFCE / Cinnamon / MATE (X11)** | Qt 6 Overlay (`linux-island-ui`) | Native top-center placement and XShape input masking; no rules needed. |
+| **Hyprland (Wayland + XWayland)** | Qt 6 Overlay (`linux-island-ui`) | Add `source = ~/.local/share/linux-island/window-rules/hyprland.conf` (or `/usr/share/...`) to `hyprland.conf`. |
+| **Sway (Wayland + XWayland)** | Qt 6 Overlay (`linux-island-ui`) | Add `include ~/.local/share/linux-island/window-rules/sway.conf` (or `/usr/share/...`) to your Sway config. |
+| **i3 / bspwm (X11)** | Qt 6 Overlay (`linux-island-ui`) | Add `for_window [class="^linux-island-ui$"] floating enable, border none` to your config. |
+
+### Launching & Updating Across Devices
+
+```bash
+# Start Linux Island (auto-selects GNOME extension on GNOME, or Qt overlay on other DEs)
+~/.local/bin/linux-island-launch
+
+# Force the Qt 6 overlay even on a GNOME desktop
+~/.local/bin/linux-island-launch --standalone
+
+# Check detected desktop, session type, active mode, and Core service status
+~/.local/bin/linux-island-launch --status
+
+# Open the Settings application
+~/.local/bin/linux-island-settings
+```
+
+**Updating an existing installation on another Linux distro / DE:**
+```bash
+git pull
+bash packaging/dev/install-local.sh --build
+pkill -x linux-island-ui || true
+~/.local/bin/linux-island-launch
+```
+*(On non-GNOME desktops, restarting `linux-island-ui` applies UI updates immediately without logging out. On GNOME Wayland, log out and back in after updating extension files, or use `scripts/dev/dev.sh` for live isolated reload.)*
+
+### Installing Optional Window Rules (KDE, Hyprland, Sway)
+
+Window rules are installed to `~/.local/share/linux-island/window-rules/` (per-user install) or `/usr/share/linux-island/window-rules/` (system package):
+
+- **KDE Plasma (KWin):** System Settings → Window Management → Window Rules → **Import** → select `kwin-linux-island.kwinrule`.
+- **Hyprland:** Add `source = /usr/share/linux-island/window-rules/hyprland.conf` (or `~/.local/share/linux-island/window-rules/hyprland.conf`) to `~/.config/hypr/hyprland.conf`.
+- **Sway:** Add `include /usr/share/linux-island/window-rules/sway.conf` (or `~/.local/share/linux-island/window-rules/sway.conf`) to `~/.config/sway/config`.
 
 ## License
 
@@ -117,15 +158,9 @@ MIT. See `LICENSE`.
 
 ---
 
-## Documentation
+## Repository References
 
-- `docs/release-checklist.md`: Acceptance criteria AC-01 through AC-10 verification report.
-- `docs/testing.md`: Complete testing and deployment instructions.
-- `docs/compatibility.md`: Target platform compatibility matrix and host audit facts.
-- `docs/desktop-environments.md`: Which desktops use the Shell extension or the Qt overlay.
-- `docs/packaging.md`: DEB, RPM, Arch, tarball and per-user install instructions.
-- `docs/ui-parity/UI_CONTRACT.md`: Frozen visual and behavioral cross-desktop UI contract.
-- `docs/ui-parity/TEST_MATRIX.md`: Complete cross-desktop parity test matrix and target status.
-- `tests/ui-parity/README.md`: Deterministic testing guide and fixture catalog.
+- `tests/ui-parity/README.md`: Cross-desktop UI parity testing guide and deterministic fixture catalog.
+- `packaging/window-rules/`: Shipped window rules for KWin (`kwin-linux-island.kwinrule`), Hyprland (`hyprland.conf`), and Sway (`sway.conf`).
 - `schemas/io.github.linuxisland.Core1.xml`: Immutable D-Bus Core1 XML specification.
-- `design-system/DESIGN_SYSTEM.md`: Warm Minimalist design system reference.
+- `design-system/DESIGN_SYSTEM.md`: Warm Minimalist design system reference (`design-system/tokens/tokens.json`).

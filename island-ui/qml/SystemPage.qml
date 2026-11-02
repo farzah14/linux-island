@@ -24,129 +24,78 @@ Item {
     RowLayout {
         anchors.fill: parent
         anchors.margins: 6
-        spacing: 10
+        spacing: 6
 
         // Slot 1: Left Metrics Column (CPU, RAM, BAT)
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.preferredWidth: 100
+            Layout.preferredWidth: 111
             Layout.alignment: Qt.AlignVCenter
-            spacing: 6
+            spacing: 4
 
-            // CPU Tile
-            ColumnLayout {
+            // CPU Row
+            RowLayout {
                 Layout.fillWidth: true
-                spacing: 2
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    Text {
-                        text: "CPU"
-                        font.pixelSize: 11
-                        font.bold: true
-                        color: IslandTheme.textSecondary
-                    }
-                    Item { Layout.fillWidth: true }
-                    Text {
-                        text: systemMetrics.cpuText
-                        font.pixelSize: 11
-                        font.bold: true
-                        color: systemMetrics.cpuPercent > 85 ? IslandTheme.statusWarning : IslandTheme.textPrimary
-                    }
+                Layout.preferredHeight: 20
+                Text {
+                    text: "CPU"
+                    font.pixelSize: 11
+                    font.bold: true
+                    color: IslandTheme.textSecondary
                 }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 2
-                    radius: 1
-                    color: IslandTheme.surfaceHover
-                    Rectangle {
-                        height: parent.height
-                        width: Math.max(0, Math.min(parent.width, parent.width * (systemMetrics.cpuPercent / 100.0)))
-                        radius: 1
-                        color: systemMetrics.cpuPercent > 85 ? IslandTheme.statusWarning : IslandTheme.accentPrimary
-                    }
+                Item { Layout.fillWidth: true }
+                Text {
+                    text: systemMetrics.cpuText
+                    font.pixelSize: 11
+                    font.bold: true
+                    color: systemMetrics.cpuPercent > 85 ? IslandTheme.statusWarning : IslandTheme.textPrimary
                 }
             }
 
-            // RAM Tile
-            ColumnLayout {
+            // RAM Row
+            RowLayout {
                 Layout.fillWidth: true
-                spacing: 2
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    Text {
-                        text: "RAM"
-                        font.pixelSize: 11
-                        font.bold: true
-                        color: IslandTheme.textSecondary
-                    }
-                    Item { Layout.fillWidth: true }
-                    Text {
-                        text: systemMetrics.memText
-                        font.pixelSize: 11
-                        font.bold: true
-                        color: systemMetrics.memPercent > 85 ? IslandTheme.statusWarning : IslandTheme.textPrimary
-                    }
+                Layout.preferredHeight: 20
+                Text {
+                    text: "RAM"
+                    font.pixelSize: 11
+                    font.bold: true
+                    color: IslandTheme.textSecondary
                 }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 2
-                    radius: 1
-                    color: IslandTheme.surfaceHover
-                    Rectangle {
-                        height: parent.height
-                        width: Math.max(0, Math.min(parent.width, parent.width * (systemMetrics.memPercent / 100.0)))
-                        radius: 1
-                        color: systemMetrics.memPercent > 85 ? IslandTheme.statusWarning : IslandTheme.accentPrimary
-                    }
+                Item { Layout.fillWidth: true }
+                Text {
+                    text: systemMetrics.memText
+                    font.pixelSize: 11
+                    font.bold: true
+                    color: systemMetrics.memPercent > 85 ? IslandTheme.statusWarning : IslandTheme.textPrimary
                 }
             }
 
-            // Battery Tile (if battery hardware present)
-            ColumnLayout {
+            // BAT Row
+            RowLayout {
                 Layout.fillWidth: true
-                spacing: 2
+                Layout.preferredHeight: 20
                 visible: systemMetrics.hasBattery
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    Text {
-                        text: systemMetrics.batteryCharging ? "BAT ⚡" : "BAT"
-                        font.pixelSize: 11
-                        font.bold: true
-                        color: IslandTheme.textSecondary
-                    }
-                    Item { Layout.fillWidth: true }
-                    Text {
-                        text: systemMetrics.batteryText
-                        font.pixelSize: 11
-                        font.bold: true
-                        color: systemMetrics.batteryPercent < 20 ? IslandTheme.statusDanger : IslandTheme.textPrimary
-                    }
+                Text {
+                    text: systemMetrics.batteryCharging ? "BAT ⚡" : "BAT"
+                    font.pixelSize: 11
+                    font.bold: true
+                    color: IslandTheme.textSecondary
                 }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 2
-                    radius: 1
-                    color: IslandTheme.surfaceHover
-                    Rectangle {
-                        height: parent.height
-                        width: Math.max(0, Math.min(parent.width, parent.width * (systemMetrics.batteryPercent / 100.0)))
-                        radius: 1
-                        color: systemMetrics.batteryPercent < 20 ? IslandTheme.statusDanger : IslandTheme.accentPrimary
-                    }
+                Item { Layout.fillWidth: true }
+                Text {
+                    text: systemMetrics.batteryText
+                    font.pixelSize: 11
+                    font.bold: true
+                    color: systemMetrics.batteryPercent < 20 ? IslandTheme.statusDanger : IslandTheme.textPrimary
                 }
             }
         }
 
         // Slot 2: Centre NET Monitor
         ColumnLayout {
+            Layout.preferredWidth: 78
             Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
-            Layout.preferredWidth: 80
             spacing: 3
 
             RowLayout {
@@ -154,7 +103,7 @@ Item {
                 spacing: 4
 
                 NavIcon {
-                    size: 12
+                    size: 13
                     source: "qrc:/linuxisland/ui/icons/ui/system-symbolic.svg"
                     color: IslandTheme.textSecondary
                 }
@@ -172,7 +121,7 @@ Item {
                     var parts = systemMetrics.netDetailText.split(" · ");
                     return parts.length > 0 ? parts[0] : "↓ 0 B/s";
                 }
-                font.pixelSize: 10
+                font.pixelSize: 11
                 font.bold: true
                 color: IslandTheme.textPrimary
                 Layout.alignment: Qt.AlignHCenter
@@ -183,35 +132,65 @@ Item {
                     var parts = systemMetrics.netDetailText.split(" · ");
                     return parts.length > 1 ? parts[1] : "↑ 0 B/s";
                 }
-                font.pixelSize: 10
+                font.pixelSize: 11
                 font.bold: true
                 color: IslandTheme.textPrimary
                 Layout.alignment: Qt.AlignHCenter
             }
         }
 
-        // Slot 3: Right Quick Toggles & Storage Readout
-        ColumnLayout {
+        // Slot 3: Right Slot (Storage Indicator + Vertical 4-Icon Column)
+        RowLayout {
             Layout.fillWidth: true
-            Layout.preferredWidth: 100
+            Layout.preferredWidth: 111
             Layout.alignment: Qt.AlignVCenter
-            spacing: 8
+            spacing: 4
 
-            // 4 Icon Quick Toggles
-            RowLayout {
-                Layout.alignment: Qt.AlignRight
+            // Storage Indicator Block
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 2
+
+                NavIcon {
+                    size: 13
+                    source: "qrc:/linuxisland/ui/icons/ui/system-symbolic.svg"
+                    color: IslandTheme.textSecondary
+                    Layout.alignment: Qt.AlignHCenter
+                }
+
+                Text {
+                    text: systemMetrics.storageText
+                    font.pixelSize: 11
+                    font.bold: true
+                    color: systemMetrics.storagePercent >= 90 ? IslandTheme.statusWarning : IslandTheme.textPrimary
+                    Layout.alignment: Qt.AlignHCenter
+                }
+
+                Text {
+                    text: systemMetrics.storageDetailText
+                    font.pixelSize: 9
+                    color: IslandTheme.textSecondary
+                    Layout.alignment: Qt.AlignHCenter
+                }
+            }
+
+            // Quick Toggle Icon Column (Vertical stack of 4 borderless 22x20px icon buttons)
+            ColumnLayout {
+                Layout.preferredWidth: 22
+                Layout.alignment: Qt.AlignVCenter
                 spacing: 4
 
-                // Theme Toggle
+                // 1. Theme Toggle
                 Rectangle {
-                    implicitWidth: 24
-                    implicitHeight: 24
-                    radius: 6
-                    color: themeMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
+                    implicitWidth: 22
+                    implicitHeight: 20
+                    color: themeMouse.containsMouse ? IslandTheme.surfaceHover : "transparent"
+                    radius: 4
 
                     NavIcon {
                         anchors.centerIn: parent
-                        size: 13
+                        size: 14
                         source: "qrc:/linuxisland/ui/icons/ui/theme-symbolic.svg"
                         color: quickSettings.darkMode ? IslandTheme.accentPrimary : IslandTheme.textSecondary
                     }
@@ -225,16 +204,39 @@ Item {
                     }
                 }
 
-                // Night Light Toggle
+                // 2. DND Toggle
                 Rectangle {
-                    implicitWidth: 24
-                    implicitHeight: 24
-                    radius: 6
-                    color: nightMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
+                    implicitWidth: 22
+                    implicitHeight: 20
+                    color: dndMouse.containsMouse ? IslandTheme.surfaceHover : "transparent"
+                    radius: 4
 
                     NavIcon {
                         anchors.centerIn: parent
-                        size: 13
+                        size: 14
+                        source: "qrc:/linuxisland/ui/icons/ui/dnd-symbolic.svg"
+                        color: quickSettings.dnd ? IslandTheme.accentPrimary : IslandTheme.textSecondary
+                    }
+
+                    MouseArea {
+                        id: dndMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: quickSettings.toggleDnd()
+                    }
+                }
+
+                // 3. Night Light Toggle
+                Rectangle {
+                    implicitWidth: 22
+                    implicitHeight: 20
+                    color: nightMouse.containsMouse ? IslandTheme.surfaceHover : "transparent"
+                    radius: 4
+
+                    NavIcon {
+                        anchors.centerIn: parent
+                        size: 14
                         source: "qrc:/linuxisland/ui/icons/ui/night-light-symbolic.svg"
                         color: quickSettings.nightLight ? IslandTheme.accentPrimary : IslandTheme.textSecondary
                     }
@@ -248,39 +250,16 @@ Item {
                     }
                 }
 
-                // DND Toggle
+                // 4. Settings Launcher
                 Rectangle {
-                    implicitWidth: 24
-                    implicitHeight: 24
-                    radius: 6
-                    color: dndMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
+                    implicitWidth: 22
+                    implicitHeight: 20
+                    color: settingsMouse.containsMouse ? IslandTheme.surfaceHover : "transparent"
+                    radius: 4
 
                     NavIcon {
                         anchors.centerIn: parent
-                        size: 13
-                        source: "qrc:/linuxisland/ui/icons/ui/dnd-symbolic.svg"
-                        color: quickSettings.dnd ? IslandTheme.statusDanger : IslandTheme.textSecondary
-                    }
-
-                    MouseArea {
-                        id: dndMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: quickSettings.toggleDnd()
-                    }
-                }
-
-                // Settings Launcher
-                Rectangle {
-                    implicitWidth: 24
-                    implicitHeight: 24
-                    radius: 6
-                    color: settingsMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
-
-                    NavIcon {
-                        anchors.centerIn: parent
-                        size: 13
+                        size: 14
                         source: "qrc:/linuxisland/ui/icons/ui/system-symbolic.svg"
                         color: IslandTheme.textSecondary
                     }
@@ -293,15 +272,6 @@ Item {
                         onClicked: quickSettings.openSettingsApp()
                     }
                 }
-            }
-
-            // Memory detail readout
-            Text {
-                text: systemMetrics.memDetailText ? systemMetrics.memDetailText : "System Memory"
-                font.pixelSize: 9
-                color: IslandTheme.textTertiary
-                Layout.alignment: Qt.AlignRight
-                elide: Text.ElideRight
             }
         }
     }

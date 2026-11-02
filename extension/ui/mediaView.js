@@ -52,6 +52,18 @@ function formatPlayerName(playerId) {
     return playerId;
 }
 
+export function getLocalUiGIcon(name) {
+    if (!Gio || typeof Gio.File?.new_for_uri !== 'function') return null;
+    try {
+        const thisFile = Gio.File.new_for_uri(import.meta.url);
+        const iconFile = thisFile.get_parent().get_parent().get_child('icons').get_child('ui').get_child(name);
+        if (iconFile.query_exists(null)) {
+            return new Gio.FileIcon({file: iconFile});
+        }
+    } catch (_) {}
+    return null;
+}
+
 
 export function formatMediaPresentation(media) {
     if (!media || !media.playerId) {
@@ -244,6 +256,8 @@ export class MediaView {
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
         });
+        const artPlaceholderGIcon = getLocalUiGIcon('media-symbolic.svg');
+        if (artPlaceholderGIcon) this._artIcon.gicon = artPlaceholderGIcon;
         artBox.add_child(this._artIcon);
         trackRow.add_child(artBox);
 
@@ -305,14 +319,14 @@ export class MediaView {
         this._mediaSection.add_child(trackRow);
 
         this._progressTrack = new St.BoxLayout({
-            style: 'height: 6px; border-radius: 3px;',
+            style: 'height: 4px; border-radius: 2px;',
             style_class: 'linux-island__progress-track',
             x_expand: true,
             reactive: true,
             track_hover: true,
         });
         this._progressFill = new St.Widget({
-            style: 'height: 6px; border-radius: 3px;',
+            style: 'height: 4px; border-radius: 2px;',
             style_class: 'linux-island__progress-fill',
             x_align: Clutter.ActorAlign.START,
             y_align: Clutter.ActorAlign.CENTER,
@@ -392,7 +406,10 @@ export class MediaView {
             reactive: true,
             can_focus: true,
         });
-        this._prevBtn.set_child(new St.Icon({icon_name: 'media-skip-backward-symbolic', icon_size: 14}));
+        const prevIcon = new St.Icon({icon_name: 'media-skip-backward-symbolic', icon_size: 14});
+        const prevGIcon = getLocalUiGIcon('prev-symbolic.svg');
+        if (prevGIcon) prevIcon.gicon = prevGIcon;
+        this._prevBtn.set_child(prevIcon);
         this._prevBtn.connect('clicked', () => this._onControlAction('Previous'));
 
         this._playPauseBtn = new St.Button({
@@ -403,6 +420,8 @@ export class MediaView {
             can_focus: true,
         });
         this._playIcon = new St.Icon({icon_name: 'media-playback-start-symbolic', icon_size: 16});
+        const playGIcon = getLocalUiGIcon('play-symbolic.svg');
+        if (playGIcon) this._playIcon.gicon = playGIcon;
         this._playPauseBtn.set_child(this._playIcon);
         this._playPauseBtn.connect('clicked', () => this._onControlAction('PlayPause'));
 
@@ -413,7 +432,10 @@ export class MediaView {
             reactive: true,
             can_focus: true,
         });
-        this._nextBtn.set_child(new St.Icon({icon_name: 'media-skip-forward-symbolic', icon_size: 14}));
+        const nextIcon = new St.Icon({icon_name: 'media-skip-forward-symbolic', icon_size: 14});
+        const nextGIcon = getLocalUiGIcon('next-symbolic.svg');
+        if (nextGIcon) nextIcon.gicon = nextGIcon;
+        this._nextBtn.set_child(nextIcon);
         this._nextBtn.connect('clicked', () => this._onControlAction('Next'));
 
         const centerButtons = new St.BoxLayout({
@@ -463,12 +485,14 @@ export class MediaView {
             fallback_icon_name: 'audio-volume-high-symbolic',
             icon_size: 14,
         });
+        const volGIcon = getLocalUiGIcon('volume-high-symbolic.svg');
+        if (volGIcon) this._volumeIcon.gicon = volGIcon;
         this._volumeButton.set_child(this._volumeIcon);
         this._volumeButton.connect('clicked', () => this._toggleMute());
         volumeRow.add_child(this._volumeButton);
 
         this._volumeTrack = new St.BoxLayout({
-            style: 'height: 6px; border-radius: 3px;',
+            style: 'height: 4px; border-radius: 2px;',
             style_class: 'linux-island__volume-track',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
@@ -476,7 +500,7 @@ export class MediaView {
             track_hover: true,
         });
         this._volumeFill = new St.Widget({
-            style: 'height: 6px; border-radius: 3px;',
+            style: 'height: 4px; border-radius: 2px;',
             style_class: 'linux-island__volume-fill',
             x_align: Clutter.ActorAlign.START,
             y_align: Clutter.ActorAlign.CENTER,
@@ -836,6 +860,10 @@ export class MediaView {
             }
             if (this._playPauseBtn) {
                 this._playIcon.icon_name = pres.isPlaying ? 'media-playback-pause-symbolic' : 'media-playback-start-symbolic';
+                const playPauseGIcon = getLocalUiGIcon(pres.isPlaying ? 'pause-symbolic.svg' : 'play-symbolic.svg');
+                if (playPauseGIcon) {
+                    this._playIcon.gicon = playPauseGIcon;
+                }
                 this._playPauseBtn.accessible_name = pres.isPlaying ? 'Pause' : 'Play';
                 this._playPauseBtn.reactive = pres.canPlayPause;
                 this._playPauseBtn.can_focus = pres.canPlayPause;
@@ -862,8 +890,8 @@ export class MediaView {
                 this._elapsedLabel.text = formatTime(timeline.positionUs);
             if (this._durationLabel)
                 this._durationLabel.text = timeline.durationUs > 0 ? formatTime(timeline.durationUs) : '--:--';
-            this._progressTrack.visible = timeline.durationUs > 0;
-            this._progressFill.visible = timeline.progress > 0;
+            this._progressTrack.visible = true;
+            this._progressFill.visible = timeline.durationUs > 0 && timeline.progress > 0;
             const targetWidth = Math.round(Math.max(0, Number(this._progressTrack.width) || 0) * timeline.progress);
             const enableAnim = St?.Settings?.get()?.enable_animations !== false;
             if (enableAnim && typeof this._progressFill.ease === 'function' && this._actor?.mapped) {
@@ -901,6 +929,10 @@ export class MediaView {
                 this._volumeIcon.icon_name = muted
                     ? 'audio-volume-muted-symbolic' : 'audio-volume-high-symbolic';
                 this._volumeIcon.fallback_icon_name = this._volumeIcon.icon_name;
+                const volGIcon = getLocalUiGIcon(muted ? 'volume-muted-symbolic.svg' : 'volume-high-symbolic.svg');
+                if (volGIcon) {
+                    this._volumeIcon.gicon = volGIcon;
+                }
                 if (this._volumeButton)
                     this._volumeButton.accessible_name = muted ? 'Unmute' : 'Mute';
             }
@@ -947,7 +979,7 @@ export class MediaView {
         const generation = ++this._artGeneration;
         this._artCancellable?.cancel();
         this._artCancellable = null;
-        this._artIcon.gicon = null;
+        this._artIcon.gicon = getLocalUiGIcon('media-symbolic.svg');
         this._artIcon.icon_name = 'audio-x-generic-symbolic';
         if (!uri || !Gio) return;
         this._artCancellable = new Gio.Cancellable();

@@ -34,7 +34,7 @@ Item {
 
         implicitWidth: 64
         implicitHeight: 22
-        radius: 6
+        radius: 8
         color: chip.isActive
             ? IslandTheme.surfaceHover
             : (chipMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised)
@@ -83,60 +83,52 @@ Item {
             }
         }
 
-        // Row 2: Search Input Field
-        TextField {
-            id: searchField
-            Layout.fillWidth: true
-            implicitHeight: 32
-            leftPadding: 26
-            rightPadding: 10
-            placeholderText: "Search the web or type a URL..."
-            placeholderTextColor: IslandTheme.textTertiary
-            color: IslandTheme.textPrimary
-            font.pixelSize: 12
-            selectByMouse: true
-            onAccepted: root.submit()
-            Keys.onEscapePressed: islandClient.dispatchEvent("DISMISS")
-
-            onActiveFocusChanged: {
-                if (activeFocus && Window.window) {
-                    Window.window.requestActivate();
-                }
-            }
-
-            background: Rectangle {
-                radius: 8
-                color: IslandTheme.surfaceRaised
-                border.width: 1
-                border.color: searchField.activeFocus ? IslandTheme.borderFocus : IslandTheme.borderSubtle
-
-                NavIcon {
-                    anchors.left: parent.left
-                    anchors.leftMargin: 8
-                    anchors.verticalCenter: parent.verticalCenter
-                    size: 13
-                    source: "qrc:/linuxisland/ui/icons/ui/search-symbolic.svg"
-                    color: searchField.activeFocus ? IslandTheme.accentPrimary : IslandTheme.textTertiary
-                }
-            }
-        }
-
-        // Row 3: Hint & Submit Action
+        // Row 2: Search Input Field + Submit Action
         RowLayout {
             Layout.fillWidth: true
             spacing: 6
 
-            Text {
-                text: "Enter to search · Esc to close"
-                font.pixelSize: 10
-                color: IslandTheme.textTertiary
+            TextField {
+                id: searchField
                 Layout.fillWidth: true
+                implicitHeight: 32
+                leftPadding: 26
+                rightPadding: 10
+                placeholderText: "Search the web…"
+                placeholderTextColor: IslandTheme.textTertiary
+                color: IslandTheme.textPrimary
+                font.pixelSize: 12
+                selectByMouse: true
+                onAccepted: root.submit()
+                Keys.onEscapePressed: islandClient.dispatchEvent("DISMISS")
+
+                onActiveFocusChanged: {
+                    if (activeFocus && Window.window) {
+                        Window.window.requestActivate();
+                    }
+                }
+
+                background: Rectangle {
+                    radius: 8
+                    color: IslandTheme.surfaceRaised
+                    border.width: 1
+                    border.color: searchField.activeFocus ? IslandTheme.borderFocus : IslandTheme.borderSubtle
+
+                    NavIcon {
+                        anchors.left: parent.left
+                        anchors.leftMargin: 8
+                        anchors.verticalCenter: parent.verticalCenter
+                        size: 13
+                        source: "qrc:/linuxisland/ui/icons/ui/search-symbolic.svg"
+                        color: searchField.activeFocus ? IslandTheme.accentPrimary : IslandTheme.textTertiary
+                    }
+                }
             }
 
             Rectangle {
                 implicitWidth: 64
-                implicitHeight: 24
-                radius: 6
+                implicitHeight: 32
+                radius: 8
                 color: searchActionMouse.containsMouse ? IslandTheme.accentHover : IslandTheme.accentPrimary
                 opacity: searchField.text.trim().length > 0 ? 1.0 : 0.45
 
@@ -156,6 +148,19 @@ Item {
                     cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                     onClicked: root.submit()
                 }
+            }
+        }
+
+        // Row 3: Hint
+        RowLayout {
+            Layout.fillWidth: true
+
+            Text {
+                text: "Enter to search · Esc to close"
+                font.pixelSize: 10
+                color: IslandTheme.textTertiary
+                Layout.alignment: Qt.AlignHCenter
+                horizontalAlignment: Text.AlignHCenter
             }
         }
     }

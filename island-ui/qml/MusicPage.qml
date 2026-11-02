@@ -100,7 +100,7 @@ Item {
                         radius: 6
                         color: playerMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
                         border.color: IslandTheme.borderSubtle
-                        visible: islandClient.availablePlayers.length > 0
+                        visible: islandClient.availablePlayers.length > 1
 
                         RowLayout {
                             id: playerRow
@@ -138,7 +138,7 @@ Item {
                 width: parent.width
                 height: 4
                 radius: 2
-                color: IslandTheme.surfaceRaised
+                color: IslandTheme.progressTrack
             }
 
             Rectangle {
@@ -331,7 +331,7 @@ Item {
                     width: parent.width
                     height: 4
                     radius: 2
-                    color: IslandTheme.surfaceRaised
+                color: IslandTheme.progressTrack
                 }
 
                 Rectangle {

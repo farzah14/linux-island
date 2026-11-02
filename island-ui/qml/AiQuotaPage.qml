@@ -7,6 +7,14 @@ Item {
     implicitWidth: parent ? parent.width : 320
     implicitHeight: 130
 
+    Timer {
+        interval: 15000
+        running: root.visible && SwipeView.isCurrentItem && islandClient.uiState === "EXPANDED"
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: aiQuota.refresh()
+    }
+
     component QuotaRow: ColumnLayout {
         id: rowRoot
         property string providerId: ""
@@ -16,17 +24,16 @@ Item {
         property string activeMode: "5h" // "5h" or "7d"
 
         readonly property bool isConnected: Boolean(quotaData && quotaData.connected)
-        readonly property int activePercent: isConnected
-            ? (activeMode === "5h" ? (quotaData.percent5h || 0) : (quotaData.percent7d || 0))
-            : 0
-        readonly property string activeDetail: isConnected
-            ? (activeMode === "5h" ? (quotaData.detailText || "") : (quotaData.altDetailText || ""))
-            : "No active session"
+        readonly property string activeDetail: !isConnected
+            ? ((quotaData && quotaData.detailText) ? quotaData.detailText : "Offline")
+            : (activeMode === "5h"
+                ? ((quotaData && quotaData.detailText) ? quotaData.detailText : "")
+                : ((quotaData && (quotaData.altDetailText || quotaData.detailText)) ? (quotaData.altDetailText || quotaData.detailText) : ""))
 
         Layout.fillWidth: true
-        spacing: 2
+        spacing: 1
 
-        // Row 1: Icon + Name + Window chips + Progress track + Percentage
+        // Row 1: [Icon 14x14] [Name] [Spacer] [5h Pill] [7d Pill]
         RowLayout {
             Layout.fillWidth: true
             spacing: 6
@@ -43,92 +50,72 @@ Item {
                 font.pixelSize: 11
                 font.bold: true
                 color: IslandTheme.textPrimary
-                Layout.preferredWidth: 78
+                Layout.preferredWidth: 100
                 elide: Text.ElideRight
             }
 
-            // Window Toggle: [5h] [Wk]
-            RowLayout {
-                spacing: 2
+            Item { Layout.fillWidth: true }
 
-                Rectangle {
-                    implicitWidth: 26
-                    implicitHeight: 16
-                    radius: 4
-                    color: rowRoot.activeMode === "5h" ? IslandTheme.surfaceHover : "transparent"
-                    border.width: 1
-                    border.color: rowRoot.activeMode === "5h" ? IslandTheme.accentPrimary : "transparent"
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "5h"
-                        font.pixelSize: 9
-                        font.bold: true
-                        color: rowRoot.activeMode === "5h" ? IslandTheme.accentPrimary : IslandTheme.textSecondary
-                    }
-
-                    MouseArea {
-                        id: btn5Mouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: rowRoot.activeMode = "5h"
-                    }
-                }
-
-                Rectangle {
-                    implicitWidth: 26
-                    implicitHeight: 16
-                    radius: 4
-                    color: rowRoot.activeMode === "7d" ? IslandTheme.surfaceHover : "transparent"
-                    border.width: 1
-                    border.color: rowRoot.activeMode === "7d" ? IslandTheme.accentPrimary : "transparent"
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "Wk"
-                        font.pixelSize: 9
-                        font.bold: true
-                        color: rowRoot.activeMode === "7d" ? IslandTheme.accentPrimary : IslandTheme.textSecondary
-                    }
-
-                    MouseArea {
-                        id: btn7Mouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: rowRoot.activeMode = "7d"
-                    }
-                }
-            }
-
-            // Progress Track
+            // 5h Quota Pill Button
             Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 4
-                radius: 2
-                color: IslandTheme.surfaceRaised
+                implicitHeight: 18
+                implicitWidth: lbl5h.implicitWidth + 12
+                radius: 6
+                color: rowRoot.activeMode === "5h"
+                    ? IslandTheme.surfaceHover
+                    : (btn5Mouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised)
+                border.width: 1
+                border.color: rowRoot.activeMode === "5h" ? IslandTheme.accentPrimary : IslandTheme.borderSubtle
 
-                Rectangle {
-                    height: parent.height
-                    width: Math.max(0, Math.min(parent.width, parent.width * (rowRoot.activePercent / 100.0)))
-                    radius: 2
-                    color: rowRoot.activePercent > 95
-                        ? IslandTheme.statusDanger
-                        : (rowRoot.activePercent > 80 ? IslandTheme.statusWarning : IslandTheme.accentPrimary)
+                Text {
+                    id: lbl5h
+                    anchors.centerIn: parent
+                    text: rowRoot.isConnected
+                        ? ("5h: " + ((rowRoot.quotaData && rowRoot.quotaData.percent5h !== undefined && rowRoot.quotaData.percent5h !== null) ? rowRoot.quotaData.percent5h : "--") + "%")
+                        : "5h: --%"
+                    font.pixelSize: 10
+                    font.bold: true
+                    color: rowRoot.activeMode === "5h" ? IslandTheme.accentPrimary : IslandTheme.textSecondary
+                }
+
+                MouseArea {
+                    id: btn5Mouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: rowRoot.activeMode = "5h"
                 }
             }
 
-            // Percentage Value
-            Text {
-                text: rowRoot.isConnected ? (rowRoot.activePercent + "%") : "--%"
-                font.pixelSize: 10
-                font.bold: true
-                color: rowRoot.activePercent > 95
-                    ? IslandTheme.statusDanger
-                    : (rowRoot.activePercent > 80 ? IslandTheme.statusWarning : IslandTheme.textPrimary)
-                Layout.preferredWidth: 28
-                horizontalAlignment: Text.AlignRight
+            // 7d / Weekly Quota Pill Button
+            Rectangle {
+                implicitHeight: 18
+                implicitWidth: lbl7d.implicitWidth + 12
+                radius: 6
+                color: rowRoot.activeMode === "7d"
+                    ? IslandTheme.surfaceHover
+                    : (btn7Mouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised)
+                border.width: 1
+                border.color: rowRoot.activeMode === "7d" ? IslandTheme.accentPrimary : IslandTheme.borderSubtle
+
+                Text {
+                    id: lbl7d
+                    anchors.centerIn: parent
+                    text: rowRoot.isConnected
+                        ? ("7d: " + ((rowRoot.quotaData && rowRoot.quotaData.percent7d !== undefined && rowRoot.quotaData.percent7d !== null) ? rowRoot.quotaData.percent7d : "--") + "%")
+                        : "7d: --%"
+                    font.pixelSize: 10
+                    font.bold: true
+                    color: rowRoot.activeMode === "7d" ? IslandTheme.accentPrimary : IslandTheme.textSecondary
+                }
+
+                MouseArea {
+                    id: btn7Mouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: rowRoot.activeMode = "7d"
+                }
             }
         }
 
@@ -143,7 +130,7 @@ Item {
                 Layout.fillWidth: true
                 text: rowRoot.activeDetail
                 font.pixelSize: 9
-                color: IslandTheme.textTertiary
+                color: IslandTheme.textSecondary
                 elide: Text.ElideRight
             }
         }
@@ -154,6 +141,35 @@ Item {
         anchors.margins: 6
         spacing: 4
 
+        // Row 0: Top Bar
+        RowLayout {
+            Layout.fillWidth: true
+
+            Text {
+                text: "AI Quota"
+                font.pixelSize: 11
+                font.bold: true
+                color: IslandTheme.textSecondary
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Text {
+                text: aiQuota.refreshing ? "…" : "↻"
+                font.pixelSize: 11
+                font.bold: true
+                color: syncMouse.containsMouse ? IslandTheme.accentHover : IslandTheme.textSecondary
+
+                MouseArea {
+                    id: syncMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: aiQuota.refresh()
+                }
+            }
+        }
+
         QuotaRow {
             providerId: "antigravity"
             providerName: "Antigravity"
@@ -163,7 +179,7 @@ Item {
 
         QuotaRow {
             providerId: "codex"
-            providerName: "OpenAI Codex"
+            providerName: "Codex"
             iconSource: "qrc:/linuxisland/ui/icons/codex.png"
             quotaData: aiQuota.codex
         }
@@ -173,29 +189,6 @@ Item {
             providerName: (aiQuota.claude && aiQuota.claude.source === "antigravity-shared") ? "Claude (AGY)" : "Claude"
             iconSource: "qrc:/linuxisland/ui/icons/claude.png"
             quotaData: aiQuota.claude
-        }
-
-        // Bottom Action: Refresh / Sync
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.topMargin: 2
-
-            Item { Layout.fillWidth: true }
-
-            Text {
-                text: aiQuota.refreshing ? "Refreshing quotas..." : "Sync AI Quotas ↻"
-                font.pixelSize: 10
-                font.bold: true
-                color: refreshMouse.containsMouse ? IslandTheme.accentHover : IslandTheme.accentPrimary
-
-                MouseArea {
-                    id: refreshMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: aiQuota.refresh()
-                }
-            }
         }
     }
 }

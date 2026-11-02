@@ -48,6 +48,9 @@ class SystemMetricsProvider : public QObject {
     Q_PROPERTY(QString batteryText READ batteryText NOTIFY metricsChanged)
     Q_PROPERTY(QString netText READ netText NOTIFY metricsChanged)
     Q_PROPERTY(QString netDetailText READ netDetailText NOTIFY metricsChanged)
+    Q_PROPERTY(int storagePercent READ storagePercent NOTIFY metricsChanged)
+    Q_PROPERTY(QString storageText READ storageText NOTIFY metricsChanged)
+    Q_PROPERTY(QString storageDetailText READ storageDetailText NOTIFY metricsChanged)
 
 public:
     explicit SystemMetricsProvider(QObject *parent = nullptr);
@@ -63,6 +66,9 @@ public:
     QString batteryText() const;
     QString netText() const { return m_netText; }
     QString netDetailText() const { return m_netDetailText; }
+    int storagePercent() const { return m_storagePercent; }
+    QString storageText() const { return m_storageText; }
+    QString storageDetailText() const { return m_storageDetailText; }
 
     static CpuSample parseCpuStat(const QString &content);
     static double computeCpuPercent(const CpuSample &prev, const CpuSample &curr);
@@ -70,7 +76,7 @@ public:
     static BatterySample parseBattery(const QString &capacityContent, const QString &statusContent);
     static NetSample parseNetDev(const QString &content, qint64 nowMs);
     static QString formatTransferRate(double bytesPerSec);
-
+    static QString formatStorageCompact(qint64 usedBytes, qint64 totalBytes);
     Q_INVOKABLE void setPollingActive(bool active);
     Q_INVOKABLE void refresh();
 
@@ -92,4 +98,7 @@ private:
     bool m_batteryCharging = false;
     QString m_netText = QStringLiteral("0 B/s");
     QString m_netDetailText = QStringLiteral("↓ 0 B/s · ↑ 0 B/s");
+    int m_storagePercent = 0;
+    QString m_storageText = QStringLiteral("0%");
+    QString m_storageDetailText;
 };

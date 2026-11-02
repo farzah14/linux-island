@@ -23,6 +23,7 @@ class Actor {
     get_text() { return this.text; }
     set_text(t) { this.text = t; }
     grab_key_focus() { this.focused = true; }
+    set_primary_icon(icon) { this.primary_icon = icon; }
     connect(name, fn) { this.handlers[name] = fn; return name; }
     disconnect(name) { delete this.handlers[name]; }
     add_style_class_name(name) { this.classes.add(name); }
@@ -141,7 +142,8 @@ globalThis.renderTest.AiQuotaProviderRow = AiQuotaProviderRow;
 let searchSource = (await readFile(new URL('../../extension/ui/searchView.js', import.meta.url), 'utf8'))
     .replace(/^import .*searchEngines.*;$/gm, 'const {SEARCH_ENGINES, DEFAULT_SEARCH_ENGINE, buildSearchUrl, isValidNavigationUrl} = globalThis.renderTest;')
     .replace('let St = null;', 'let St = globalThis.renderTest.St;')
-    .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
+    .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;')
+    .replace('let Gio = null;', 'let Gio = globalThis.renderTest.Gio;');
 const {SearchSection} = await load(searchSource);
 globalThis.renderTest.SearchSection = SearchSection;
 let mediaSource = await readFile(new URL('../../extension/ui/mediaView.js', import.meta.url), 'utf8');

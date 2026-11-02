@@ -16,9 +16,9 @@
     height: 36px;
 }
 .linux-island__preview {
-    border-radius: 24px;
+    border-radius: 20px;
     padding: 2px;
-    border: 1.5px solid transparent;
+    border: 1px solid transparent;
     box-shadow: none;
 }
 .linux-island__label { font-size: 13px; font-weight: 600; }
@@ -35,15 +35,15 @@
 .linux-island__carousel-dot--active { width: 14px; height: 5px; border-radius: 3px; border: 0; padding: 0; }
 .linux-island__player-badge { font-size: 10px; font-weight: 600; border-radius: 6px; padding: 1px 6px; border: 0; }
 .linux-island__section-nav { spacing: 6px; padding-bottom: 2px; }
-.linux-island__section-btn { border-radius: 10px; width: 28px; height: 22px; padding: 0; border: 1px solid transparent; }
-.linux-island__section-btn--active { border-radius: 10px; width: 28px; height: 22px; padding: 0; border: 1px solid transparent; }
+.linux-island__section-btn { border-radius: 8px; width: 28px; height: 22px; padding: 0; border: 1px solid transparent; }
+.linux-island__section-btn--active { border-radius: 8px; width: 28px; height: 22px; padding: 0; border: 1px solid transparent; }
 .linux-island__wa-dot { width: 6px; height: 6px; border-radius: 3px; }
 .linux-island__wa-row { border-radius: 12px; border: 1px solid transparent; }
 .linux-island__quota-row { border: 0; padding: 2px 4px; background-color: transparent; }
 .linux-island__quota-pill-btn { font-size: 10px; font-weight: 600; border-radius: 6px; padding: 1px 6px; border: 1px solid transparent; }
 .linux-island__quota-pill-btn--active { font-size: 10px; font-weight: 600; border-radius: 6px; padding: 1px 6px; border: 1px solid transparent; }
 .linux-island__quota-toggle-btn { width: auto; min-width: 32px; padding: 0 8px; font-size: 10px; font-weight: 600; }
-.linux-island__search-entry { border-radius: 10px; padding: 4px 10px; border: 1px solid transparent; }
+.linux-island__search-entry { border-radius: 8px; padding: 4px 10px; border: 1px solid transparent; }
 .linux-island__search-action { border-radius: 8px; padding: 3px 10px; border: 1px solid transparent; font-size: 11px; font-weight: 600; }
 .linux-island__search-engine-btn { border-radius: 8px; padding: 2px 8px; border: 1px solid transparent; font-size: 10px; font-weight: 600; }
 .linux-island__search-engine-btn--active { border-radius: 8px; padding: 2px 8px; border: 1px solid transparent; font-size: 10px; font-weight: 600; }
@@ -67,6 +67,7 @@
 .linux-island--dark.linux-island__preview {
     background-color: #191816;
     color: #F4F0E9;
+    border-color: #D8B77F;
 }
 
 .linux-island--dark .linux-island__label, .linux-island--dark .linux-island__media-title {
@@ -228,14 +229,14 @@
 }
 
 .linux-island--dark .linux-island__section-btn--active {
-    background-color: #302D28;
-    border-color: #575148;
-    color: #D8B77F;
+    background-color: #D8B77F;
+    border-color: transparent;
+    color: #191816;
 }
 
 .linux-island--dark .linux-island__section-btn--active:hover {
-    background-color: #403B34;
-    color: #E9CEA0;
+    background-color: #E9CEA0;
+    color: #191816;
 }
 
 .linux-island--dark .linux-island__wa-dot {
@@ -356,6 +357,7 @@
 .linux-island--light.linux-island__preview {
     background-color: #FBF8F1;
     color: #292621;
+    border-color: #80551F;
 }
 
 .linux-island--light .linux-island__label, .linux-island--light .linux-island__media-title {
@@ -517,14 +519,14 @@
 }
 
 .linux-island--light .linux-island__section-btn--active {
-    background-color: #EEE9DF;
-    border-color: #C7BCAE;
-    color: #80551F;
+    background-color: #80551F;
+    border-color: transparent;
+    color: #FBF8F1;
 }
 
 .linux-island--light .linux-island__section-btn--active:hover {
-    background-color: #E5DED3;
-    color: #6B471B;
+    background-color: #6B471B;
+    color: #FBF8F1;
 }
 
 .linux-island--light .linux-island__wa-dot {

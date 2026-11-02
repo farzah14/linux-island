@@ -5,11 +5,25 @@ import {SEARCH_ENGINES, DEFAULT_SEARCH_ENGINE, buildSearchUrl, isValidNavigation
 
 let St = null;
 let Clutter = null;
+let Gio = null;
 if (typeof process === 'undefined') {
     try {
         St = (await import('gi://St')).default;
         Clutter = (await import('gi://Clutter')).default;
+        Gio = (await import('gi://Gio')).default;
     } catch (_) {}
+}
+
+export function getSearchGIcon() {
+    if (!Gio) return null;
+    try {
+        const thisFile = Gio.File.new_for_uri(import.meta.url);
+        const iconFile = thisFile.get_parent().get_parent().get_child('icons').get_child('ui').get_child('search-symbolic.svg');
+        if (iconFile.query_exists(null)) {
+            return new Gio.FileIcon({file: iconFile});
+        }
+    } catch (_) {}
+    return null;
 }
 
 export class SearchSection {
@@ -45,7 +59,7 @@ export class SearchSection {
         // Engine chips row
         this._engineRow = new St.BoxLayout({
             vertical: false,
-            style: 'spacing: 4px;',
+            style: 'spacing: 6px;',
             x_align: Clutter.ActorAlign.CENTER,
         });
         for (const engine of this._engines) {
@@ -83,6 +97,18 @@ export class SearchSection {
             can_focus: true,
             style_class: 'linux-island__search-entry',
         });
+        const searchIcon = new St.Icon({
+            style_class: 'linux-island__search-icon',
+            icon_size: 13,
+            icon_name: 'system-search-symbolic',
+        });
+        const gicon = getSearchGIcon();
+        if (gicon) {
+            searchIcon.gicon = gicon;
+        }
+        if (typeof this._entry.set_primary_icon === 'function') {
+            this._entry.set_primary_icon(searchIcon);
+        }
         this._entry.clutter_text?.connect?.('activate', () => this._submit());
         this._entry.connect('key-press-event', (_actor, event) => {
             const sym = event.get_key_symbol();

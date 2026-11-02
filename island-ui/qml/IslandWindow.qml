@@ -38,7 +38,6 @@ Window {
     }
 
     function getExpandedHeight() {
-        if (carouselView && carouselView.currentIndex === 1) return 184;
         if (carouselView && carouselView.currentIndex === 2) return 190;
         return 174;
     }
@@ -147,7 +146,7 @@ Window {
                     implicitWidth: 6
                     implicitHeight: 6
                     radius: 3
-                    color: "#25D366" // WhatsApp brand green
+                    color: IslandTheme.statusSuccess // WhatsApp brand indicator
                     visible: notificationWatcher.whatsappActivity
                     Layout.alignment: Qt.AlignVCenter
                 }
@@ -171,7 +170,7 @@ Window {
                     width: 6
                     height: 6
                     radius: 3
-                    color: "#25D366"
+                    color: IslandTheme.statusSuccess
                     visible: notificationWatcher.whatsappActivity
                 }
             }
@@ -246,7 +245,7 @@ Window {
                 implicitHeight: 24
                 radius: 6
                 color: IslandTheme.surfaceRaised
-                border.color: "#25D366"
+                border.color: IslandTheme.statusSuccess
                 visible: notificationWatcher.whatsappActivity
 
                 RowLayout {
@@ -258,7 +257,7 @@ Window {
                         implicitWidth: 6
                         implicitHeight: 6
                         radius: 3
-                        color: "#25D366"
+                        color: IslandTheme.statusSuccess
                     }
 
                     Text {
@@ -274,7 +273,7 @@ Window {
                         text: "Open →"
                         font.pixelSize: 10
                         font.bold: true
-                        color: "#25D366"
+                        color: IslandTheme.statusSuccess
 
                         MouseArea {
                             anchors.fill: parent
@@ -306,12 +305,13 @@ Window {
                         NavIcon {
                             anchors.centerIn: parent
                             source: "qrc:/linuxisland/ui/icons/ui/media-symbolic.svg"
-                            color: carouselView.currentIndex === 0 ? IslandTheme.surfaceIsland : IslandTheme.textPrimary
+                            color: carouselView.currentIndex === 0 ? IslandTheme.surfaceIsland : (tab0Mouse.containsMouse ? IslandTheme.textPrimary : IslandTheme.textSecondary)
                         }
 
                         MouseArea {
                             id: tab0Mouse
                             anchors.fill: parent
+                            hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: carouselView.currentIndex = 0
                         }
@@ -327,12 +327,13 @@ Window {
                         NavIcon {
                             anchors.centerIn: parent
                             source: "qrc:/linuxisland/ui/icons/ui/system-symbolic.svg"
-                            color: carouselView.currentIndex === 1 ? IslandTheme.surfaceIsland : IslandTheme.textPrimary
+                            color: carouselView.currentIndex === 1 ? IslandTheme.surfaceIsland : (tab1Mouse.containsMouse ? IslandTheme.textPrimary : IslandTheme.textSecondary)
                         }
 
                         MouseArea {
                             id: tab1Mouse
                             anchors.fill: parent
+                            hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: carouselView.currentIndex = 1
                         }
@@ -348,12 +349,13 @@ Window {
                         NavIcon {
                             anchors.centerIn: parent
                             source: "qrc:/linuxisland/ui/icons/ui/ai-symbolic.svg"
-                            color: carouselView.currentIndex === 2 ? IslandTheme.surfaceIsland : IslandTheme.textPrimary
+                            color: carouselView.currentIndex === 2 ? IslandTheme.surfaceIsland : (tab2Mouse.containsMouse ? IslandTheme.textPrimary : IslandTheme.textSecondary)
                         }
 
                         MouseArea {
                             id: tab2Mouse
                             anchors.fill: parent
+                            hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: carouselView.currentIndex = 2
                         }
@@ -369,12 +371,13 @@ Window {
                         NavIcon {
                             anchors.centerIn: parent
                             source: "qrc:/linuxisland/ui/icons/ui/search-symbolic.svg"
-                            color: carouselView.currentIndex === 3 ? IslandTheme.surfaceIsland : IslandTheme.textPrimary
+                            color: carouselView.currentIndex === 3 ? IslandTheme.surfaceIsland : (tab3Mouse.containsMouse ? IslandTheme.textPrimary : IslandTheme.textSecondary)
                         }
 
                         MouseArea {
                             id: tab3Mouse
                             anchors.fill: parent
+                            hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: carouselView.currentIndex = 3
                         }

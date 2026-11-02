@@ -11,6 +11,7 @@ private slots:
     void testParseBattery();
     void testParseNetDev();
     void testFormatTransferRate();
+    void testFormatStorageCompact();
 };
 
 void TestSystemMetrics::testParseCpuStat() {
@@ -103,6 +104,16 @@ void TestSystemMetrics::testFormatTransferRate() {
     QCOMPARE(SystemMetricsProvider::formatTransferRate(500.0), QStringLiteral("500 B/s"));
     QCOMPARE(SystemMetricsProvider::formatTransferRate(2048.0), QStringLiteral("2.0 KB/s"));
     QCOMPARE(SystemMetricsProvider::formatTransferRate(5242880.0), QStringLiteral("5.0 MB/s"));
+}
+
+void TestSystemMetrics::testFormatStorageCompact() {
+    QCOMPARE(SystemMetricsProvider::formatStorageCompact(0, 0), QString());
+    QCOMPARE(SystemMetricsProvider::formatStorageCompact(100, -1), QString());
+
+    qint64 gb = 1024LL * 1024LL * 1024LL;
+    QCOMPARE(SystemMetricsProvider::formatStorageCompact(134LL * gb, 233LL * gb), QStringLiteral("134/233 GB"));
+    QCOMPARE(SystemMetricsProvider::formatStorageCompact(36LL * gb, 143LL * gb), QStringLiteral("36/143 GB"));
+    QCOMPARE(SystemMetricsProvider::formatStorageCompact(36LL * gb, 80LL * gb), QStringLiteral("36.0/80.0 GB"));
 }
 
 QTEST_MAIN(TestSystemMetrics)

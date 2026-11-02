@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QDateTime>
 #include <QRegularExpression>
+#include <QStorageInfo>
 #include <cmath>
 #include <algorithm>
 
@@ -175,6 +176,33 @@ QString SystemMetricsProvider::formatTransferRate(double bytesPerSec) {
     }
 }
 
+QString SystemMetricsProvider::formatStorageCompact(qint64 usedBytes, qint64 totalBytes) {
+    if (totalBytes <= 0) return QString();
+    static const QString units[] = {
+        QStringLiteral("B"),
+        QStringLiteral("KB"),
+        QStringLiteral("MB"),
+        QStringLiteral("GB"),
+        QStringLiteral("TB"),
+        QStringLiteral("PB")
+    };
+    double amount = static_cast<double>(totalBytes);
+    int unit = 0;
+    while (amount >= 1024.0 && unit < 5) {
+        amount /= 1024.0;
+        unit++;
+    }
+    double scale = std::pow(1024.0, unit);
+    QString totalValue = amount >= 100.0
+        ? QString::number(std::round(amount), 'f', 0)
+        : QString::number(amount, 'f', 1);
+    double usedAmount = static_cast<double>(usedBytes) / scale;
+    QString usedValue = (static_cast<double>(totalBytes) / scale >= 100.0)
+        ? QString::number(std::round(usedAmount), 'f', 0)
+        : QString::number(usedAmount, 'f', 1);
+    return QStringLiteral("%1/%2 %3").arg(usedValue, totalValue, units[unit]);
+}
+
 void SystemMetricsProvider::readSystemFiles() {
     // 1. CPU
     QFile statFile(QStringLiteral("/proc/stat"));
@@ -250,6 +278,20 @@ void SystemMetricsProvider::readSystemFiles() {
                 }
             }
             m_prevNet = currNet;
+        }
+    }
+
+    // 5. Storage (root filesystem)
+    QStorageInfo rootStorage = QStorageInfo::root();
+    if (rootStorage.isValid() && rootStorage.isReady()) {
+        qint64 total = rootStorage.bytesTotal();
+        qint64 free = rootStorage.bytesAvailable();
+        qint64 used = total - free;
+        if (total > 0) {
+            double pct = (static_cast<double>(used) / static_cast<double>(total)) * 100.0;
+            m_storagePercent = std::clamp(static_cast<int>(std::round(pct)), 0, 100);
+            m_storageText = QString::number(m_storagePercent) + QStringLiteral("%");
+            m_storageDetailText = formatStorageCompact(used, total);
         }
     }
 }
