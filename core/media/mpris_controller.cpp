@@ -1,15 +1,16 @@
 #include "mpris_controller.h"
+#include "sink_volume.h"
 #include <QDBusInterface>
 #include <QDBusPendingCall>
 #include <QDBusObjectPath>
 #include <QSet>
-#include <QProcess>
 #include <algorithm>
 #include <chrono>
 
-MprisController::MprisController(const QDBusConnection &bus, QObject *parent)
+MprisController::MprisController(const QDBusConnection &bus, SinkVolume *sink, QObject *parent)
     : QObject(parent),
-      m_bus(bus) {}
+      m_bus(bus),
+      m_sink(sink) {}
 
 ControlResult MprisController::perform(const QString &action, const QString &playerId, const MediaState &currentState) {
     static const QSet<QString> whitelistedActions = {
@@ -31,7 +32,9 @@ ControlResult MprisController::perform(const QString &action, const QString &pla
             QStringLiteral("Unsupported or empty media action: ") + action
         };
     }
-    if (playerId.isEmpty()) {
+    // The volume row controls the system sink, which exists with or without a
+    // media player. Only player-scoped actions need an active MPRIS service.
+    if (playerId.isEmpty() && !isVolume) {
         return ControlResult{
             false,
             QStringLiteral("io.github.linuxisland.Error.PlayerUnavailable"),
@@ -81,7 +84,10 @@ ControlResult MprisController::perform(const QString &action, const QString &pla
             };
         }
     }
-    if (!m_bus.isConnected()) {
+    // The sink path is a local wpctl write, not a D-Bus call, so it still works
+    // when the session bus is unreachable.
+    const bool handledBySink = isVolume && m_sink && m_sink->known();
+    if (!m_bus.isConnected() && !handledBySink) {
         return ControlResult{
             false,
             QStringLiteral("io.github.linuxisland.Error.PlayerUnavailable"),
@@ -167,23 +173,33 @@ ControlResult MprisController::perform(const QString &action, const QString &pla
                 QStringLiteral("Invalid Volume value: ") + action
             };
         }
-        if (true) {
-            vol = std::max(0.0, std::min(1.0, vol));
-            QDBusMessage msg = QDBusMessage::createMethodCall(
-                playerId,
-                QStringLiteral("/org/mpris/MediaPlayer2"),
-                QStringLiteral("org.freedesktop.DBus.Properties"),
-                QStringLiteral("Set"));
-            msg << QStringLiteral("org.mpris.MediaPlayer2.Player")
-                << QStringLiteral("Volume")
-                << QVariant::fromValue(QDBusVariant(vol));
-            m_bus.send(msg);
-            QProcess::startDetached(QStringLiteral("wpctl"), {
-                QStringLiteral("set-volume"),
-                QStringLiteral("@DEFAULT_AUDIO_SINK@"),
-                QString::number(vol, 'f', 2)
-            });
+        vol = std::max(0.0, std::min(1.0, vol));
+
+        // The sink is the level the user actually hears, so it is the one the
+        // slider must drive. Writing the player's own MPRIS Volume as well made
+        // the two scales disagree (MPRIS is linear gain, the sink is cubic) and
+        // left players that ignore Volume showing a stale bar.
+        if (m_sink && m_sink->known()) {
+            m_sink->setVolume(vol);
+            return ControlResult{true, QString(), QString()};
         }
+
+        if (playerId.isEmpty()) {
+            return ControlResult{
+                false,
+                QStringLiteral("io.github.linuxisland.Error.PlayerUnavailable"),
+                QStringLiteral("No system audio sink or media player available")
+            };
+        }
+        QDBusMessage msg = QDBusMessage::createMethodCall(
+            playerId,
+            QStringLiteral("/org/mpris/MediaPlayer2"),
+            QStringLiteral("org.freedesktop.DBus.Properties"),
+            QStringLiteral("Set"));
+        msg << QStringLiteral("org.mpris.MediaPlayer2.Player")
+            << QStringLiteral("Volume")
+            << QVariant::fromValue(QDBusVariant(vol));
+        m_bus.send(msg);
     } else {
         QDBusMessage msg = QDBusMessage::createMethodCall(
             playerId,

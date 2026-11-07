@@ -62,29 +62,6 @@ target_include_directories(tst_ai_quota PRIVATE ${CMAKE_SOURCE_DIR}/island-ui)
 target_link_libraries(tst_ai_quota PRIVATE Qt6::Core Qt6::Test)
 add_test(NAME ai-quota COMMAND tst_ai_quota)
 
-add_executable(tst_search_provider
-    tst_search_provider.cpp
-    ${CMAKE_SOURCE_DIR}/island-ui/search_provider.cpp
-)
-target_include_directories(tst_search_provider PRIVATE ${CMAKE_SOURCE_DIR}/island-ui)
-target_link_libraries(tst_search_provider PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
-add_test(NAME search-provider COMMAND tst_search_provider)
-
-add_executable(tst_cookie_importer
-    tst_cookie_importer.cpp
-    ${CMAKE_SOURCE_DIR}/island-ui/cookie_importer.cpp
-)
-target_include_directories(tst_cookie_importer PRIVATE ${CMAKE_SOURCE_DIR}/island-ui)
-target_link_libraries(tst_cookie_importer PRIVATE
-    Qt6::Core
-    Qt6::DBus
-    Qt6::Sql
-    Qt6::WebEngineQuick
-    Qt6::WebEngineCore
-    Qt6::Test
-    OpenSSL::Crypto
-)
-add_test(NAME cookie-importer COMMAND tst_cookie_importer)
 
 add_executable(tst_island_client_fsm
     tst_island_client_fsm.cpp
@@ -101,3 +78,24 @@ target_link_libraries(tst_island_client_fsm PRIVATE
     Qt6::Test
 )
 add_test(NAME island-client-fsm COMMAND tst_island_client_fsm)
+
+add_executable(tst_timer_service
+    tst_timer_service.cpp
+    ${CMAKE_SOURCE_DIR}/core/time/timer_service.cpp
+)
+target_include_directories(tst_timer_service PRIVATE ${CMAKE_SOURCE_DIR}/core)
+target_link_libraries(tst_timer_service PRIVATE Qt6::Core Qt6::Test)
+add_test(NAME timer-service COMMAND tst_timer_service)
+
+add_executable(tst_time_format
+    tst_time_format.cpp
+    ${CMAKE_SOURCE_DIR}/island-ui/time_format.cpp
+)
+target_include_directories(tst_time_format PRIVATE ${CMAKE_SOURCE_DIR}/island-ui)
+target_link_libraries(tst_time_format PRIVATE Qt6::Core Qt6::Test)
+add_test(NAME time-format COMMAND tst_time_format)
+
+add_executable(tst_sink_volume tst_sink_volume.cpp ${CMAKE_SOURCE_DIR}/core/media/sink_volume.cpp)
+target_include_directories(tst_sink_volume PRIVATE ${CMAKE_SOURCE_DIR}/core)
+target_link_libraries(tst_sink_volume PRIVATE Qt6::Core Qt6::Test)
+add_test(NAME sink-volume COMMAND tst_sink_volume)

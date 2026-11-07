@@ -5,6 +5,7 @@ import {Capsule} from './ui/capsule.js';
 import {GnomeDisplayAdapter} from './lib/gnomeDisplayAdapter.js';
 import {IslandController} from './lib/islandController.js';
 import {CoreProxy} from './lib/coreProxy.js';
+import {TimeProxy} from './lib/timeProxy.js';
 import {NotificationAdapter} from './lib/notificationAdapter.js';
 export default class LinuxIslandExtension extends Extension {
     enable() {
@@ -18,9 +19,13 @@ export default class LinuxIslandExtension extends Extension {
             onUpdateSettings: patch => this._coreProxy?.updateSettings(patch),
             onSetActivePlayer: id => this._coreProxy?.setActivePlayer(id),
             onWhatsAppActivate: () => this._notifAdapter?.activateWhatsApp(),
+            onStartTimer: request => this._timeProxy?.startTimer(request),
+            onControlTimer: action => this._timeProxy?.controlTimer(action),
+            onTimerStats: () => this._timeProxy?.fetchStats(),
         });
         let controller = null;
         let coreProxy = null;
+        let timeProxy = null;
 
         try {
             capsule.mount();
@@ -52,6 +57,13 @@ export default class LinuxIslandExtension extends Extension {
             });
             this._coreProxy = coreProxy;
 
+            timeProxy = new TimeProxy({
+                onStateChanged: state => this._onTimeStateChanged(state),
+                onTimerFinished: () => this._controller?.dispatch('PEEK_REQUEST'),
+                onPhaseChanged: () => this._controller?.dispatch('PEEK_REQUEST'),
+            });
+            this._timeProxy = timeProxy;
+
             this._notifAdapter = new NotificationAdapter({
                 enabled: false,
                 whatsappEnabled: false,
@@ -65,10 +77,12 @@ export default class LinuxIslandExtension extends Extension {
         } catch (error) {
             this._notifAdapter?.destroy();
             this._notifAdapter = null;
+            timeProxy?.destroy();
             coreProxy?.destroy();
             controller?.destroy();
             capsule.destroy();
             this._coreProxy = null;
+            this._timeProxy = null;
             this._controller = null;
             this._capsule = null;
             throw error;
@@ -76,6 +90,7 @@ export default class LinuxIslandExtension extends Extension {
     }
 
     _onCoreStateChanged(coreState) {
+        this._lastSettings = coreState?.settings ?? this._lastSettings ?? {};
         this._capsule?.setConnected(Boolean(coreState?.connected));
         if (coreState?.media) {
             this._capsule?.setMedia(coreState.media);
@@ -84,10 +99,8 @@ export default class LinuxIslandExtension extends Extension {
             this._controller?.setFullscreenPolicyEnabled(coreState.settings.smartAdaptiveEnabled);
             this._capsule?.setHoverPreviewEnabled(coreState.settings.hoverPreviewEnabled);
             this._capsule?.setTheme(coreState.settings.theme);
-            if (coreState.settings.searchEngine !== undefined) {
-                this._capsule?.setSearchEngine(coreState.settings.searchEngine);
-            }
             this._capsule?.setCapsuleSize(coreState.settings.capsuleSize);
+            this._capsule?.setDisplayMode(coreState.settings.displayMode);
             this._capsule?.setAnimationEnabled(coreState.settings.animationEnabled);
             if (coreState.settings.verticalOffset !== undefined) {
                 this._capsule?.setVerticalOffset(coreState.settings.verticalOffset);
@@ -102,10 +115,18 @@ export default class LinuxIslandExtension extends Extension {
             this._capsule?.setWhatsAppEnabled(waEnabled);
         }
     }
+    _onTimeStateChanged(state) {
+        this._capsule?.setTimer(state.timer);
+        if (state.stats)
+            this._capsule?.setTimerStats(state.stats);
+    }
+
     disable() {
         this._notifAdapter?.destroy();
         this._notifAdapter = null;
 
+        this._timeProxy?.destroy();
+        this._timeProxy = null;
         this._coreProxy?.destroy();
         this._coreProxy = null;
         this._controller?.destroy();

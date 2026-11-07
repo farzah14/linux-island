@@ -5,8 +5,24 @@
 #include <QDBusMessage>
 #include <QDBusPendingCall>
 #include <QDBusPendingCallWatcher>
+#include <QElapsedTimer>
 #include <algorithm>
 #include <cmath>
+
+namespace {
+// How long a local slider value outranks the core's echo. The core re-reads the
+// sink every 800 ms, so this covers one full round trip plus scheduling slack.
+constexpr qint64 kVolumeHoldMs = 1500;
+
+qint64 monotonicMs() {
+    static QElapsedTimer timer = [] {
+        QElapsedTimer t;
+        t.start();
+        return t;
+    }();
+    return timer.elapsed();
+}
+} // namespace
 
 namespace {
 // GetSnapshot returns nested a{sv} values as QDBusArgument, which toMap()
@@ -182,6 +198,9 @@ void IslandClient::seekToFraction(double fraction) {
 void IslandClient::setVolume(double value) {
     const double v = clampVolume(value);
     m_volume = v;
+    m_muted = v <= 0.0;
+    if (!m_muted) m_unmutedVolume = v;
+    m_volumeHoldUntilMs = monotonicMs() + kVolumeHoldMs;
     emit mediaChanged();
     controlMedia(QStringLiteral("Volume:") + QString::number(v, 'f', 2));
 }
@@ -208,10 +227,6 @@ void IslandClient::cycleActivePlayer() {
 }
 
 void IslandClient::updateSettings(const QVariantMap &patch) {
-    if (patch.contains(QStringLiteral("searchEngine")) && m_searchEngine != patch.value(QStringLiteral("searchEngine")).toString()) {
-        m_searchEngine = patch.value(QStringLiteral("searchEngine")).toString();
-        emit settingsChanged();
-    }
 
     if (!m_bus.isConnected() || patch.isEmpty()) return;
 
@@ -284,7 +299,27 @@ void IslandClient::applyMediaMap(const QVariantMap &media) {
     } else {
         m_audioLevels = {0.0, 0.0, 0.0};
     }
-    m_volume = clampVolume(media.value(QStringLiteral("volume"), 1.0).toDouble());
+    // The core reports the sink level, so this is what the rest of the desktop
+    // shows. A drag that is still settling wins until its own echo arrives.
+    const double reported = clampVolume(media.value(QStringLiteral("volume"), 1.0).toDouble());
+    const double reportedUnmuted = clampVolume(
+        media.value(QStringLiteral("unmutedVolume"), reported).toDouble());
+    const bool reportedMuted = media.contains(QStringLiteral("muted"))
+        ? media.value(QStringLiteral("muted")).toBool()
+        : reported <= 0.0;
+
+    const bool holding = monotonicMs() < m_volumeHoldUntilMs;
+    if (!holding) {
+        m_volume = reported;
+        m_unmutedVolume = reportedUnmuted > 0.0 ? reportedUnmuted : (reported > 0.0 ? reported : 1.0);
+        m_muted = reportedMuted;
+    } else if (std::abs(reported - m_volume) < 0.005) {
+        // The sink caught up: release the hold so external changes apply again.
+        m_volumeHoldUntilMs = 0;
+        m_volume = reported;
+        m_unmutedVolume = reportedUnmuted > 0.0 ? reportedUnmuted : m_unmutedVolume;
+        m_muted = reportedMuted;
+    }
 
     emit mediaChanged();
 }
@@ -300,7 +335,6 @@ void IslandClient::applySettingsMap(const QVariantMap &settings) {
     if (settings.contains(QStringLiteral("displayMode"))) m_displayMode = settings.value(QStringLiteral("displayMode")).toString();
     if (settings.contains(QStringLiteral("verticalOffset"))) m_verticalOffset = settings.value(QStringLiteral("verticalOffset")).toInt();
     if (settings.contains(QStringLiteral("horizontalOffset"))) m_horizontalOffset = settings.value(QStringLiteral("horizontalOffset")).toInt();
-    if (settings.contains(QStringLiteral("searchEngine"))) m_searchEngine = settings.value(QStringLiteral("searchEngine")).toString();
 
     emit settingsChanged();
 }

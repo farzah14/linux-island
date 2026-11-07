@@ -8,6 +8,7 @@ private slots:
     void testFormatResetCountdown();
     void testBuildSnapshotFromRawJson();
     void testAntigravitySeparatesGeminiAndShared3pLimits();
+    void testSingleWindowProviderDoesNotFabricateOtherWindow();
 };
 
 void TestAiQuota::testFormatResetCountdown() {
@@ -129,6 +130,49 @@ void TestAiQuota::testAntigravitySeparatesGeminiAndShared3pLimits() {
     QCOMPARE(claude.value(QStringLiteral("source")).toString(), QStringLiteral("antigravity-shared"));
     QCOMPARE(claude.value(QStringLiteral("percent5h")).toInt(), 100);
     QCOMPARE(claude.value(QStringLiteral("percent7d")).toInt(), 100);
+}
+
+void TestAiQuota::testSingleWindowProviderDoesNotFabricateOtherWindow() {
+    // Real Antigravity payload for a weekly-only shared Claude bucket. The 5h
+    // pill must read "--%" rather than borrowing the weekly percentage.
+    QByteArray rawJson = R"JSON({
+        "ompCache": [
+            {
+                "value": {
+                    "provider": "google-antigravity",
+                    "limits": [
+                        {
+                            "id": "google-antigravity:anthropic:default:3p-weekly",
+                            "label": "Claude & GPT (shared)",
+                            "window": { "durationMs": 604800000, "resetsAt": 1006048000 },
+                            "amount": { "remainingFraction": 0.0 }
+                        }
+                    ]
+                }
+            }
+        ]
+    })JSON";
+
+    qint64 now = 1000000000;
+    QVariantMap snapshot = AiQuotaProvider::buildSnapshotFromRawJson(rawJson, now);
+
+    QVariantMap claude = snapshot.value(QStringLiteral("claude")).toMap();
+    QCOMPARE(claude.value(QStringLiteral("connected")).toBool(), true);
+    QCOMPARE(claude.value(QStringLiteral("source")).toString(), QStringLiteral("antigravity-shared"));
+    QCOMPARE(claude.value(QStringLiteral("has5h")).toBool(), false);
+    QCOMPARE(claude.value(QStringLiteral("has7d")).toBool(), true);
+    QVERIFY(claude.value(QStringLiteral("detailText")).toString().startsWith(QStringLiteral("7d ")));
+    QVERIFY(!claude.value(QStringLiteral("detailText")).toString().startsWith(QStringLiteral("100% left")));
+
+    // Fully offline payload keeps the honest offline text and no window flags.
+    QVariantMap offline = AiQuotaProvider::buildSnapshotFromRawJson(QByteArrayLiteral("{}"), now);
+    for (const QString &key : {QStringLiteral("antigravity"), QStringLiteral("codex"), QStringLiteral("claude")}) {
+        QVariantMap provider = offline.value(key).toMap();
+        QCOMPARE(provider.value(QStringLiteral("connected")).toBool(), false);
+        QCOMPARE(provider.value(QStringLiteral("has5h")).toBool(), false);
+        QCOMPARE(provider.value(QStringLiteral("has7d")).toBool(), false);
+        QCOMPARE(provider.value(QStringLiteral("detailText")).toString(), QStringLiteral("No active session"));
+    }
 }
 
 QTEST_MAIN(TestAiQuota)

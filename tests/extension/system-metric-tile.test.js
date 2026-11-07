@@ -90,6 +90,20 @@ function assertEqual(actual, expected, message) {
     assert(tight.metricsWidth >= 0, 'metrics clamp at zero on narrow capsules');
     assert(tight.total <= 90.001, `narrow capsule still fits, got ${tight.total}`);
 
+    // Real presets must never squeeze NET to a sliver: "↓ 1.2 MB/s" needs
+    // ~56px at 11px bold, and the reported bug was NET text vanishing at the
+    // small preset because the side columns kept their 92px floor. Side
+    // columns give way first; NET only shrinks once they hit zero.
+    for (const [preset, cardWidth] of [['small', 268], ['medium', 328], ['large', 388]]) {
+        const section = cardWidth - 34 - 8; // shell insets, then section padding
+        const cols = computeSystemColumns(section);
+        assertEqual(cols.netWidth, 78, `NET keeps its full width at ${preset} preset`);
+        assert(cols.metricsWidth > 0,
+            `metrics keep usable width at ${preset} preset (${cols.metricsWidth}px)`);
+        assert(Math.abs(cols.total - section) < 0.001,
+            `${preset} preset fills its ${section}px section box, got ${cols.total}`);
+    }
+
     // Real medium capsule: the card is 364px wide, i.e. 328px content plus
     // 18px padding per side. St's CSS width is the content box, so the System
     // page requests 328px and, minus its own 4px side padding, splits 320px

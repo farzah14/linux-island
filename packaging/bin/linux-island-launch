@@ -83,7 +83,6 @@ DISPLAY_MODE="$(read_display_mode)"
 
 STANDALONE=false
 SMOKE_TEST=false
-COMPANION=false
 AUTOSTART=false
 SYSTEMD_UI=false
 PRINT_CONFIG=false
@@ -93,7 +92,6 @@ for arg in "$@"; do
     case "$arg" in
         --standalone) STANDALONE=true ;;
         --smoke-test) SMOKE_TEST=true ;;
-        --companion|--companion=*) COMPANION=true ;;
         --autostart) AUTOSTART=true ;;
         --systemd-ui) SYSTEMD_UI=true ;;
         --print-config) PRINT_CONFIG=true ;;
@@ -101,8 +99,12 @@ for arg in "$@"; do
     esac
 done
 
-if [[ "$IS_GNOME" == true && "$DISPLAY_MODE" == "dynamic" && "$STANDALONE" == false &&
-      "$SMOKE_TEST" == false && "$COMPANION" == false ]]; then
+# Dynamic and Floating are both drawn by the Shell extension: the capsule is a
+# top-chrome actor either way, and the extension now honours the mode itself.
+# Only `integrated` (no panel button exists yet) and explicit --standalone runs
+# fall through to the Qt overlay.
+if [[ "$IS_GNOME" == true && ( "$DISPLAY_MODE" == "dynamic" || "$DISPLAY_MODE" == "floating" ) &&
+      "$STANDALONE" == false && "$SMOKE_TEST" == false ]]; then
     MODE="extension"
 else
     MODE="overlay"
@@ -271,7 +273,7 @@ if [[ "$MODE" == "extension" ]]; then
         if [[ "$AUTOSTART" == true || "$SYSTEMD_UI" == true ]]; then
             exit 0
         fi
-        echo "Linux Island: GNOME Shell extension enabled for Dynamic Mode."
+        echo "Linux Island: GNOME Shell extension enabled for ${DISPLAY_MODE} mode."
         exit 0
     fi
     echo "WARNING: gnome-extensions not found; falling back to the Qt overlay." >&2
@@ -300,7 +302,7 @@ fi
 # with the session; without flock we simply launch, as before.
 LOCK_HELD=false
 LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/linux-island-ui.lock"
-if [[ "$COMPANION" == false && "$SMOKE_TEST" == false ]] && command -v flock >/dev/null 2>&1; then
+if [[ "$SMOKE_TEST" == false ]] && command -v flock >/dev/null 2>&1; then
     # A runtime dir we cannot write is not a reason to refuse to launch.
     if exec 9>"$LOCK_FILE" 2>/dev/null; then
         if ! flock -n 9; then

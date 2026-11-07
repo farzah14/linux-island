@@ -10,6 +10,7 @@ private slots:
     void testSettingsIncrement();
     void testIndependentCounters();
     void testDistinctInstanceIds();
+    void testTimerCounters();
 };
 
 void TestRevisionClock::testInitialState() {
@@ -58,6 +59,16 @@ void TestRevisionClock::testDistinctInstanceIds() {
     QVERIFY(!clock1.instanceId().isEmpty());
     QVERIFY(!clock2.instanceId().isEmpty());
     QVERIFY(clock1.instanceId() != clock2.instanceId());
+}
+
+void TestRevisionClock::testTimerCounters() {
+    RevisionClock clock;
+    QCOMPARE(clock.timerChanged(), 1ull);
+    QCOMPARE(clock.timerChanged(), 2ull);
+    QCOMPARE(clock.timerRevision(), 2ull);
+    QCOMPARE(clock.mediaRevision(), 0ull);
+    QCOMPARE(clock.settingsRevision(), 0ull);
+    QCOMPARE(clock.timerRevision(), 2ull);
 }
 
 QTEST_MAIN(TestRevisionClock)

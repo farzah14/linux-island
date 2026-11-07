@@ -471,6 +471,8 @@ export function buildAiQuotaSnapshot(rawSources = {}, nowMs = Date.now()) {
             primaryText: `${remainingPercent}% left`,
             detailText,
             altDetailText,
+            has5h: agWindows.some(w => w.window === '5h'),
+            has7d: agWindows.some(w => w.window === '7d' || w.window === 'Argon 7d'),
             windows: agWindows,
         };
     } else {
@@ -481,6 +483,8 @@ export function buildAiQuotaSnapshot(rawSources = {}, nowMs = Date.now()) {
             primaryText: 'Offline',
             detailText: 'No active session',
             altDetailText: 'No active session',
+            has5h: false,
+            has7d: false,
             windows: [],
         };
     }
@@ -529,6 +533,8 @@ export function buildAiQuotaSnapshot(rawSources = {}, nowMs = Date.now()) {
             primaryText: `${remainingPercent}% left`,
             detailText,
             altDetailText,
+            has5h: codexWindows.some(w => w.window === '5h'),
+            has7d: codexWindows.some(w => w.window === '7d' || w.window === '30d'),
             windows: codexWindows,
         };
     } else {
@@ -539,6 +545,8 @@ export function buildAiQuotaSnapshot(rawSources = {}, nowMs = Date.now()) {
             primaryText: 'Offline',
             detailText: 'No active session',
             altDetailText: 'No active session',
+            has5h: false,
+            has7d: false,
             windows: [],
         };
     }
@@ -580,6 +588,8 @@ export function buildAiQuotaSnapshot(rawSources = {}, nowMs = Date.now()) {
             detailText,
             altDetailText,
             source: 'standalone',
+            has5h: claudeWindows.some(w => w.window === '5h'),
+            has7d: claudeWindows.some(w => w.window === '7d' || w.window === '30d'),
             windows: claudeWindows,
         };
     } else if (omp?.antigravity?.sharedLimits && omp.antigravity.sharedLimits.length > 0) {
@@ -607,6 +617,8 @@ export function buildAiQuotaSnapshot(rawSources = {}, nowMs = Date.now()) {
             detailText,
             altDetailText,
             source: 'antigravity-shared',
+            has5h: sharedWindows.some(w => w.window === '5h'),
+            has7d: sharedWindows.some(w => w.window === '7d' || w.window === '30d'),
             windows: sharedWindows,
         };
     } else if (rawSources.claudeLocal?.installed) {
@@ -618,6 +630,8 @@ export function buildAiQuotaSnapshot(rawSources = {}, nowMs = Date.now()) {
             detailText: 'Claude Code CLI installed · no active lock',
             altDetailText: 'Claude Code CLI installed',
             source: 'local-installed',
+            has5h: false,
+            has7d: false,
             windows: [],
         };
     } else {
@@ -629,6 +643,8 @@ export function buildAiQuotaSnapshot(rawSources = {}, nowMs = Date.now()) {
             detailText: 'No active session',
             altDetailText: 'No active session',
             source: 'none',
+            has5h: false,
+            has7d: false,
             windows: [],
         };
     }
@@ -645,6 +661,21 @@ const PROBE_PYTHON_SNIPPET = `
 import sqlite3, os, glob, json, urllib.request, urllib.parse, datetime
 
 raw = {'ompCache': [], 'deviceCodex': None, 'claudeLocal': {'installed': False}}
+
+# On dual-stack hosts getaddrinfo returns AAAA first and every Google/OpenAI
+# connect then stalls ~11s waiting for the broken IPv6 route before falling
+# back to IPv4. Prefer A records so the whole probe finishes in ~1s.
+import socket as _socket
+_orig_getaddrinfo = _socket.getaddrinfo
+def _prefer_ipv4(host, port, family=0, type=0, proto=0, flags=0):
+    try:
+        infos = _orig_getaddrinfo(host, port, _socket.AF_INET, type, proto, flags)
+        if infos:
+            return infos
+    except Exception:
+        pass
+    return _orig_getaddrinfo(host, port, family, type, proto, flags)
+_socket.getaddrinfo = _prefer_ipv4
 
 def iso_to_ms(iso_str):
     if not iso_str or not isinstance(iso_str, str):
@@ -907,18 +938,68 @@ if os.path.exists(claude_json) or os.path.isdir(claude_dir):
 print(json.dumps(raw))
 `.trim();
 
+/**
+ * Overlay "still working" / "restored from cache" markers onto a snapshot.
+ * A disconnected provider is only honestly offline once a probe has actually
+ * completed; before that it is still being checked.
+ */
+export function applySnapshotStatus(snapshot, { checking = false, cached = false } = {}) {
+    if (!snapshot) return snapshot;
+    const result = { ...snapshot, checking: Boolean(checking), cached: Boolean(cached) };
+    for (const key of ['antigravity', 'codex', 'claude']) {
+        const provider = result[key];
+        if (!provider) continue;
+        if (!provider.connected && checking) {
+            result[key] = {
+                ...provider,
+                checking: true,
+                primaryText: 'Checking…',
+                detailText: 'Checking…',
+                altDetailText: 'Checking…',
+            };
+        } else if (provider.connected && cached) {
+            result[key] = { ...provider, cached: true };
+        }
+    }
+    return result;
+}
+
 export class AiQuotaCollector {
-    constructor({ probeRunner, readFile, now = () => Date.now() } = {}) {
+    constructor({ probeRunner, readFile, now = () => Date.now(), cachePath, cacheTtlMs = 30 * 60 * 1000,
+        timeoutMs = 15000 } = {}) {
         this._probeRunner = probeRunner;
         this._readFile = readFile;
         this._now = now;
-        this._lastSnapshot = buildAiQuotaSnapshot({}, this._now());
+        this._cachePath = cachePath ?? defaultProbeCachePath();
+        this._cacheTtlMs = cacheTtlMs;
+        this._timeoutMs = timeoutMs;
         this._refreshing = false;
         this._callbacks = [];
+        this._hasLiveData = false;
+        this._fromCache = false;
+
+        const cached = this._readProbeCache();
+        const fresh = cached && this._cacheTtlMs > 0
+            && this._now() - (Number(cached.savedAt) || 0) <= this._cacheTtlMs;
+        if (cached && fresh) {
+            this._fromCache = true;
+            this._lastSnapshot = applySnapshotStatus(
+                buildAiQuotaSnapshot(cached.raw, this._now()), { cached: true });
+        } else {
+            this._lastSnapshot = buildAiQuotaSnapshot({}, this._now());
+        }
     }
 
     get lastSnapshot() {
         return this._lastSnapshot;
+    }
+
+    get isRefreshing() {
+        return this._refreshing;
+    }
+
+    get hasData() {
+        return this._hasLiveData || this._fromCache;
     }
 
     collect(onUpdated) {
@@ -927,7 +1008,9 @@ export class AiQuotaCollector {
                 const res = this._probeRunner();
                 if (res && typeof res === 'object') {
                     this._lastSnapshot = buildAiQuotaSnapshot(res, this._now());
-                    return this._lastSnapshot;
+                    this._hasLiveData = true;
+                    this._fromCache = false;
+                    return this._present();
                 }
             } catch (_) {}
         }
@@ -938,64 +1021,132 @@ export class AiQuotaCollector {
                 if (res) {
                     const parsed = typeof res === 'string' ? JSON.parse(res) : res;
                     this._lastSnapshot = buildAiQuotaSnapshot(parsed, this._now());
-                    return this._lastSnapshot;
+                    this._hasLiveData = true;
+                    this._fromCache = false;
+                    return this._present();
                 }
             } catch (_) {}
         }
 
         this.refreshAsync(onUpdated).catch(() => {});
-        return this._lastSnapshot;
+        return this._present();
     }
 
-    async refreshAsync(onUpdated) {
+    refreshAsync(onUpdated) {
         if (typeof onUpdated === 'function') {
             this._callbacks.push(onUpdated);
         }
 
-        if (this._refreshing) return this._lastSnapshot;
+        if (this._refreshing) return Promise.resolve(this._present());
         this._refreshing = true;
 
-        try {
-            if (typeof this._probeRunner === 'function') {
-                const raw = await this._probeRunner();
-                const data = (raw && typeof raw === 'string') ? JSON.parse(raw) : (raw || {});
-                this._lastSnapshot = buildAiQuotaSnapshot(data, this._now());
-                this._flushCallbacks(this._lastSnapshot);
-                return this._lastSnapshot;
-            }
+        if (typeof this._probeRunner === 'function') {
+            return Promise.resolve()
+                .then(() => this._probeRunner())
+                .then(raw => {
+                    const data = (raw && typeof raw === 'string') ? JSON.parse(raw) : (raw || {});
+                    this._acceptProbeResult(data);
+                })
+                .catch(() => {})
+                .then(() => {
+                    this._refreshing = false;
+                    return this._present();
+                });
+        }
 
-            if (!Gio?.Subprocess) {
-                this._flushCallbacks(this._lastSnapshot);
-                return this._lastSnapshot;
-            }
+        if (!Gio?.Subprocess) {
+            this._refreshing = false;
+            this._flushCallbacks(this._present());
+            return Promise.resolve(this._present());
+        }
 
+        // Callback-driven on purpose: GJS modules that use top-level await never
+        // drain promise continuations, so `await` on the subprocess callback
+        // would leave the page on its initial snapshot forever.
+        return new Promise(resolve => {
             const proc = new Gio.Subprocess({
                 argv: ['python3', '-c', PROBE_PYTHON_SNIPPET],
                 flags: Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE,
             });
             proc.init(null);
 
-            await new Promise((resolve, reject) => {
-                proc.communicate_utf8_async(null, null, (p, res) => {
-                    try {
-                        const [ok, stdout] = p.communicate_utf8_finish(res);
-                        if (ok && stdout) {
-                            const raw = JSON.parse(stdout);
-                            this._lastSnapshot = buildAiQuotaSnapshot(raw, this._now());
-                            this._flushCallbacks(this._lastSnapshot);
-                        }
-                        resolve(this._lastSnapshot);
-                    } catch (e) {
-                        reject(e);
+            let settled = false;
+            let timerId = null;
+            const settle = () => {
+                if (settled) return;
+                settled = true;
+                if (timerId !== null) {
+                    try { GLib.source_remove(timerId); } catch (_) {}
+                    timerId = null;
+                }
+                try {
+                    if (proc.get_if_exited && !proc.get_if_exited()) {
+                        proc.force_exit();
                     }
-                });
-            });
-        } catch (_) {
-        } finally {
-            this._refreshing = false;
-        }
+                } catch (_) {}
+                this._refreshing = false;
+                resolve(this._present());
+            };
 
-        return this._lastSnapshot;
+            if (GLib && this._timeoutMs > 0) {
+                timerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, this._timeoutMs, () => {
+                    timerId = null;
+                    try { proc.force_exit(); } catch (_) {}
+                    settle();
+                    return GLib.SOURCE_REMOVE;
+                });
+            }
+
+            proc.communicate_utf8_async(null, null, (p, res) => {
+                try {
+                    const [ok, stdout] = p.communicate_utf8_finish(res);
+                    if (ok && stdout) {
+                        this._acceptProbeResult(JSON.parse(stdout));
+                    }
+                } catch (_) {}
+                settle();
+            });
+        });
+    }
+
+    _present() {
+        return applySnapshotStatus(this._lastSnapshot, {
+            checking: this._refreshing && !this.hasData,
+            cached: this._fromCache,
+        });
+    }
+
+    _acceptProbeResult(raw) {
+        this._lastSnapshot = buildAiQuotaSnapshot(raw, this._now());
+        this._hasLiveData = true;
+        this._fromCache = false;
+        this._writeProbeCache(raw);
+        this._flushCallbacks(this._present());
+    }
+
+    _readProbeCache() {
+        if (!this._cachePath || !GLib?.file_get_contents) return null;
+        try {
+            const [ok, bytes] = GLib.file_get_contents(this._cachePath);
+            if (!ok || !bytes) return null;
+            const text = new TextDecoder().decode(bytes);
+            const parsed = JSON.parse(text);
+            if (!parsed || typeof parsed !== 'object' || !parsed.raw) return null;
+            // TTL is enforced by the constructor so every cache source obeys it.
+            return { raw: parsed.raw, savedAt: Number(parsed.savedAt) || 0 };
+        } catch (_) {
+            return null;
+        }
+    }
+
+    _writeProbeCache(raw) {
+        if (!this._cachePath || !GLib?.file_set_contents_full) return;
+        try {
+            const dir = GLib.path_get_dirname(this._cachePath);
+            GLib.mkdir_with_parents(dir, 0o700);
+            const payload = JSON.stringify({ savedAt: this._now(), raw });
+            GLib.file_set_contents_full(this._cachePath, payload, GLib.FileSetContentsFlags.CONSISTENT, 0o600);
+        } catch (_) {}
     }
 
     _flushCallbacks(snapshot) {
@@ -1004,5 +1155,15 @@ export class AiQuotaCollector {
         for (const cb of cbs) {
             try { cb(snapshot); } catch (_) {}
         }
+    }
+}
+
+function defaultProbeCachePath() {
+    if (!GLib?.get_user_cache_dir || !GLib?.build_filenamev) return null;
+    try {
+        const dir = GLib.build_filenamev([GLib.get_user_cache_dir(), 'linux-island']);
+        return GLib.build_filenamev([dir, 'ai-quota-probe.json']);
+    } catch (_) {
+        return null;
     }
 }

@@ -15,7 +15,6 @@ Item {
     readonly property int titleSize: artworkSize === 56 ? 14 : (artworkSize === 40 ? 12 : 13)
     readonly property int artistSize: titleSize - 1
     implicitHeight: artworkSize + 6 + buttonSize + 28 + 4 * 3
-    property double lastUnmutedVolume: 1.0
     function formatPlayerName(id) {
         if (!id) return "Player";
         var prefix = "org.mpris.MediaPlayer2.";
@@ -83,7 +82,9 @@ Item {
                     }
 
                     BeatBars {
+                        visible: islandClient.playerId !== "" && islandClient.connected
                         isPlaying: islandClient.isPlaying
+                        animationEnabled: islandClient.animationEnabled
                         audioLevels: islandClient.audioLevels
                         barColor: IslandTheme.accentPrimary
                     }
@@ -156,6 +157,7 @@ Item {
                 height: 4
                 radius: 2
                 color: IslandTheme.accentPrimary
+                visible: islandClient.durationUs > 0 && (seekMouse.pressed ? seekMouse.dragFraction > 0 : islandClient.progress > 0)
             }
 
             // Thumb handle
@@ -171,6 +173,9 @@ Item {
 
             MouseArea {
                 id: seekMouse
+                anchors.fill: parent
+                anchors.topMargin: -5
+                anchors.bottomMargin: -5
                 enabled: islandClient.canSeek && islandClient.durationUs > 0
                 hoverEnabled: enabled
                 cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
@@ -206,7 +211,7 @@ Item {
             Item { Layout.fillWidth: true }
 
             RowLayout {
-                spacing: 4
+                spacing: 12
                 Layout.alignment: Qt.AlignHCenter
 
                 // Prev
@@ -243,7 +248,7 @@ Item {
 
                     NavIcon {
                         anchors.centerIn: parent
-                        size: 16
+                        size: root.controlIconSize + 2
                         source: islandClient.isPlaying ? "qrc:/linuxisland/ui/icons/ui/pause-symbolic.svg" : "qrc:/linuxisland/ui/icons/ui/play-symbolic.svg"
                         color: IslandTheme.surfaceIsland
                     }
@@ -307,7 +312,7 @@ Item {
                 NavIcon {
                     anchors.centerIn: parent
                     size: 14
-                    source: islandClient.volume <= 0.0 ? "qrc:/linuxisland/ui/icons/ui/volume-muted-symbolic.svg" : "qrc:/linuxisland/ui/icons/ui/volume-high-symbolic.svg"
+                    source: islandClient.muted ? "qrc:/linuxisland/ui/icons/ui/volume-muted-symbolic.svg" : "qrc:/linuxisland/ui/icons/ui/volume-high-symbolic.svg"
                     color: IslandTheme.textPrimary
                 }
 
@@ -317,11 +322,12 @@ Item {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        if (islandClient.volume > 0.0) {
-                            root.lastUnmutedVolume = islandClient.volume;
+                        // The core keeps the sink level behind a mute, so the
+                        // restore value comes from the core, not a local copy.
+                        if (!islandClient.muted && islandClient.volume > 0.0) {
                             islandClient.setVolume(0.0);
                         } else {
-                            var restore = root.lastUnmutedVolume <= 0.0 ? 1.0 : root.lastUnmutedVolume;
+                            var restore = islandClient.unmutedVolume > 0.0 ? islandClient.unmutedVolume : 1.0;
                             islandClient.setVolume(restore);
                         }
                     }

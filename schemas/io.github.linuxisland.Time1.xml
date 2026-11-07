@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<node>
+  <interface name="io.github.linuxisland.Time1">
+    <method name="GetTimer"><arg name="timer" type="a{sv}" direction="out"/></method>
+    <method name="GetTimerStats"><arg name="stats" type="a{sv}" direction="out"/></method>
+    <method name="StartTimer">
+      <arg name="request" type="a{sv}" direction="in"/>
+      <arg name="accepted" type="b" direction="out"/>
+    </method>
+    <method name="ControlTimer">
+      <arg name="action" type="s" direction="in"/>
+      <arg name="accepted" type="b" direction="out"/>
+    </method>
+    <signal name="TimerChanged"><arg name="revision" type="t"/><arg name="timer" type="a{sv}"/></signal>
+  </interface>
+</node>

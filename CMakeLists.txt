@@ -8,8 +8,7 @@ include(GNUInstallDirs)
 include(CTest)
 
 find_package(Qt6 6.4 REQUIRED COMPONENTS
-    Core DBus Network Quick Qml Sql WebEngineQuick WebEngineCore)
-find_package(OpenSSL REQUIRED)
+    Core DBus Network Quick Qml)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 if(BUILD_TESTING)
@@ -39,6 +38,7 @@ install(FILES packaging/icons/io.github.linuxisland.svg
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
 
 install(FILES schemas/io.github.linuxisland.Core1.xml
+        schemas/io.github.linuxisland.Time1.xml
         DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/interfaces)
 
 install(FILES LICENSE
@@ -89,9 +89,9 @@ set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "farzahwalker46@gmail.com")
 set(CPACK_DEBIAN_PACKAGE_SECTION utils)
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "qml6-module-qtquick, qml6-module-qtquick-window, qml6-module-qtquick-layouts, qml6-module-qtquick-controls, qml6-module-qtquick-templates, qml6-module-qtquick-effects, libqt6svg6, qml6-module-qtqml-workerscript, qml6-module-qtwebengine, qml6-module-qtwebchannel, qml6-module-qtwebengine-controlsdelegates, libqt6sql6-sqlite")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "qml6-module-qtquick, qml6-module-qtquick-window, qml6-module-qtquick-layouts, qml6-module-qtquick-controls, qml6-module-qtquick-templates, qml6-module-qtquick-effects, libqt6svg6, qml6-module-qtqml-workerscript")
 set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "gnome-shell (>= 45), pipewire, wireplumber, libxcb-cursor0, x11-utils")
 set(CPACK_RPM_PACKAGE_LICENSE MIT)
-set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtbase, qt6-qtbase-gui, qt6-qtdeclarative, qt6-qtsvg, qt6-qtwebengine, qt6-qtwebchannel, qt6-qtpositioning, openssl-libs, xorg-x11-utils")
+set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtbase, qt6-qtbase-gui, qt6-qtdeclarative, qt6-qtsvg, xorg-x11-utils")
 
 include(CPack)

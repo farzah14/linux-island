@@ -14,7 +14,12 @@ QVariantMap defaultSettings() {
     map[QStringLiteral("whatsappIntegrationEnabled")] = false;
     map[QStringLiteral("verticalOffset")] = 8;
     map[QStringLiteral("horizontalOffset")] = 0;
-    map[QStringLiteral("searchEngine")] = QStringLiteral("google");
+    map[QStringLiteral("timerPresetMinutes")] = 25;
+    map[QStringLiteral("timerBreakMinutes")] = 5;
+    map[QStringLiteral("timerLongBreakMinutes")] = 15;
+    map[QStringLiteral("timerCycles")] = 4;
+    map[QStringLiteral("timerAutoAdvance")] = true;
+    map[QStringLiteral("timerCompactHintEnabled")] = true;
     return map;
 }
 
@@ -31,7 +36,12 @@ ValidationResult validateSettingsPatch(const QVariantMap &current, const QVarian
         QStringLiteral("whatsappIntegrationEnabled"),
         QStringLiteral("verticalOffset"),
         QStringLiteral("horizontalOffset"),
-        QStringLiteral("searchEngine")
+        QStringLiteral("timerPresetMinutes"),
+        QStringLiteral("timerBreakMinutes"),
+        QStringLiteral("timerLongBreakMinutes"),
+        QStringLiteral("timerCycles"),
+        QStringLiteral("timerAutoAdvance"),
+        QStringLiteral("timerCompactHintEnabled"),
     };
 
     static const QSet<QString> allowedThemes = {
@@ -53,12 +63,6 @@ ValidationResult validateSettingsPatch(const QVariantMap &current, const QVarian
         QStringLiteral("integrated")
     };
 
-    static const QSet<QString> allowedSearchEngines = {
-        QStringLiteral("google"),
-        QStringLiteral("duckduckgo"),
-        QStringLiteral("brave"),
-        QStringLiteral("bing")
-    };
 
     if (patch.size() > 32) {
         return ValidationResult{false, current, QStringLiteral("Settings patch exceeds maximum entry limit of 32")};
@@ -99,7 +103,9 @@ ValidationResult validateSettingsPatch(const QVariantMap &current, const QVarian
                    key == QLatin1String("hoverPreviewEnabled") ||
                    key == QLatin1String("notificationPeekEnabled") ||
                    key == QLatin1String("smartAdaptiveEnabled") ||
-                   key == QLatin1String("whatsappIntegrationEnabled")) {
+                   key == QLatin1String("whatsappIntegrationEnabled") ||
+                   key == QLatin1String("timerAutoAdvance") ||
+                   key == QLatin1String("timerCompactHintEnabled")) {
             if (val.typeId() != QMetaType::Bool) {
                 return ValidationResult{false, current, key + QStringLiteral(" must be a boolean")};
             }
@@ -117,13 +123,6 @@ ValidationResult validateSettingsPatch(const QVariantMap &current, const QVarian
             if (!allowedDisplayModes.contains(val.toString())) {
                 return ValidationResult{false, current, QStringLiteral("Invalid displayMode value: ") + val.toString()};
             }
-        } else if (key == QLatin1String("searchEngine")) {
-            if (val.typeId() != QMetaType::QString) {
-                return ValidationResult{false, current, QStringLiteral("searchEngine must be a string")};
-            }
-            if (!allowedSearchEngines.contains(val.toString())) {
-                return ValidationResult{false, current, QStringLiteral("Invalid searchEngine value: ") + val.toString()};
-            }
         } else if (key == QLatin1String("verticalOffset")) {
             if (val.typeId() != QMetaType::Int && val.typeId() != QMetaType::LongLong) {
                 return ValidationResult{false, current, QStringLiteral("verticalOffset must be an integer")};
@@ -131,6 +130,38 @@ ValidationResult validateSettingsPatch(const QVariantMap &current, const QVarian
             int v = val.toInt();
             if (v < 0 || v > 120) {
                 return ValidationResult{false, current, QStringLiteral("verticalOffset must be between 0 and 120")};
+            }
+        } else if (key == QLatin1String("timerLongBreakMinutes")) {
+            if (val.typeId() != QMetaType::Int && val.typeId() != QMetaType::LongLong) {
+                return ValidationResult{false, current, QStringLiteral("timerLongBreakMinutes must be an integer")};
+            }
+            int v = val.toInt();
+            if (v < 1 || v > 60) {
+                return ValidationResult{false, current, QStringLiteral("timerLongBreakMinutes must be between 1 and 60")};
+            }
+        } else if (key == QLatin1String("timerCycles")) {
+            if (val.typeId() != QMetaType::Int && val.typeId() != QMetaType::LongLong) {
+                return ValidationResult{false, current, QStringLiteral("timerCycles must be an integer")};
+            }
+            int v = val.toInt();
+            if (v < 2 || v > 12) {
+                return ValidationResult{false, current, QStringLiteral("timerCycles must be between 2 and 12")};
+            }
+        } else if (key == QLatin1String("timerPresetMinutes")) {
+            if (val.typeId() != QMetaType::Int && val.typeId() != QMetaType::LongLong) {
+                return ValidationResult{false, current, QStringLiteral("timerPresetMinutes must be an integer")};
+            }
+            int v = val.toInt();
+            if (v < 1 || v > 180) {
+                return ValidationResult{false, current, QStringLiteral("timerPresetMinutes must be between 1 and 180")};
+            }
+        } else if (key == QLatin1String("timerBreakMinutes")) {
+            if (val.typeId() != QMetaType::Int && val.typeId() != QMetaType::LongLong) {
+                return ValidationResult{false, current, QStringLiteral("timerBreakMinutes must be an integer")};
+            }
+            int v = val.toInt();
+            if (v < 1 || v > 60) {
+                return ValidationResult{false, current, QStringLiteral("timerBreakMinutes must be between 1 and 60")};
             }
         } else if (key == QLatin1String("horizontalOffset")) {
             if (val.typeId() != QMetaType::Int && val.typeId() != QMetaType::LongLong) {

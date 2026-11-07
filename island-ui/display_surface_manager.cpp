@@ -1,4 +1,5 @@
 #include "display_surface_manager.h"
+#include <algorithm>
 #include <QGuiApplication>
 #include <QScreen>
 #include <QColor>
@@ -67,16 +68,24 @@ void DisplaySurfaceManager::updateWindowPosition() {
     QScreen *primary = QGuiApplication::primaryScreen();
     if (!primary) return;
 
-    QRect screenGeo = primary->geometry();
-    int hOffset = m_client ? m_client->horizontalOffset() : 0;
-    int vOffset = m_client ? m_client->verticalOffset() : 8;
+    const QRect screenGeo = primary->geometry();
+    const QRect workGeo = primary->availableGeometry();
+    const int hOffset = m_client ? m_client->horizontalOffset() : 0;
+    const int vOffset = m_client ? m_client->verticalOffset() : 8;
+    const bool floating = m_client && m_client->displayMode() == QLatin1String("floating");
 
-    int posX = screenGeo.x() + (screenGeo.width() - windowWidth()) / 2 + hOffset;
-    int posY = screenGeo.y() + vOffset;
+    const int baseY = floating
+        ? std::min(std::max(screenGeo.y(), workGeo.y()), screenGeo.y() + screenGeo.height())
+        : screenGeo.y();
 
-    // Wayland compositors place toplevels themselves and ignore a requested
-    // origin; keep the size in sync but skip the move there. X11 and XWayland
-    // still honour the top-centre position.
+    const int rawX = screenGeo.x() + (screenGeo.width() - windowWidth()) / 2 + hOffset;
+    const int rawY = baseY + vOffset;
+
+    const int maxX = screenGeo.x() + std::max(0, screenGeo.width() - windowWidth());
+    const int maxY = screenGeo.y() + std::max(0, screenGeo.height() - windowHeight());
+    const int posX = std::min(std::max(rawX, screenGeo.x()), maxX);
+    const int posY = std::min(std::max(rawY, screenGeo.y()), maxY);
+
     const bool isWayland = QGuiApplication::platformName().startsWith(QLatin1String("wayland"));
     if (isWayland) {
         static bool warned = false;

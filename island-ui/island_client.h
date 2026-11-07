@@ -32,6 +32,8 @@ class IslandClient : public QObject {
     Q_PROPERTY(bool canSeek READ canSeek NOTIFY mediaChanged)
     Q_PROPERTY(QVariantList audioLevels READ audioLevels NOTIFY mediaChanged)
     Q_PROPERTY(double volume READ volume NOTIFY mediaChanged)
+    Q_PROPERTY(double unmutedVolume READ unmutedVolume NOTIFY mediaChanged)
+    Q_PROPERTY(bool muted READ muted NOTIFY mediaChanged)
     Q_PROPERTY(QStringList availablePlayers READ availablePlayers NOTIFY availablePlayersChanged)
 
     // Settings properties
@@ -46,7 +48,6 @@ class IslandClient : public QObject {
     Q_PROPERTY(QString displayMode READ displayMode NOTIFY settingsChanged)
     Q_PROPERTY(int verticalOffset READ verticalOffset NOTIFY settingsChanged)
     Q_PROPERTY(int horizontalOffset READ horizontalOffset NOTIFY settingsChanged)
-    Q_PROPERTY(QString searchEngine READ searchEngine NOTIFY settingsChanged)
 
 public:
     explicit IslandClient(const QDBusConnection &bus = QDBusConnection::sessionBus(), QObject *parent = nullptr);
@@ -71,6 +72,8 @@ public:
     bool canSeek() const { return m_canSeek; }
     QVariantList audioLevels() const { return m_audioLevels; }
     double volume() const { return m_volume; }
+    double unmutedVolume() const { return m_unmutedVolume; }
+    bool muted() const { return m_muted; }
     QStringList availablePlayers() const { return m_availablePlayers; }
 
     QString theme() const { return m_theme; }
@@ -84,7 +87,6 @@ public:
     QString displayMode() const { return m_displayMode; }
     int verticalOffset() const { return m_verticalOffset; }
     int horizontalOffset() const { return m_horizontalOffset; }
-    QString searchEngine() const { return m_searchEngine; }
 
     static QString transitionState(const QString &currentState, const QString &event);
     static QString formatTime(qlonglong us);
@@ -139,6 +141,11 @@ private:
     bool m_canSeek = false;
     QVariantList m_audioLevels = {0.0, 0.0, 0.0};
     double m_volume = 1.0;
+    double m_unmutedVolume = 1.0;
+    bool m_muted = false;
+    // A slider drag is applied locally and then held for a moment: the core
+    // polls the sink, so its first echo can still carry the pre-drag level.
+    qint64 m_volumeHoldUntilMs = 0;
     QStringList m_availablePlayers;
 
     // Settings
@@ -152,5 +159,4 @@ private:
     QString m_displayMode = QStringLiteral("dynamic");
     int m_verticalOffset = 8;
     int m_horizontalOffset = 0;
-    QString m_searchEngine = QStringLiteral("google");
 };

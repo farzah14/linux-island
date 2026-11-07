@@ -89,6 +89,23 @@ def main():
         assert config['mode'] == 'overlay', config
         assert config['platform'] == 'xcb', config
 
+        # Floating is drawn by the extension too: the capsule is a top-chrome
+        # actor either way, so GNOME must not fall through to XWayland for it.
+        settings_dir = tmp / 'home/.config/linux-island'
+        settings_dir.mkdir(parents=True, exist_ok=True)
+        settings_file = settings_dir / 'settings.json'
+        for mode, expected in (('dynamic', 'extension'), ('floating', 'extension'),
+                               ('integrated', 'overlay'), ('bogus', 'overlay')):
+            settings_file.write_text('{"displayMode":"%s"}' % mode)
+            result = run(['--print-config'], **gnome_wayland)
+            config = parse_config(result.stdout)
+            assert config['display_mode'] == mode, config
+            assert config['mode'] == expected, (mode, config)
+        settings_file.write_text('{"displayMode":"floating"}')
+        result = run(['--standalone', '--print-config'], **gnome_wayland)
+        assert parse_config(result.stdout)['mode'] == 'overlay', 'standalone still forces the Qt overlay'
+        settings_file.unlink()
+
         kde_wayland = {
             'XDG_CURRENT_DESKTOP': 'KDE',
             'XDG_SESSION_TYPE': 'wayland',

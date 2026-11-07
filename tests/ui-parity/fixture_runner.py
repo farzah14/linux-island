@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deterministic fixture runner for Linux Island cross-desktop UI parity tests.
 
-Provides isolated test states for Media, System, AI Quota, and Search pages
+Provides isolated test states for Media, System, and AI Quota pages
 without touching real user accounts, private cookies, or personal media.
 """
 import argparse
@@ -151,16 +151,6 @@ FIXTURES = {
             'claude': {'connected': False, 'detailText': 'No active session'},
         },
     },
-    'FIX-SEARCH-INITIAL': {
-        'page': 'search',
-        'description': 'Search section ready, Google/Brave engine selector visible, empty query.',
-        'search': {'engine': 'google', 'query': ''},
-    },
-    'FIX-SEARCH-FOCUSED': {
-        'page': 'search',
-        'description': 'Search entry focused with active focus ring and typed query text.',
-        'search': {'engine': 'google', 'query': 'linux island documentation'},
-    },
 }
 
 
@@ -179,7 +169,7 @@ def verify_fixtures():
     for fix_id, fix_data in FIXTURES.items():
         if not required_keys.issubset(fix_data.keys()):
             errors.append(f"{fix_id} missing required keys")
-        if fix_data['page'] not in ('media', 'system', 'ai', 'search'):
+        if fix_data['page'] not in ('media', 'system', 'ai'):
             errors.append(f"{fix_id} invalid page {fix_data['page']}")
 
     if errors:

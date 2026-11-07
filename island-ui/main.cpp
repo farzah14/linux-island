@@ -1,9 +1,13 @@
 #include <QGuiApplication>
+#include <QDBusConnection>
+#include <QDBusConnectionInterface>
+#include <QDBusMessage>
+#include <QDBusArgument>
+#include <QDBusReply>
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <QtWebEngineQuick/qtwebenginequickglobal.h>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQmlContext>
@@ -14,18 +18,14 @@
 #include <QTimer>
 #include <iostream>
 #include "island_client.h"
+#include "time_client.h"
 #include "system_metrics_provider.h"
 #include "quick_settings_provider.h"
 #include "ai_quota_provider.h"
-#include "search_provider.h"
-#include "companion_profile.h"
-#include "cookie_importer.h"
 #include "notification_watcher.h"
 #include "display_surface_manager.h"
 
 int main(int argc, char *argv[]) {
-    // Must run before QtWebEngineQuick::initialize(), which is expensive and
-    // would otherwise print Chromium noise for a plain version query.
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--version") == 0) {
             std::printf("linux-island-ui %s\n", ISLAND_VERSION);
@@ -34,21 +34,10 @@ int main(int argc, char *argv[]) {
     }
 
     bool smokeTest = false;
-    bool isCompanionMode = false;
-    QString companionUrl;
     for (int i = 1; i < argc; ++i) {
         const QString arg = QString::fromUtf8(argv[i]);
         if (arg == QLatin1String("--smoke-test")) {
             smokeTest = true;
-        } else if (arg == QLatin1String("--companion")) {
-            isCompanionMode = true;
-            if (i + 1 < argc && !QString::fromUtf8(argv[i + 1]).startsWith(QLatin1Char('-'))) {
-                companionUrl = QString::fromUtf8(argv[i + 1]);
-                ++i;
-            }
-        } else if (arg.startsWith(QLatin1String("--companion="))) {
-            isCompanionMode = true;
-            companionUrl = arg.section(QLatin1Char('='), 1);
         }
     }
 
@@ -56,23 +45,54 @@ int main(int argc, char *argv[]) {
         qputenv("QT_QPA_PLATFORM", "offscreen");
     }
 
+    // Refuse to draw a second island. The GNOME extension is a separate
+    // renderer and neither knows about the other, so launching this binary
+    // directly (bypassing linux-island-launch, which disables the extension)
+    // used to leave two capsules on screen. ISLAND_ALLOW_DOUBLE_RENDER=1
+    // overrides this for deliberate side-by-side comparison.
+    if (!smokeTest && qEnvironmentVariableIsEmpty("ISLAND_ALLOW_DOUBLE_RENDER")) {
+        QDBusConnection bus = QDBusConnection::sessionBus();
+        if (bus.isConnected() && bus.interface()) {
+            const QDBusReply<bool> enabled = bus.interface()->isServiceRegistered(
+                QStringLiteral("org.gnome.Shell.Extensions"));
+            if (enabled.isValid() && enabled.value()) {
+                // Ask the Shell whether our extension is enabled.
+                QDBusMessage msg = QDBusMessage::createMethodCall(
+                    QStringLiteral("org.gnome.Shell.Extensions"),
+                    QStringLiteral("/org/gnome/Shell/Extensions"),
+                    QStringLiteral("org.gnome.Shell.Extensions"),
+                    QStringLiteral("GetExtensionInfo"));
+                msg << QStringLiteral("linux-island@local");
+                const QDBusMessage reply = bus.call(msg, QDBus::Block, 1000);
+                if (reply.type() == QDBusMessage::ReplyMessage && !reply.arguments().isEmpty()) {
+                    const QVariantMap info = qdbus_cast<QVariantMap>(reply.arguments().at(0));
+                    // state 1 == ENABLED/ACTIVE
+                    if (info.value(QStringLiteral("enabled")).toBool()) {
+                        std::cerr << "linux-island-ui: the GNOME extension is already "
+                                     "rendering the island; refusing to start a second one.\n"
+                                     "Disable it first, or set ISLAND_ALLOW_DOUBLE_RENDER=1.\n";
+                        return 12;
+                    }
+                }
+            }
+        }
+    }
+
     // X11 WM_CLASS instance comes from RESOURCE_NAME (or argv0), the class from
     // applicationName. Pin both so the shipped window rules and
     // StartupWMClass=linux-island-ui actually match.
     qputenv("RESOURCE_NAME", "linux-island-ui");
 
-    QtWebEngineQuick::initialize();
     QGuiApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("linux-island-ui"));
     app.setDesktopFileName(QStringLiteral("linux-island"));
     app.setOrganizationName(QStringLiteral("LinuxIsland"));
 
     IslandClient client;
+    TimeClient timeClient;
     SystemMetricsProvider metrics;
     QuickSettingsProvider quickSettings;
     AiQuotaProvider aiQuota;
-    SearchProvider searchProvider;
-    CookieImporter cookieImporter;
     NotificationWatcher notificationWatcher;
 
     // Connect theme toggle request from QuickSettingsProvider to IslandClient
@@ -83,6 +103,11 @@ int main(int argc, char *argv[]) {
 
     // Connect notification watcher peek request to IslandClient FSM
     QObject::connect(&notificationWatcher, &NotificationWatcher::peekRequested,
+                     &client, [&client]() {
+        client.dispatchEvent(QStringLiteral("PEEK_REQUEST"));
+    });
+
+    QObject::connect(&timeClient, &TimeClient::timerFinished,
                      &client, [&client]() {
         client.dispatchEvent(QStringLiteral("PEEK_REQUEST"));
     });
@@ -106,23 +131,12 @@ int main(int argc, char *argv[]) {
     }
 
     engine.rootContext()->setContextProperty(QStringLiteral("islandClient"), &client);
+    engine.rootContext()->setContextProperty(QStringLiteral("timeClient"), &timeClient);
     engine.rootContext()->setContextProperty(QStringLiteral("systemMetrics"), &metrics);
     engine.rootContext()->setContextProperty(QStringLiteral("quickSettings"), &quickSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("aiQuota"), &aiQuota);
-    engine.rootContext()->setContextProperty(QStringLiteral("searchProvider"), &searchProvider);
-    engine.rootContext()->setContextProperty(QStringLiteral("cookieImporter"), &cookieImporter);
     engine.rootContext()->setContextProperty(QStringLiteral("notificationWatcher"), &notificationWatcher);
 
-    engine.rootContext()->setContextProperty(QStringLiteral("initialCompanionUrl"), companionUrl);
-    engine.rootContext()->setContextProperty(QStringLiteral("isStandaloneCompanion"), isCompanionMode);
-    // Persistent browser session: cookies/localStorage/cache live on disk so an
-    // account logged in once stays logged in across companion launches.
-    engine.rootContext()->setContextProperty(QStringLiteral("companionProfileDataPath"),
-                                             CompanionProfile::dataPath());
-    engine.rootContext()->setContextProperty(QStringLiteral("companionProfileCachePath"),
-                                             CompanionProfile::cachePath());
-    engine.rootContext()->setContextProperty(QStringLiteral("companionUserAgent"),
-                                             CompanionProfile::userAgent());
     QUrl themeUrl = QUrl(QStringLiteral("qrc:/qt/qml/linuxisland/ui/qml/ThemeData.qml"));
     if (!QFile::exists(QStringLiteral(":/qt/qml/linuxisland/ui/qml/ThemeData.qml"))) {
         themeUrl = QUrl(QStringLiteral("qrc:/linuxisland/ui/qml/ThemeData.qml"));
@@ -146,32 +160,6 @@ int main(int argc, char *argv[]) {
     DisplaySurfaceManager *surfaceMgr = new DisplaySurfaceManager(nullptr, &client, &app);
     engine.rootContext()->setContextProperty(QStringLiteral("surfaceManager"), surfaceMgr);
 
-    if (isCompanionMode) {
-        QUrl companionUrlQml(QStringLiteral("qrc:/qt/qml/linuxisland/ui/qml/CompanionWindow.qml"));
-        if (!QFile::exists(QStringLiteral(":/qt/qml/linuxisland/ui/qml/CompanionWindow.qml"))) {
-            companionUrlQml = QUrl(QStringLiteral("qrc:/linuxisland/ui/qml/CompanionWindow.qml"));
-        }
-        engine.load(companionUrlQml);
-
-        if (engine.rootObjects().isEmpty()) {
-            std::cerr << "FAIL: could not load CompanionWindow.qml" << std::endl;
-            return 1;
-        }
-        // Shutdown: flush cookies, then exit without waiting for a WebEngine
-        // teardown that can block. A plain Qt teardown flushes cookies but may
-        // hang (companion stayed visible and spinning after a Google handoff);
-        // _Exit alone is fast but loses the session. So give the cookie store
-        // a moment to commit, then guarantee termination.
-        std::signal(SIGTERM, [](int) {
-            QMetaObject::invokeMethod(qApp, []() { QCoreApplication::quit(); },
-                                      Qt::QueuedConnection);
-        });
-        QObject::connect(&app, &QGuiApplication::aboutToQuit, &app, []() {
-            QTimer::singleShot(1500, qApp, []() { std::_Exit(0); });
-        });
-
-        return app.exec();
-    }
 
     QUrl url(QStringLiteral("qrc:/qt/qml/linuxisland/ui/qml/IslandWindow.qml"));
     if (!QFile::exists(QStringLiteral(":/qt/qml/linuxisland/ui/qml/IslandWindow.qml"))) {
@@ -229,15 +217,19 @@ int main(int argc, char *argv[]) {
                 return 8;
             }
         }
-        mediaPage->setProperty("capsuleSize", QStringLiteral("medium"));
+        mediaPage->setProperty("capsuleSize", client.capsuleSize());
         // Let animations/layout finish, then check the allocated content box.
         QEventLoop layoutLoop;
         QTimer::singleShot(400, &layoutLoop, &QEventLoop::quit);
         layoutLoop.exec();
         auto *mediaItem = qobject_cast<QQuickItem *>(mediaPage);
-        if (!mediaItem || qAbs(mediaItem->width() - 294) > 0.5
-            || qAbs(mediaItem->height() - 126) > 0.5) {
-            std::cerr << "Smoke test error: medium media allocation "
+        const qreal expectedWidth = (client.capsuleSize() == QLatin1String("small") || client.capsuleSize() == QLatin1String("circle")) ? 234
+                                  : (client.capsuleSize() == QLatin1String("large")) ? 354 : 294;
+        const qreal expectedHeight = (client.capsuleSize() == QLatin1String("small") || client.capsuleSize() == QLatin1String("circle")) ? 114
+                                   : (client.capsuleSize() == QLatin1String("large")) ? 142 : 126;
+        if (!mediaItem || qAbs(mediaItem->width() - expectedWidth) > 0.5
+            || qAbs(mediaItem->height() - expectedHeight) > 0.5) {
+            std::cerr << "Smoke test error: media allocation "
                       << (mediaItem ? mediaItem->width() : -1) << "x"
                       << (mediaItem ? mediaItem->height() : -1) << std::endl;
             return 8;
@@ -258,17 +250,16 @@ int main(int argc, char *argv[]) {
         }
         notificationWatcher.clearWhatsappActivity();
 
-        // Test loading CompanionWindow.qml with WebEngine
-        QUrl compTestUrl(QStringLiteral("qrc:/qt/qml/linuxisland/ui/qml/CompanionWindow.qml"));
-        if (!QFile::exists(QStringLiteral(":/qt/qml/linuxisland/ui/qml/CompanionWindow.qml"))) {
-            compTestUrl = QUrl(QStringLiteral("qrc:/linuxisland/ui/qml/CompanionWindow.qml"));
+        auto *timePage = rootWindow->findChild<QObject *>(QStringLiteral("timePage"));
+        if (!timePage) {
+            std::cerr << "Smoke test error: timer page missing" << std::endl;
+            return 10;
         }
-        QQmlComponent companionComp(&engine, compTestUrl);
-        if (companionComp.isError()) {
-            std::cerr << "Smoke test error: could not load CompanionWindow.qml: "
-                      << companionComp.errorString().toStdString() << std::endl;
-            return 6;
+        if (timePage->property("implicitHeight").toInt() != 116) {
+            std::cerr << "Smoke test error: timer page height" << std::endl;
+            return 11;
         }
+
         if (qmlWarnings) {
             std::cerr << "Smoke test error: QML runtime warnings" << std::endl;
             return 9;

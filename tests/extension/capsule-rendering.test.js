@@ -6,7 +6,7 @@ import {estimateTimeline, formatTime} from '../../extension/lib/mediaTimeline.js
 import {SystemMetricsCollector} from '../../extension/lib/systemMetrics.js';
 import {QuickSettingsManager} from '../../extension/lib/quickSettings.js';
 import {AiQuotaCollector} from '../../extension/lib/aiQuota.js';
-import {SEARCH_ENGINES, DEFAULT_SEARCH_ENGINE, buildSearchUrl, isValidNavigationUrl} from '../../extension/lib/searchEngines.js';
+import {capsuleOrigin, clampToMonitor, isFloating, extensionModeFor} from '../../extension/lib/displayMode.js';
 
 class Actor {
     constructor(props = {}) {
@@ -54,7 +54,11 @@ const settings = {enable_animations: true, listeners: new Map(), nextId: 0,
     notify() { for (const fn of this.listeners.values()) fn(); }};
 let systemColorScheme = 'prefer-dark';
 class GrabHelperDouble {
-    constructor() { this.grabbed = false; }
+    constructor(owner, params) {
+        this.owner = owner;
+        this.modalParams = params;
+        this.grabbed = false;
+    }
     grab(params) {
         if (GrabHelperDouble.failNext) { GrabHelperDouble.failNext = false; return false; }
         this.params = params; this.grabbed = true; return true;
@@ -75,6 +79,12 @@ const stage = {
 globalThis.renderTest = {
     stage,
     GrabHelper: {GrabHelper: GrabHelperDouble},
+    // Verified against Shell-18.typelib on GNOME Shell 50.1. The capsule must
+    // grab with POPUP (not the default NONE) so global keybindings such as
+    // Print -> screenshot UI and Super -> overview survive its modal grab.
+    Shell: {ActionMode: {NONE: 0, NORMAL: 1, OVERVIEW: 2, LOCK_SCREEN: 4, UNLOCK_SCREEN: 8,
+        LOGIN_SCREEN: 16, SYSTEM_MODAL: 32, LOOKING_GLASS: 64, POPUP: 128,
+        ALL: 4294967295}},
     St: {BoxLayout: Actor, Label: Actor, Widget: Actor, Button: Actor, Icon: Actor, Bin: Actor,
         Entry: Actor, Settings: {get: () => settings}},
     Gio: {Cancellable: class { cancel() { this.cancelled = true; } },
@@ -85,23 +95,33 @@ globalThis.renderTest = {
             connect(name, fn) { this.handlers[name] = fn; return name; }
             disconnect(name) { delete this.handlers[name]; }
         }},
+    Pango: {EllipsizeMode: {END: 3}},
+    capsuleOrigin, clampToMonitor, isFloating, extensionModeFor,
     loadLocalArtwork: async () => null,
     estimateTimeline, formatTime,
     Clutter: {ActorAlign: {CENTER: 1, END: 2}, AnimationMode: {EASE_OUT_CUBIC: 1, EASE_IN_OUT_CUBIC: 2},
         EventType: {BUTTON_PRESS: 1, TOUCH_BEGIN: 2, KEY_PRESS: 3},
         EVENT_STOP: 1, EVENT_PROPAGATE: 0, KEY_Escape: 27, KEY_Return: 65293},
-    Main: {layoutManager: {primaryMonitor: {x: 0, y: 0, width: 1366},
-        addTopChrome() {}, removeChrome() {}, connectObject() {}, disconnectObject() {}}},
+    Main: {layoutManager: {primaryMonitor: {x: 0, y: 0, width: 1366, height: 768},
+        primaryIndex: 0, panelBox: {height: 32},
+        getWorkAreaForMonitor: () => ({x: 0, y: 32, width: 1366, height: 736}),
+        layoutHandlers: {},
+        addTopChrome() {}, removeChrome() {},
+        connectObject(name, fn) { this.layoutHandlers[name] = fn; },
+        disconnectObject() { this.layoutHandlers = {}; },
+        emit(name) { this.layoutHandlers[name]?.(); }}},
     SystemMetricsCollector,
     QuickSettingsManager,
     AiQuotaCollector,
-    SEARCH_ENGINES,
-    DEFAULT_SEARCH_ENGINE,
-    buildSearchUrl,
-    isValidNavigationUrl,
     launchedUris: [],
 };
 const load = source => import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+const timeFormatSource = await readFile(new URL('../../extension/lib/timeFormat.js', import.meta.url), 'utf8');
+const timeFormat = await load(timeFormatSource);
+globalThis.renderTest.formatClock = timeFormat.formatClock;
+globalThis.renderTest.formatTimerCompact = timeFormat.formatTimerCompact;
+globalThis.renderTest.formatEventTime = timeFormat.formatEventTime;
+globalThis.renderTest.isTimerActive = timeFormat.isTimerActive;
 const beatSource = (await readFile(new URL('../../extension/ui/beatBars.js', import.meta.url), 'utf8'))
     .replace('let St = null;', 'let St = globalThis.renderTest.St;')
     .replace("&& typeof process === 'undefined'", '')
@@ -139,13 +159,17 @@ let aiQuotaSource = (await readFile(new URL('../../extension/ui/aiQuotaView.js',
 const {AiQuotaSection, AiQuotaProviderRow} = await load(aiQuotaSource);
 globalThis.renderTest.AiQuotaSection = AiQuotaSection;
 globalThis.renderTest.AiQuotaProviderRow = AiQuotaProviderRow;
-let searchSource = (await readFile(new URL('../../extension/ui/searchView.js', import.meta.url), 'utf8'))
-    .replace(/^import .*searchEngines.*;$/gm, 'const {SEARCH_ENGINES, DEFAULT_SEARCH_ENGINE, buildSearchUrl, isValidNavigationUrl} = globalThis.renderTest;')
+let timeViewSource = await readFile(new URL('../../extension/ui/timeView.js', import.meta.url), 'utf8');
+timeViewSource = timeViewSource
+    .replace(/^import .*timeFormat\.js';$/gm, 'const {formatClock, formatEventTime} = globalThis.renderTest;')
     .replace('let St = null;', 'let St = globalThis.renderTest.St;')
     .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;')
-    .replace('let Gio = null;', 'let Gio = globalThis.renderTest.Gio;');
-const {SearchSection} = await load(searchSource);
-globalThis.renderTest.SearchSection = SearchSection;
+    .replace('let Gio = null;', 'let Gio = globalThis.renderTest.Gio;')
+    .replace('let Pango = null;', 'let Pango = globalThis.renderTest.Pango;')
+    .replace("&& typeof process === 'undefined'", '');
+const {TimeSection} = await load(timeViewSource);
+globalThis.renderTest.TimeSection = TimeSection;
+
 let mediaSource = await readFile(new URL('../../extension/ui/mediaView.js', import.meta.url), 'utf8');
 mediaSource = mediaSource.replace('let St = null;', 'let St = globalThis.renderTest.St;')
     .replace(/^import .*localArtwork.*;$/gm, 'const {loadLocalArtwork} = globalThis.renderTest;')
@@ -155,8 +179,8 @@ mediaSource = mediaSource.replace('let St = null;', 'let St = globalThis.renderT
     .replace(/^import .*quickToggle.*;$/gm, 'const {QuickTogglesRow} = globalThis.renderTest;')
     .replace(/^import .*featureCarousel.*;$/gm, 'const {FeatureCarousel} = globalThis.renderTest;')
     .replace(/^import .*aiQuotaView.*;$/gm, 'const {AiQuotaSection} = globalThis.renderTest;')
-    .replace(/^import .*searchView.*;$/gm, 'const {SearchSection} = globalThis.renderTest;')
-    .replace(/^import .*searchEngines.*;$/gm, 'const {DEFAULT_SEARCH_ENGINE, isValidNavigationUrl} = globalThis.renderTest;')
+    .replace(/^import .*displayMode\.js.*;$/gm, 'const {capsuleOrigin, clampToMonitor, isFloating, extensionModeFor} = globalThis.renderTest;')
+    .replace(/^import .*timeView.*$/gm, 'const {TimeSection} = globalThis.renderTest;')
     .replace('let Gio = null;', 'let Gio = globalThis.renderTest.Gio;')
     .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
 const {MediaView, CAPSULE_SIZES} = await load(mediaSource);
@@ -164,7 +188,7 @@ globalThis.renderTest.MediaView = MediaView;
 globalThis.renderTest.CAPSULE_SIZES = CAPSULE_SIZES;
 let capsuleSource = await readFile(new URL('../../extension/ui/capsule.js', import.meta.url), 'utf8');
 capsuleSource = capsuleSource.replace(/^import .*;$/gm, '').replaceAll('global.stage', 'globalThis.renderTest.stage');
-const {Capsule} = await load(`const {St, Clutter, Gio, Main, MediaView, CAPSULE_SIZES, GrabHelper, BeatBars, loadLocalArtwork} = globalThis.renderTest;\n${capsuleSource}`);
+const {Capsule} = await load(`const {St, Clutter, Gio, Shell, Main, MediaView, CAPSULE_SIZES, GrabHelper, BeatBars, loadLocalArtwork, formatTimerCompact, formatEventTime, isTimerActive, capsuleOrigin, clampToMonitor, isFloating, extensionModeFor} = globalThis.renderTest;\n${capsuleSource}`);
 
 const capsule = new Capsule();
 assert.equal(typeof capsule.setTheme, 'function', 'renderer needs live theme switching');
@@ -182,6 +206,21 @@ capsule.setHorizontalOffset(40);
 assert.equal(capsule._widget.position[0], expectedCenter + 40, 'horizontal offset updates x position to center + 40');
 capsule.setVerticalOffset(8);
 capsule.setHorizontalOffset(0);
+
+// Display mode: floating clears the panel, dynamic hugs it.
+assert.equal(capsule.displayMode, 'dynamic', 'capsule starts in dynamic mode');
+capsule.setDisplayMode('floating');
+assert.equal(capsule._widget.classes.has('linux-island__capsule--floating'), true,
+    'floating mode marks the capsule for the shadow/border style');
+assert.equal(capsule._widget.position[1], 32 + 8,
+    'floating sits below the panel strut plus the user offset');
+capsule.setDisplayMode('dynamic');
+assert.equal(capsule._widget.classes.has('linux-island__capsule--floating'), false,
+    'dynamic mode drops the floating class');
+assert.equal(capsule._widget.position[1], monitor.y + 8, 'dynamic hugs the panel edge');
+capsule.setDisplayMode('nonsense');
+assert.equal(capsule._widget.position[1], monitor.y + 8, 'unknown mode keeps dynamic placement');
+capsule.setDisplayMode('dynamic');
 assert.equal(capsule._widget.position[1], monitor.y + 8, 'reset vertical offset restores monitor.y + 8');
 assert.equal(capsule._widget.position[0], expectedCenter, 'reset horizontal offset restores baseline center');
 capsule.setTheme('light');
@@ -230,7 +269,7 @@ capsule.applyState('COMPACT');
 assert.ok(capsule._beatBars, 'compact title needs beat bars');
 assert.match(capsule._mediaView.actor.style, /width: 294px/, 'wide card content width');
 assert.ok(capsule._mediaView._carousel, 'media card has slideable features carousel');
-assert.equal(capsule._mediaView._carousel.pageCount, 4, 'music, system & controls, AI quota, and search pages');
+assert.equal(capsule._mediaView._carousel.pageCount, 4, 'music, system & controls, AI quota, and the timer page');
 const carousel = capsule._mediaView._carousel;
 assert.ok(carousel._navBox, 'section nav box exists');
 assert.equal(carousel.actor.children[0], carousel._navBox, 'section nav is first child of carousel actor');
@@ -238,11 +277,10 @@ assert.equal(carousel._navButtons.length, 4, 'four section buttons');
 assert.equal(carousel._navButtons[0].child.icon_name, 'audio-x-generic-symbolic', 'music section icon');
 assert.equal(carousel._navButtons[1].child.icon_name, 'preferences-system-symbolic', 'system section icon');
 assert.equal(carousel._navButtons[2].child.icon_name, 'applications-science-symbolic', 'AI quota section icon');
-assert.equal(carousel._navButtons[3].child.icon_name, 'system-search-symbolic', 'search section icon');
+assert.equal(carousel._navButtons[3].child.icon_name, 'alarm-symbolic', 'timer section icon');
 assert.ok(carousel._navButtons[0].classes.has('linux-island__section-btn--active'), 'page 0 active initially');
 assert.ok(!carousel._navButtons[1].classes.has('linux-island__section-btn--active'), 'page 1 inactive initially');
 assert.ok(!carousel._navButtons[2].classes.has('linux-island__section-btn--active'), 'page 2 inactive initially');
-assert.ok(!carousel._navButtons[3].classes.has('linux-island__section-btn--active'), 'page 3 inactive initially');
 
 carousel._navButtons[1].handlers['clicked']();
 assert.equal(carousel.currentPage, 1, 'clicking button 1 navigates to page 1');
@@ -253,12 +291,6 @@ assert.equal(carousel.currentPage, 2, 'clicking button 2 navigates to page 2');
 assert.ok(carousel._navButtons[2].classes.has('linux-island__section-btn--active'), 'button 2 active');
 assert.ok(!carousel._navButtons[0].classes.has('linux-island__section-btn--active'), 'button 0 inactive');
 assert.ok(!carousel._navButtons[1].classes.has('linux-island__section-btn--active'), 'button 1 inactive');
-carousel._navButtons[3].handlers['clicked']();
-assert.equal(carousel.currentPage, 3, 'clicking button 3 navigates to the search page');
-assert.ok(carousel._navButtons[3].classes.has('linux-island__section-btn--active'), 'button 3 active');
-assert.ok(!carousel._navButtons[0].classes.has('linux-island__section-btn--active'), 'button 0 inactive');
-assert.ok(!carousel._navButtons[1].classes.has('linux-island__section-btn--active'), 'button 1 inactive');
-assert.ok(!carousel._navButtons[2].classes.has('linux-island__section-btn--active'), 'button 2 inactive');
 assert.ok(capsule._mediaView._aiQuotaSection, 'AI quota section exists');
 assert.equal(capsule._mediaView._aiQuotaSection.actor.children.length, 4, 'AI quota section has top bar + 3 provider rows');
 assert.equal(capsule._mediaView._aiQuotaSection._topBar.children.length, 1, 'top bar has only AI Quota title');
@@ -271,169 +303,6 @@ for (const row of [capsule._mediaView._aiQuotaSection._antigravityRow, capsule._
     assert.doesNotMatch(row.actor.style, /#[0-9a-fA-F]{3,8}/, 'no inline hex color overrides on quota rows');
 }
 
-const search = capsule._mediaView._searchSection;
-assert.ok(search, 'search section exists');
-assert.equal(search._engine, 'google', 'search defaults to Google');
-search._entry.set_text('linux island');
-search._submit();
-assert.equal(globalThis.renderTest.launchedUris.at(-1), 'https://www.google.com/search?q=linux%20island',
-    'submitting the search opens the default browser');
-assert.equal(search._entry.get_text(), '', 'search entry clears after a successful launch');
-
-// Enter on the outer St.Entry must submit even when key focus sits there
-// instead of on the inner Clutter.Text.
-{
-    const {Clutter} = globalThis.renderTest;
-    search._entry.set_text('keyboard query');
-    const res = search._entry.handlers['key-press-event'](search._entry, {
-        get_key_symbol: () => Clutter.KEY_Return,
-    });
-    assert.equal(res, Clutter.EVENT_STOP, 'Enter is consumed by the search entry');
-    assert.equal(globalThis.renderTest.launchedUris.at(-1),
-        'https://www.google.com/search?q=keyboard%20query', 'Enter submits the query');
-    assert.equal(search._entry.get_text(), '', 'Enter clears the entry after launching');
-}
-
-search._entry.focused = false;
-assert.deepEqual(Object.keys(search._engineButtons), ['google', 'brave'], 'only Google and Brave chips exist');
-search._engineButtons.brave.handlers['clicked']();
-assert.equal(search._engine, 'brave', 'engine chip switches the active engine');
-assert.equal(search._entry.focused, true, 'engine chip click returns focus to the entry');
-assert.ok(search._engineButtons.brave.classes.has('linux-island__search-engine-btn--active'),
-    'Brave chip is active');
-assert.ok(!search._engineButtons.google.classes.has('linux-island__search-engine-btn--active'),
-    'Google chip is no longer active');
-
-capsule.setSearchEngine('google');
-assert.equal(search._engine, 'google', 'capsule pushes engine changes into the search page');
-assert.ok(search._engineButtons.google.classes.has('linux-island__search-engine-btn--active'),
-    'Google chip becomes active');
-assert.ok(!search._engineButtons.brave.classes.has('linux-island__search-engine-btn--active'),
-    'Brave chip becomes inactive');
-
-// Companion subprocess launch and capsule handoff
-{
-    let subprocessArgs = null;
-    let waitCallback = null;
-    const signals = [];
-    globalThis.renderTest.Gio.SubprocessFlags = {NONE: 0};
-    globalThis.renderTest.Gio.Subprocess = class {
-        constructor({argv}) {
-            subprocessArgs = argv;
-            this.signals = [];
-        }
-        init() {}
-        wait_async(_cancellable, cb) {
-            waitCallback = cb;
-        }
-        wait_finish() { return true; }
-        send_signal(sig) { this.signals.push(sig); signals.push(sig); }
-        force_exit() { this.forced = true; }
-    };
-
-    // Non-web URLs must never spawn a companion or open the browser. The
-    // search entry percent-encodes its query into an https URL, so the
-    // rejection boundary is _openSearch itself.
-    const launchesBefore = globalThis.renderTest.launchedUris.length;
-    const dismissals = [];
-    capsule._onInteractionEvent = e => dismissals.push(e);
-    for (const bad of ['javascript:alert(1)', 'file:///etc/passwd', 'data:text/html,x', '']) {
-        capsule._mediaView._openSearch(bad);
-    }
-    assert.equal(subprocessArgs, null, 'invalid direct _openSearch never spawns a subprocess');
-    assert.equal(globalThis.renderTest.launchedUris.length, launchesBefore,
-        'invalid URL never reaches launch_default_for_uri');
-    assert.deepEqual(dismissals, [], 'invalid URL dispatches no interaction events');
-
-    search._entry.set_text('embedded companion query');
-    search._submit();
-
-    assert.ok(subprocessArgs, 'companion subprocess was created');
-    assert.equal(subprocessArgs[1], '--companion', 'launched with --companion');
-    assert.equal(subprocessArgs[2], 'https://www.google.com/search?q=embedded%20companion%20query', 'correct encoded query passed');
-    assert.ok(capsule._companionActive, 'capsule marks companion active');
-    assert.equal(capsule._widget.visible, true, 'capsule widget remains visible as compact pill during companion session');
-    assert.equal(capsule._currentState, 'COMPACT', 'capsule switches to compact pill mode');
-    assert.deepEqual(dismissals, ['DISMISS'], 'companion start dispatches exactly one DISMISS');
-
-    // Hover must not pop the capsule open over an active companion window.
-    dismissals.length = 0;
-    capsule._widget.hover = true;
-    capsule._widget.handlers['notify::hover']();
-    assert.deepEqual(dismissals, [], 'hover is ignored while the companion is active');
-    capsule.restoreFromCompanion();
-    capsule._widget.handlers['notify::hover']();
-    assert.deepEqual(dismissals, ['HOVER_ENTER'], 'hover works again after the companion closes');
-
-    // A second search must terminate the first companion rather than stacking
-    // a second WebEngine process on top of it.
-    const firstProc = capsule._mediaView._companionSubprocess;
-    const firstWaitCallback = waitCallback;
-    capsule._mediaView._openSearch('https://www.google.com/search?q=two');
-    assert.deepEqual(firstProc.signals, [15], 'previous companion receives SIGTERM');
-    assert.notEqual(capsule._mediaView._companionSubprocess, firstProc,
-        'new companion subprocess replaces the old one');
-
-    // The replaced process exiting late must not clear the new process state.
-    const secondProc = capsule._mediaView._companionSubprocess;
-    const secondWaitCallback = waitCallback;
-    firstWaitCallback(null, {});
-    assert.equal(capsule._mediaView._companionSubprocess, secondProc,
-        'late exit of the replaced process leaves the new subprocess installed');
-    assert.ok(capsule._companionActive, 'late exit does not mark the companion inactive');
-
-    // Simulate companion window closing / process exit
-    assert.ok(secondWaitCallback, 'wait callback registered');
-    secondWaitCallback(null, {});
-    assert.equal(capsule._mediaView._companionSubprocess, null, 'subprocess cleared on real exit');
-    assert.equal(capsule._companionActive, false, 'companionActive cleared when companion exits');
-    assert.equal(capsule._widget.visible, true, 'capsule widget remains visible after companion exits');
-    // Verify clicking the compact pill while minimized dispatches CLICK and expands
-    let lastEvent = null;
-    capsule._onInteractionEvent = e => { lastEvent = e; };
-    capsule._compactRow.handlers['button-press-event']();
-    assert.equal(lastEvent, 'CLICK', 'clicking minimized pill dispatches CLICK');
-    capsule.applyState('EXPANDED');
-    assert.equal(capsule._currentState, 'EXPANDED', 'capsule expands on click');
-    capsule.applyState('COMPACT');
-    assert.equal(capsule._currentState, 'COMPACT', 'capsule stays in compact pill mode');
-    delete globalThis.renderTest.Gio.Subprocess;
-}
-
-// A companion that fails to start must fall back to the default browser.
-{
-    let waitCallback = null;
-    let exitStatus = 1;
-    globalThis.renderTest.Gio.SubprocessFlags = {NONE: 0};
-    globalThis.renderTest.Gio.Subprocess = class {
-        constructor() {}
-        init() {}
-        wait_async(_cancellable, cb) { waitCallback = cb; }
-        wait_finish() { return true; }
-        send_signal() {}
-        force_exit() {}
-        get_if_exited() { return true; }
-        get_exit_status() { return exitStatus; }
-    };
-
-    const before = globalThis.renderTest.launchedUris.length;
-    const url = 'https://duckduckgo.com/?q=fallback%20search';
-    capsule._mediaView._openSearch(url);
-    assert.ok(waitCallback, 'wait callback registered for fallback test');
-    waitCallback(null, {});
-    assert.equal(globalThis.renderTest.launchedUris.length, before + 1,
-        'non-zero companion exit launches the default browser');
-    assert.equal(globalThis.renderTest.launchedUris.at(-1), url, 'fallback opens the search URL');
-    assert.equal(capsule._mediaView._companionSubprocess, null, 'subprocess cleared after failed start');
-
-    // A clean exit must not launch the browser a second time.
-    exitStatus = 0;
-    capsule._mediaView._openSearch(url);
-    waitCallback(null, {});
-    assert.equal(globalThis.renderTest.launchedUris.length, before + 1,
-        'clean companion exit does not reopen the URL');
-    delete globalThis.renderTest.Gio.Subprocess;
-}
 
 
 carousel._navButtons[0].handlers['clicked']();
@@ -461,6 +330,12 @@ assert.doesNotMatch(netStyle, /border-radius/, 'NET has no rounded rectangle');
 assert.doesNotMatch(netStyle, /background-color/, 'NET has no filled box');
 assert.equal(capsule._mediaView._metricsSlot.width, capsule._mediaView._togglesSlot.width,
     'side slots share a width so NET lands on the centre line');
+assert.equal(capsule._mediaView._netView._rxLabel.text, '↓ 0 B/s', 'NET has initial rx label');
+assert.equal(capsule._mediaView._netView._txLabel.text, '↑ 0 B/s', 'NET has initial tx label');
+assert.equal(capsule._mediaView._netView._label.text, 'NET', 'NET has label text');
+capsule._mediaView._netView.setNetwork({rxText: '↓ 1.2 MB/s', txText: '↑ 300 KB/s'});
+assert.equal(capsule._mediaView._netView._rxLabel.text, '↓ 1.2 MB/s', 'NET updates rx text');
+assert.equal(capsule._mediaView._netView._txLabel.text, '↑ 300 KB/s', 'NET updates tx text');
 // Expanded width includes MediaView padding (28px), shell padding (4px)
 // and shell borders (2px). Both renderers must be 328px overall.
 assert.equal(Number(capsule._mediaView.actor.style.match(/width: (\d+)px/)[1]) + 34,
@@ -565,6 +440,48 @@ for (const size of ['small', 'medium', 'large']) {
     assert.match(style, /padding: 3px 0/, `disk padding survives ${size} resize`);
     assert.match(style, /spacing: 2px/, `disk line spacing survives ${size} resize`);
 }
+
+// NET text must stay visible at every preset. It was reported missing at the
+// small preset because the side columns held a 92px floor, leaving NET 22px
+// while "↓ 1.2 MB/s" needs ~56px at 11px bold.
+for (const size of ['small', 'medium', 'large']) {
+    capsule.setCapsuleSize(size);
+    const net = capsule._mediaView._netView;
+    const section = capsule._mediaView._systemSection.width;
+    const slots = capsule._mediaView._metricsSlot.width * 2 + net.actor.width;
+    const gap = Number(capsule._mediaView._systemSection.style.match(/spacing: (\d+)px/)[1]);
+    assert.equal(slots + gap * 2, section,
+        `${size}: metrics + NET + toggles + gaps must fill the section exactly`);
+    assert(net.actor.width >= 60,
+        `${size}: NET must keep readable width, got ${net.actor.width}px`);
+    assert.equal(net._label.visible, true, `${size}: NET header stays visible`);
+    assert.equal(net._rxLabel.text.length > 0, true, `${size}: NET rx text is populated`);
+    assert.equal(net._txLabel.text.length > 0, true, `${size}: NET tx text is populated`);
+}
+// The compact side columns drop decorative detail rather than clipping text.
+capsule.setCapsuleSize('small');
+for (const tile of [capsule._mediaView._metricsRow._cpuTile, capsule._mediaView._metricsRow._ramTile]) {
+    assert.equal(tile._icon.visible, false, 'small: metric glyph hides to make room for the value');
+    assert.match(tile.actor.style, /spacing: 4px/, 'small: metric tile tightens its gap');
+}
+assert.equal(capsule._mediaView._quickTogglesRow._storageIndicator._detailLabel.visible, false,
+    'small: disk detail line hides instead of clipping');
+// The detail line must only be shown when the block can hold it: Pango
+// measures "147/249 GB" at 58px in Sans 9px.
+{
+    const disk = capsule._mediaView._quickTogglesRow._storageIndicator;
+    disk.setWidth(57);
+    assert.equal(disk._detailLabel.visible, false, 'disk detail hidden below its measured width');
+    disk.setWidth(58);
+    assert.equal(disk._detailLabel.visible, true, 'disk detail shown once it fits');
+}
+capsule.setCapsuleSize('medium');
+for (const tile of [capsule._mediaView._metricsRow._cpuTile, capsule._mediaView._metricsRow._ramTile]) {
+    assert.equal(tile._icon.visible, true, 'medium: metric glyph returns');
+    assert.match(tile.actor.style, /spacing: 8px/, 'medium: metric tile keeps its rhythm');
+}
+assert.equal(capsule._mediaView._quickTogglesRow._storageIndicator._detailLabel.visible, true,
+    'medium: disk detail line returns');
 capsule.setCapsuleSize('medium');
 for (const toggle of [capsule._mediaView._quickTogglesRow._themeToggle,
     capsule._mediaView._quickTogglesRow._dndToggle, capsule._mediaView._quickTogglesRow._nightToggle,
@@ -698,6 +615,29 @@ capsule.applyState('EXPANDED');
 const widget = capsule._widget;
 const stageListenerId = capsule._outsideEventId;
 const systemThemeSettings = capsule._systemSettings;
+// Compact priority: timer > media > meeting.
+capsule.applyState('COMPACT');
+capsule.setMedia({playerId: 'x', title: 'Song', playbackStatus: 'Playing'});
+capsule.setTimer({state: 'running', mode: 'countdown', phase: '', label: '',
+    durationSec: 1500, remainingSec: 1499, cycle: 0});
+assert.equal(capsule._label.text, '24:59', 'timer outranks media in the compact pill');
+assert.equal(capsule._icon.text, '⏱', 'timer icon in the compact pill');
+assert.equal(capsule._beatBars.actor.visible, false, 'beat bars yield to the timer');
+assert.equal(capsule._mediaView._timeSection._clockLabel.text, '24:59',
+    'timer snapshot reaches the merged carousel page');
+
+capsule.setTimer({state: 'idle', mode: 'countdown', phase: '', label: '',
+    durationSec: 0, remainingSec: 0, cycle: 0});
+assert.equal(capsule._label.text, 'Song', 'media returns when the timer goes idle');
+assert.equal(capsule._icon.text, '🎵');
+assert.equal(capsule._beatBars.actor.visible, true, 'beat bars return with the media branch');
+
+// Stats reach the timer page through the capsule.
+capsule.setTimerStats({sessionsStarted: 2, focusCompleted: 3, breaksCompleted: 2,
+    totalFocusSec: 4500, longestFocusSec: 1500});
+assert.equal(capsule._mediaView._timeSection._statsLabel.text, '3 focus · 75 min',
+    'timer statistics reach the carousel page');
+
 capsule.destroy();
 assert.equal(Object.keys(systemThemeSettings.handlers).length, 0, 'theme listener removed');
 assert.equal(stageHandlers.has(stageListenerId), false, 'destroy disconnects outside input listener');
@@ -729,6 +669,11 @@ const outsideCard = new Capsule({onInteractionEvent: event => {
     dismissEvents.push(event);
     if (event === 'DISMISS') outsideCard.applyState('COMPACT');
 }});
+// The modal grab must advertise POPUP action mode. A default NONE grab filters
+// out every global keybinding, so Print could not open the screenshot UI while
+// the island was expanded. This is the regression guard for that bug.
+assert.equal(outsideCard._grabHelper.modalParams?.actionMode, globalThis.renderTest.Shell.ActionMode.POPUP,
+    'expanded capsule must grab in POPUP action mode so screenshots stay available');
 outsideCard.applyState('EXPANDED');
 stage.emit({type: () => 3, get_key_symbol: () => 27});
 assert.equal(outsideCard._currentState, 'COMPACT', 'outside dismissal collapses');
@@ -766,6 +711,30 @@ for (let attempt = 0; attempt < 10; attempt++) {
 const outsideListener = outsideCard._outsideEventId;
 outsideCard.destroy();
 assert.equal(stageHandlers.has(outsideListener), false, 'destroy removes stage capture');
+
+// A Shell modal (screenshot UI, screencast UI, modal dialogs) emits
+// system-modal-opened right before taking its own grab. The island must release
+// its grab first, otherwise the incoming modal grab cannot be taken and the
+// screenshot UI silently fails to open. GNOME's popup menus do the same.
+{
+    const modalEvents = [];
+    const modalCard = new Capsule({onInteractionEvent: event => {
+        modalEvents.push(event);
+        if (event === 'DISMISS') modalCard.applyState('COMPACT');
+    }});
+    modalCard.mount();
+    modalCard.applyState('EXPANDED');
+    assert.equal(modalCard._grabHelper.grabbed, true, 'expanded island holds a modal grab');
+    globalThis.renderTest.Main.layoutManager.emit('system-modal-opened');
+    assert.equal(modalCard._currentState, 'COMPACT', 'system modal collapses the island');
+    assert.equal(modalCard._grabHelper.grabbed, false, 'system modal releases the island grab');
+    assert.deepEqual(modalEvents, ['DISMISS'], 'system modal dispatches DISMISS exactly once');
+    // While compact the island must ignore the signal entirely.
+    modalEvents.length = 0;
+    globalThis.renderTest.Main.layoutManager.emit('system-modal-opened');
+    assert.deepEqual(modalEvents, [], 'compact island ignores system modal signals');
+    modalCard.destroy();
+}
 
 let preferenceController;
 const preferenceCard = new Capsule({onInteractionEvent: event => preferenceController.dispatch(event)});
@@ -1209,6 +1178,24 @@ circleCapsule._widget.handlers['key-press-event'](circleCapsule._widget, {get_ke
 assert.equal(circleCapsule._currentState, 'COMPACT');
 assert.equal(circleCapsule._isIdleCircle, false);
 assert.equal(idleScheduler.count, 1, 'idle timer restarted after dismissal of EXPANDED');
+assert.equal(circleCapsule._label.visible, true, 'label must be restored when dismissing EXPANDED to COMPACT');
+assert.equal(circleCapsule._label.opacity, 255, 'label opacity must be restored when dismissing EXPANDED to COMPACT');
+assert.equal(circleCapsule._widget.width, -1, 'compact pill must release animated width request');
+assert.equal(circleCapsule._isCircleMode(), false, 'dismissing EXPANDED to COMPACT is not in circle mode');
+// Interrupted circle transition: idle timer triggers _animatePillToCircle, but state updates before tween completes
+const interruptedCapsule = new Capsule({idleTimeoutMs: 0});
+interruptedCapsule._widget.ease = function(p) { this.transitions.push(p); };
+interruptedCapsule._label.ease = function(p) { this.transitions.push(p); };
+interruptedCapsule._animatePillToCircle();
+assert.equal(interruptedCapsule._circleResizing, true, 'resizing flag active during circle ease');
+interruptedCapsule.applyState('EXPANDED');
+interruptedCapsule.applyState('COMPACT');
+assert.equal(interruptedCapsule._circleResizing, false, 'resizing flag must be cleared after returning to COMPACT');
+assert.equal(interruptedCapsule._label.visible, true, 'label must be visible after interrupted morph');
+assert.equal(interruptedCapsule._label.opacity, 255, 'label opacity must be restored after interrupted morph');
+interruptedCapsule._widget.transitions.at(-1).onComplete?.();
+assert.equal(interruptedCapsule._widget.width, -1, 'width request released after transition completes');
+interruptedCapsule.destroy();
 
 // WhatsApp notification activity dot and expanded action
 let waActivated = false;

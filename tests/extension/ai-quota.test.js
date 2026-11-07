@@ -6,6 +6,7 @@ import {
     parseNineRouterUsage,
     buildAiQuotaSnapshot,
     AiQuotaCollector,
+    applySnapshotStatus,
 } from '../../extension/lib/aiQuota.js';
 
 function assert(condition, message = 'Assertion failed') {
@@ -503,6 +504,118 @@ const NOW = 1793169738000;
     assert(!mappedSection._active, 'mappedSection stops when unmapped');
     mappedSection.destroy();
     assertEqual(mappedSection._mappedSignalId, null, 'mapped signal disconnected on destroy');
+}
+
+
+// 9. Single-window providers must not fabricate the missing window
+{
+    const snap = buildAiQuotaSnapshot({
+        ompCache: [{
+            value: {
+                provider: 'google-antigravity',
+                limits: [{
+                    id: 'google-antigravity:anthropic:default:3p-weekly',
+                    label: 'Claude & GPT (shared)',
+                    window: { durationMs: 604800000, resetsAt: NOW + 3600000 },
+                    amount: { remainingFraction: 0 },
+                }],
+            },
+        }],
+    }, NOW);
+
+    assertEqual(snap.claude.connected, true);
+    assertEqual(snap.claude.has5h, false, 'shared Claude has no 5h window');
+    assertEqual(snap.claude.has7d, true, 'shared Claude has a 7d window');
+    assert(!snap.claude.detailText.startsWith('0% left (100% used)'),
+        'primary detail must not describe a missing 5h window');
+
+    const offline = buildAiQuotaSnapshot({}, NOW);
+    for (const provider of ['antigravity', 'codex', 'claude']) {
+        assertEqual(offline[provider].has5h, false, `${provider} offline has no 5h window`);
+        assertEqual(offline[provider].has7d, false, `${provider} offline has no 7d window`);
+    }
+}
+
+// 10. applySnapshotStatus distinguishes checking from honestly offline
+{
+    const empty = buildAiQuotaSnapshot({}, NOW);
+    const checking = applySnapshotStatus(empty, { checking: true });
+    assertEqual(checking.checking, true);
+    assertEqual(checking.antigravity.primaryText, 'Checking…', 'in-flight probe reads as checking');
+    assertEqual(checking.antigravity.detailText, 'Checking…');
+
+    const settled = applySnapshotStatus(empty, { checking: false });
+    assertEqual(settled.antigravity.primaryText, 'Offline');
+    assertEqual(settled.antigravity.detailText, 'No active session', 'completed probe reads as offline');
+
+    // A connected provider keeps its real numbers while a refresh is running.
+    const connected = buildAiQuotaSnapshot({
+        ompCache: [{
+            value: {
+                provider: 'google-antigravity',
+                limits: [{ id: 'gemini-5h', window: { durationMs: 18000000 }, amount: { remainingFraction: 0.9 } }],
+            },
+        }],
+    }, NOW);
+    const refreshing = applySnapshotStatus(connected, { checking: true, cached: true });
+    assertEqual(refreshing.antigravity.primaryText, '90% left', 'live data survives a background refresh');
+    assertEqual(refreshing.antigravity.cached, true, 'cached marker is preserved');
+}
+
+// 11. AiQuotaCollector caches the last good probe and starts warm
+{
+    const raw = {
+        ompCache: [{
+            value: {
+                provider: 'google-antigravity',
+                limits: [{ id: 'gemini-5h', window: { durationMs: 18000000 }, amount: { remainingFraction: 0.8 } }],
+            },
+        }],
+    };
+
+    const store = new Map();
+    // Override at class level: the constructor hydrates from cache, so the
+    // double must be in place before construction.
+    class CachedCollector extends AiQuotaCollector {
+        _readProbeCache() {
+            const value = store.get('probe');
+            return value ? { raw: value, savedAt: NOW } : null;
+        }
+        _writeProbeCache(value) {
+            store.set('probe', value);
+        }
+    }
+    const makeCollector = () => new CachedCollector({ now: () => NOW, cachePath: '/tmp/linux-island-test-cache/probe.json' });
+
+    // Without a subprocess backend the collector settles honestly instead of
+    // latching the checking state forever.
+    const pending = makeCollector();
+    const settledOffline = pending.collect();
+    assertEqual(settledOffline.checking, false, 'no-backend collector does not stay in checking');
+    assertEqual(settledOffline.antigravity.detailText, 'No active session');
+
+    // A successful probe persists the raw payload and drops the checking state.
+    const writer = makeCollector();
+    writer._probeRunner = () => raw;
+    await writer.refreshAsync();
+    assertEqual(store.get('probe'), raw, 'successful probe is persisted');
+
+    // A later cold start hydrates from that cache before any probe runs.
+    const warm = makeCollector();
+    assertEqual(warm.lastSnapshot.antigravity.connected, true, 'cold start hydrates from cache');
+    assertEqual(warm.lastSnapshot.antigravity.remainingPercent, 80);
+    assertEqual(warm.hasData, true, 'cached data counts as data');
+    assertEqual(warm.lastSnapshot.antigravity.cached, true, 'hydrated snapshot is marked cached');
+
+    // Expired cache is ignored so stale quotas never masquerade as live.
+    class StaleCollector extends CachedCollector {
+        _readProbeCache() {
+            const value = store.get('probe');
+            return value ? { raw: value, savedAt: NOW - 24 * 3600 * 1000 } : null;
+        }
+    }
+    const stale = new StaleCollector({ now: () => NOW, cachePath: '/tmp/linux-island-test-cache/probe.json' });
+    assertEqual(stale.lastSnapshot.antigravity.connected, false, 'expired cache is not used');
 }
 
 console.log('PASS: AI quota parsers, multi-window remaining % calculations, fallback, and view lifecycle tests');

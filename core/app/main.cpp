@@ -5,7 +5,9 @@
 #include <cstring>
 #include "dbus/core_service.h"
 #include "dbus/core_adaptor.h"
+#include "dbus/time_adaptor.h"
 #include "media/audio_meter.h"
+#include "media/sink_volume.h"
 
 int main(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
@@ -18,7 +20,12 @@ int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("Linux Island Core"));
 
-    CoreService service;
+    SinkVolume sink;
+    CoreService service(QString(), QDBusConnection::sessionBus(), nullptr, &sink);
+    QObject::connect(&sink, &SinkVolume::changed, &service, [&service, &sink](double volume, bool muted) {
+        service.setSystemVolume(volume, muted, sink.level());
+    });
+    sink.start();
     AudioMeter meter;
     QObject::connect(&meter, &AudioMeter::levelsChanged, &service, &CoreService::setAudioLevels);
     const auto updateMeter = [&] {
@@ -28,6 +35,7 @@ int main(int argc, char** argv) {
     QObject::connect(&service, &CoreService::mediaChanged, &meter, updateMeter);
     QObject::connect(&service, &CoreService::settingsChanged, &meter, updateMeter);
     new CoreAdaptor(&service);
+    new TimeAdaptor(&service);
     auto bus = QDBusConnection::sessionBus();
     if (!bus.registerObject(QStringLiteral("/io/github/linuxisland/Core"), &service,
                             QDBusConnection::ExportAdaptors) ||
@@ -35,6 +43,7 @@ int main(int argc, char** argv) {
         qCritical("Unable to register Linux Island Core1 service");
         return 1;
     }
+    service.startTimeServices();
 
     // Without systemd user services a launcher-spawned Core outlives logout.
     // The session bus is the only signal we get, so poll it and exit.

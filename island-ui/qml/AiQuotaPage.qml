@@ -6,7 +6,7 @@ Item {
     id: root
 
     implicitWidth: parent ? parent.width : 320
-    implicitHeight: 130
+    implicitHeight: 116
 
     Timer {
         interval: 15000
@@ -25,11 +25,17 @@ Item {
         property string activeMode: "5h" // "5h" or "7d"
 
         readonly property bool isConnected: Boolean(quotaData && quotaData.connected)
+        readonly property bool has5h: Boolean(quotaData && quotaData.has5h)
+        readonly property bool has7d: Boolean(quotaData && quotaData.has7d)
         readonly property string activeDetail: !isConnected
             ? ((quotaData && quotaData.detailText) ? quotaData.detailText : "Offline")
             : (activeMode === "5h"
-                ? ((quotaData && quotaData.detailText) ? quotaData.detailText : "")
-                : ((quotaData && (quotaData.altDetailText || quotaData.detailText)) ? (quotaData.altDetailText || quotaData.detailText) : ""))
+                ? (has5h
+                    ? ((quotaData.detailText) ? quotaData.detailText : "")
+                    : ((quotaData.altDetailText || quotaData.detailText) ? (quotaData.altDetailText || quotaData.detailText) : ""))
+                : (has7d
+                    ? ((quotaData.altDetailText || quotaData.detailText) ? (quotaData.altDetailText || quotaData.detailText) : "")
+                    : ((quotaData.detailText) ? quotaData.detailText : "")))
 
         Layout.fillWidth: true
         spacing: 1
@@ -71,12 +77,14 @@ Item {
                 Text {
                     id: lbl5h
                     anchors.centerIn: parent
-                    text: rowRoot.isConnected
-                        ? ("5h: " + ((rowRoot.quotaData && rowRoot.quotaData.percent5h !== undefined && rowRoot.quotaData.percent5h !== null) ? rowRoot.quotaData.percent5h : "--") + "%")
+                    text: (rowRoot.isConnected && rowRoot.has5h)
+                        ? ("5h: " + rowRoot.quotaData.percent5h + "%")
                         : "5h: --%"
                     font.pixelSize: 10
                     font.bold: true
-                    color: rowRoot.activeMode === "5h" ? IslandTheme.accentPrimary : IslandTheme.textSecondary
+                    color: rowRoot.activeMode === "5h"
+                        ? IslandTheme.accentPrimary
+                        : (btn5Mouse.containsMouse ? IslandTheme.textPrimary : IslandTheme.textSecondary)
                 }
 
                 MouseArea {
@@ -102,12 +110,14 @@ Item {
                 Text {
                     id: lbl7d
                     anchors.centerIn: parent
-                    text: rowRoot.isConnected
-                        ? ("7d: " + ((rowRoot.quotaData && rowRoot.quotaData.percent7d !== undefined && rowRoot.quotaData.percent7d !== null) ? rowRoot.quotaData.percent7d : "--") + "%")
+                    text: (rowRoot.isConnected && rowRoot.has7d)
+                        ? (((rowRoot.quotaData.weeklyWindow === "30d") ? "30d: " : "7d: ") + rowRoot.quotaData.percent7d + "%")
                         : "7d: --%"
                     font.pixelSize: 10
                     font.bold: true
-                    color: rowRoot.activeMode === "7d" ? IslandTheme.accentPrimary : IslandTheme.textSecondary
+                    color: rowRoot.activeMode === "7d"
+                        ? IslandTheme.accentPrimary
+                        : (btn7Mouse.containsMouse ? IslandTheme.textPrimary : IslandTheme.textSecondary)
                 }
 
                 MouseArea {
@@ -139,15 +149,18 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 6
-        spacing: 4
+        anchors.leftMargin: 4
+        anchors.rightMargin: 4
+        anchors.topMargin: 0
+        anchors.bottomMargin: 0
+        spacing: 2
 
         // Row 0: Top Bar
         RowLayout {
             Layout.fillWidth: true
 
             Text {
-                text: "AI Quota"
+                text: aiQuota.checking ? "AI Quota · checking…" : "AI Quota"
                 font.pixelSize: 11
                 font.bold: true
                 color: IslandTheme.textSecondary

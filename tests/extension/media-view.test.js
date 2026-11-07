@@ -106,4 +106,35 @@ function expect(actual, expected, label) {
         'No-player presentation still reports 1.0');
 }
 
-console.log('PASS: 24 media presentation mapper tests');
+// 6. Core-reported sink volume is what the slider shows, with or without a player
+{
+    const base = {
+        playerId: 'org.mpris.MediaPlayer2.spotify',
+        title: 'Song Name',
+        artist: 'Band Name',
+        playbackStatus: 'Playing',
+        durationUs: 0,
+    };
+
+    const muted = formatMediaPresentation({...base, volume: 0, unmutedVolume: 0.4, muted: true});
+    expect(muted.volume, 0, 'Muted sink reports an empty slider');
+    expect(muted.unmutedVolume, 0.4, 'Mute keeps the level for restore');
+    expect(muted.muted, true, 'Muted flag passes through');
+
+    const audible = formatMediaPresentation({...base, volume: 0.4, unmutedVolume: 0.4, muted: false});
+    expect(audible.volume, 0.4, 'Audible sink level is the slider value');
+    expect(audible.muted, false, 'Audible sink is not muted');
+
+    // The laptop's own level must survive a player that reports no Volume.
+    const noPlayer = formatMediaPresentation({volume: 0.3, unmutedVolume: 0.3, muted: false});
+    expect(noPlayer.hasPlayer, false, 'Still the no-player presentation');
+    expect(noPlayer.volume, 0.3, 'No-player slider mirrors the real sink');
+
+    // Older cores omit both keys; the player Volume remains the fallback.
+    const legacy = formatMediaPresentation({...base, volume: 0.6});
+    expect(legacy.volume, 0.6, 'Legacy core falls back to the player volume');
+    expect(legacy.unmutedVolume, 0.6, 'Legacy core derives the restore level');
+    expect(legacy.muted, false, 'Legacy core derives the mute flag');
+}
+
+console.log('PASS: 32 media presentation mapper tests');

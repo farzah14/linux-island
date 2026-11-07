@@ -40,8 +40,16 @@ need() {
     command -v "$1" >/dev/null 2>&1 || { echo "ERROR: missing dependency: $1" >&2; exit 3; }
 }
 
-need gnome-screenshot
 need gdbus
+
+# Capture goes through the XDG desktop portal (see capture() below), which needs
+# PyGObject. gnome-screenshot is NOT used: on GNOME 46+ it is denied by the
+# Shell and falls back to X11, producing an empty file under Wayland.
+if ! python3 -c 'import gi; gi.require_version("Gio", "2.0")' 2>/dev/null; then
+    echo "ERROR: python3-gi (PyGObject) is required for portal screenshots" >&2
+    echo "       Debian/Ubuntu: sudo apt install python3-gi" >&2
+    exit 3
+fi
 
 section "environment"
 say "date          : $(date -Is)"
@@ -81,13 +89,80 @@ fi
 
 # --- capture ---------------------------------------------------------------
 
+# gnome-screenshot 41 (Ubuntu 22.04/24.04) talks to org.gnome.Shell.Screenshot,
+# which GNOME 46+ refuses for unprivileged callers ("Screenshot is not
+# allowed"); it then falls back to X11, which has no pixels under Wayland, and
+# writes nothing. Use the XDG desktop portal instead, which is the supported
+# path and also works for the GNOME Shell UI itself.
+capture() {
+    local path="$1"
+    python3 - "$path" <<'PY'
+import os
+import shutil
+import sys
+
+import gi
+
+gi.require_version('Gio', '2.0')
+from gi.repository import Gio, GLib
+
+target = os.path.abspath(sys.argv[1])
+bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+token = f'linuxisland{os.getpid()}'
+state = {}
+
+
+def on_response(_conn, _sender, path, _iface, _signal, params):
+    if path != handle:
+        return
+    state['code'], results = params.unpack()
+    state['uri'] = results.get('uri')
+    loop.quit()
+
+
+params = GLib.Variant('(sa{sv})', ('', {
+    'interactive': GLib.Variant('b', False),
+    'handle_token': GLib.Variant('s', token),
+}))
+try:
+    reply = bus.call_sync(
+        'org.freedesktop.portal.Desktop',
+        '/org/freedesktop/portal/desktop',
+        'org.freedesktop.portal.Screenshot', 'Screenshot',
+        params, None, Gio.DBusCallFlags.NONE, 5000, None)
+    handle = reply.unpack()[0]
+except GLib.Error as error:
+    print(f'portal call failed: {error.message}', file=sys.stderr)
+    raise SystemExit(1)
+
+bus.signal_subscribe(
+    'org.freedesktop.portal.Desktop', 'org.freedesktop.portal.Request',
+    'Response', handle, None, Gio.DBusSignalFlags.NONE, on_response)
+
+loop = GLib.MainLoop()
+GLib.timeout_add_seconds(15, loop.quit)
+loop.run()
+
+if state.get('code') != 0 or not state.get('uri'):
+    print(f"portal returned code {state.get('code')!r}", file=sys.stderr)
+    raise SystemExit(1)
+
+source = GLib.filename_from_uri(state['uri'])[0]
+shutil.copyfile(source, target)
+try:
+    os.unlink(source)
+except OSError:
+    pass
+PY
+}
+
 shot() {
     local name="$1"
     local path="$OUT/${name}.png"
-    if gnome-screenshot -f "$path" 2>/dev/null; then
+    if capture "$path"; then
         say "captured      : $path"
     else
-        say "FAILED        : $path (screenshot denied?)"
+        say "FAILED        : $path (portal denied or timed out)"
         return 1
     fi
 }

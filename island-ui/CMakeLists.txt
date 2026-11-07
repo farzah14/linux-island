@@ -5,18 +5,16 @@ qt_add_executable(linux-island-ui
     main.cpp
     island_client.h
     island_client.cpp
+    time_client.h
+    time_client.cpp
+    time_format.h
+    time_format.cpp
     system_metrics_provider.h
     system_metrics_provider.cpp
     quick_settings_provider.h
     quick_settings_provider.cpp
     ai_quota_provider.h
     ai_quota_provider.cpp
-    search_provider.h
-    search_provider.cpp
-    companion_profile.h
-    companion_profile.cpp
-    cookie_importer.h
-    cookie_importer.cpp
     notification_watcher.h
     notification_watcher.cpp
     display_surface_manager.h
@@ -46,9 +44,15 @@ set_source_files_properties(
     ${CMAKE_SOURCE_DIR}/extension/icons/ui/ai-symbolic.svg
     PROPERTIES QT_RESOURCE_ALIAS "icons/ui/ai-symbolic.svg"
 )
+
 set_source_files_properties(
-    ${CMAKE_SOURCE_DIR}/extension/icons/ui/search-symbolic.svg
-    PROPERTIES QT_RESOURCE_ALIAS "icons/ui/search-symbolic.svg"
+    ${CMAKE_SOURCE_DIR}/extension/icons/ui/calendar-symbolic.svg
+    PROPERTIES QT_RESOURCE_ALIAS "icons/ui/calendar-symbolic.svg"
+)
+
+set_source_files_properties(
+    ${CMAKE_SOURCE_DIR}/extension/icons/ui/timer-symbolic.svg
+    PROPERTIES QT_RESOURCE_ALIAS "icons/ui/timer-symbolic.svg"
 )
 set_source_files_properties(
     ${CMAKE_SOURCE_DIR}/extension/icons/ui/prev-symbolic.svg
@@ -86,6 +90,26 @@ set_source_files_properties(
     ${CMAKE_SOURCE_DIR}/extension/icons/ui/dnd-symbolic.svg
     PROPERTIES QT_RESOURCE_ALIAS "icons/ui/dnd-symbolic.svg"
 )
+set_source_files_properties(
+    ${CMAKE_SOURCE_DIR}/extension/icons/ui/cpu-symbolic.svg
+    PROPERTIES QT_RESOURCE_ALIAS "icons/ui/cpu-symbolic.svg"
+)
+set_source_files_properties(
+    ${CMAKE_SOURCE_DIR}/extension/icons/ui/ram-symbolic.svg
+    PROPERTIES QT_RESOURCE_ALIAS "icons/ui/ram-symbolic.svg"
+)
+set_source_files_properties(
+    ${CMAKE_SOURCE_DIR}/extension/icons/ui/battery-symbolic.svg
+    PROPERTIES QT_RESOURCE_ALIAS "icons/ui/battery-symbolic.svg"
+)
+set_source_files_properties(
+    ${CMAKE_SOURCE_DIR}/extension/icons/ui/network-symbolic.svg
+    PROPERTIES QT_RESOURCE_ALIAS "icons/ui/network-symbolic.svg"
+)
+set_source_files_properties(
+    ${CMAKE_SOURCE_DIR}/extension/icons/ui/disk-symbolic.svg
+    PROPERTIES QT_RESOURCE_ALIAS "icons/ui/disk-symbolic.svg"
+)
 
 qt_add_qml_module(linux-island-ui
     URI linuxisland.ui
@@ -97,9 +121,8 @@ qt_add_qml_module(linux-island-ui
         qml/MusicPage.qml
         qml/SystemPage.qml
         qml/AiQuotaPage.qml
-        qml/SearchPage.qml
+        qml/TimePage.qml
         qml/IslandWindow.qml
-        qml/CompanionWindow.qml
     RESOURCES
         ${CMAKE_SOURCE_DIR}/extension/icons/antigravity.png
         ${CMAKE_SOURCE_DIR}/extension/icons/codex.png
@@ -107,7 +130,8 @@ qt_add_qml_module(linux-island-ui
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/media-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/system-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/ai-symbolic.svg
-        ${CMAKE_SOURCE_DIR}/extension/icons/ui/search-symbolic.svg
+        ${CMAKE_SOURCE_DIR}/extension/icons/ui/calendar-symbolic.svg
+        ${CMAKE_SOURCE_DIR}/extension/icons/ui/timer-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/prev-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/next-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/play-symbolic.svg
@@ -117,6 +141,11 @@ qt_add_qml_module(linux-island-ui
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/theme-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/night-light-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/dnd-symbolic.svg
+        ${CMAKE_SOURCE_DIR}/extension/icons/ui/cpu-symbolic.svg
+        ${CMAKE_SOURCE_DIR}/extension/icons/ui/ram-symbolic.svg
+        ${CMAKE_SOURCE_DIR}/extension/icons/ui/battery-symbolic.svg
+        ${CMAKE_SOURCE_DIR}/extension/icons/ui/network-symbolic.svg
+        ${CMAKE_SOURCE_DIR}/extension/icons/ui/disk-symbolic.svg
 )
 
 target_include_directories(linux-island-ui PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -126,10 +155,6 @@ target_link_libraries(linux-island-ui PRIVATE
     Qt6::Qml
     Qt6::Quick
     Qt6::DBus
-    Qt6::WebEngineQuick
-    Qt6::WebEngineCore
-    Qt6::Sql
-    OpenSSL::Crypto
 )
 target_compile_definitions(linux-island-ui PRIVATE ISLAND_VERSION="${PROJECT_VERSION}")
 

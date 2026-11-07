@@ -6,9 +6,9 @@ pkgdesc="Dynamic Island-style status capsule for Linux desktops"
 arch=('x86_64' 'aarch64')
 url="https://github.com/farzah14/linux-island"
 license=('MIT')
-depends=('qt6-base' 'qt6-declarative' 'qt6-webengine' 'qt6-webchannel' 'qt6-positioning' 'openssl' 'libxcb' 'xcb-util-cursor')
+depends=('qt6-base' 'qt6-declarative' 'libxcb' 'xcb-util-cursor')
 makedepends=('cmake' 'ninja' 'git')
-optdepends=('python: AI quota and cookie-import helpers'
+optdepends=('python: AI quota helpers'
             'gnome-shell: native GNOME extension'
             'xorg-xprop: X11 and XWayland fullscreen detection')
 source=("linux-island-$pkgver.tar.gz")

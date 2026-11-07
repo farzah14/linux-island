@@ -79,7 +79,7 @@ export function getPageIcon(page) {
     if (id === 'media' || id === 'music') return 'audio-x-generic-symbolic';
     if (id === 'system' || id === 'controls' || id === 'metrics') return 'preferences-system-symbolic';
     if (id === 'ai' || id === 'quota' || id === 'ai-quota') return 'applications-science-symbolic';
-    if (id === 'search' || id === 'web' || id === 'web-search') return 'system-search-symbolic';
+    if (id === 'time' || id === 'timer') return 'alarm-symbolic';
     return 'view-more-symbolic';
 }
 
@@ -91,7 +91,7 @@ export function getLocalNavGIcon(page) {
         if (id === 'media' || id === 'music') name = 'media-symbolic.svg';
         else if (id === 'system' || id === 'controls' || id === 'metrics') name = 'system-symbolic.svg';
         else if (id === 'ai' || id === 'quota' || id === 'ai-quota') name = 'ai-symbolic.svg';
-        else if (id === 'search' || id === 'web' || id === 'web-search') name = 'search-symbolic.svg';
+        else if (id === 'time' || id === 'timer') name = 'timer-symbolic.svg';
         if (!name) return null;
 
         const thisFile = Gio.File.new_for_uri(import.meta.url);
@@ -353,11 +353,9 @@ export class FeatureCarousel {
             'linux-island__volume-fill',
             'linux-island__quota-action',
             'linux-island__quota-row',
-            'linux-island__search-entry',
-            'linux-island__search-action',
-            'linux-island__search-engine-btn',
-            'linux-island__search-engine-btn--active',
             'linux-island__carousel-dot',
+            'linux-island__timer-chip',
+            'linux-island__time-section',
         ];
         let curr = source;
         while (curr && curr !== this.actor) {

@@ -6,7 +6,16 @@ Item {
     id: root
 
     implicitWidth: parent ? parent.width : 320
-    implicitHeight: 120
+    implicitHeight: 98
+
+    property string capsuleSize: "medium"
+    readonly property int pageWidth: width > 0 ? width - 8 : 286
+    readonly property int colGap: pageWidth < 286 ? 6 : 10
+    readonly property int netColWidth: 78
+    readonly property int sideColWidth: Math.max(64, Math.floor((pageWidth - netColWidth - colGap * 2) / 2))
+    readonly property bool compactMetrics: sideColWidth < 76
+    readonly property int storageColWidth: Math.max(0, sideColWidth - 22 - 4)
+    readonly property bool showStorageDetail: storageColWidth >= 58
 
     readonly property bool shouldPoll: visible && SwipeView.isCurrentItem && islandClient.uiState === "EXPANDED"
 
@@ -24,13 +33,16 @@ Item {
 
     RowLayout {
         anchors.fill: parent
-        anchors.margins: 6
-        spacing: 6
+        anchors.leftMargin: 4
+        anchors.rightMargin: 4
+        anchors.topMargin: 0
+        anchors.bottomMargin: 0
+        spacing: root.colGap
 
         // Slot 1: Left Metrics Column (CPU, RAM, BAT)
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.preferredWidth: 111
+            Layout.preferredWidth: root.sideColWidth
             Layout.alignment: Qt.AlignVCenter
             spacing: 4
 
@@ -38,6 +50,13 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 20
+                spacing: root.compactMetrics ? 4 : 8
+                NavIcon {
+                    size: 14
+                    source: "qrc:/linuxisland/ui/icons/ui/cpu-symbolic.svg"
+                    color: IslandTheme.textSecondary
+                    visible: !root.compactMetrics
+                }
                 Text {
                     text: "CPU"
                     font.pixelSize: 11
@@ -57,6 +76,13 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 20
+                spacing: root.compactMetrics ? 4 : 8
+                NavIcon {
+                    size: 14
+                    source: "qrc:/linuxisland/ui/icons/ui/ram-symbolic.svg"
+                    color: IslandTheme.textSecondary
+                    visible: !root.compactMetrics
+                }
                 Text {
                     text: "RAM"
                     font.pixelSize: 11
@@ -77,6 +103,13 @@ Item {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 20
                 visible: systemMetrics.hasBattery
+                spacing: root.compactMetrics ? 4 : 8
+                NavIcon {
+                    size: 14
+                    source: "qrc:/linuxisland/ui/icons/ui/battery-symbolic.svg"
+                    color: IslandTheme.textSecondary
+                    visible: !root.compactMetrics
+                }
                 Text {
                     text: systemMetrics.batteryCharging ? "BAT ⚡" : "BAT"
                     font.pixelSize: 11
@@ -105,7 +138,7 @@ Item {
 
                 NavIcon {
                     size: 13
-                    source: "qrc:/linuxisland/ui/icons/ui/system-symbolic.svg"
+                    source: "qrc:/linuxisland/ui/icons/ui/network-symbolic.svg"
                     color: IslandTheme.textSecondary
                 }
 
@@ -143,7 +176,7 @@ Item {
         // Slot 3: Right Slot (Storage Indicator + Vertical 4-Icon Column)
         RowLayout {
             Layout.fillWidth: true
-            Layout.preferredWidth: 111
+            Layout.preferredWidth: root.sideColWidth
             Layout.alignment: Qt.AlignVCenter
             spacing: 4
 
@@ -155,7 +188,7 @@ Item {
 
                 NavIcon {
                     size: 13
-                    source: "qrc:/linuxisland/ui/icons/ui/system-symbolic.svg"
+                    source: "qrc:/linuxisland/ui/icons/ui/disk-symbolic.svg"
                     color: IslandTheme.textSecondary
                     Layout.alignment: Qt.AlignHCenter
                 }
@@ -169,10 +202,12 @@ Item {
                 }
 
                 Text {
+                    id: storageDetailText
                     text: systemMetrics.storageDetailText
                     font.pixelSize: 9
                     color: IslandTheme.textSecondary
                     Layout.alignment: Qt.AlignHCenter
+                    visible: root.showStorageDetail
                 }
             }
 
@@ -193,7 +228,7 @@ Item {
                         anchors.centerIn: parent
                         size: 14
                         source: "qrc:/linuxisland/ui/icons/ui/theme-symbolic.svg"
-                        color: quickSettings.darkMode ? IslandTheme.accentPrimary : IslandTheme.textSecondary
+                        color: islandClient.theme !== "light" ? IslandTheme.accentPrimary : IslandTheme.textSecondary
                     }
 
                     MouseArea {
@@ -201,7 +236,7 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: quickSettings.toggleDarkMode()
+                        onClicked: islandClient.cycleTheme()
                     }
                 }
 

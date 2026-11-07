@@ -7,8 +7,7 @@ import {SystemMetricsRow, NetMonitorView, computeSystemColumns} from './systemMe
 import {QuickTogglesRow} from './quickToggle.js';
 import {FeatureCarousel} from './featureCarousel.js';
 import {AiQuotaSection} from './aiQuotaView.js';
-import {SearchSection} from './searchView.js';
-import {DEFAULT_SEARCH_ENGINE, isValidNavigationUrl} from '../lib/searchEngines.js';
+import {TimeSection} from './timeView.js';
 
 export const CAPSULE_SIZES = Object.freeze({
     circle: {width: 268, artwork: 40, button: 28, play: 36, icon: 12,
@@ -68,7 +67,25 @@ export function getLocalUiGIcon(name) {
 }
 
 
+// `volume` is the level the user actually hears: on PipeWire that is the
+// system sink, which Core reports alongside the mute flag. Both keys are absent
+// on older cores, where the player's own Volume is all there is.
+function volumeFields(media) {
+    const number = value => (typeof value === 'number' && Number.isFinite(value) ? value : null);
+    const clamp01 = value => Math.max(0, Math.min(1, value));
+
+    const reportedRaw = number(media?.volume);
+    const reported = reportedRaw === null ? 1.0 : clamp01(reportedRaw);
+    const unmutedRaw = number(media?.unmutedVolume);
+    const unmutedVolume = unmutedRaw === null || unmutedRaw <= 0
+        ? (reported > 0 ? reported : 1.0)
+        : clamp01(unmutedRaw);
+    const muted = media?.muted === undefined ? reported <= 0 : Boolean(media.muted);
+    return {volume: muted ? 0 : reported, unmutedVolume, muted};
+}
+
 export function formatMediaPresentation(media) {
+    const levels = volumeFields(media);
     if (!media || !media.playerId) {
         return {
             hasPlayer: false,
@@ -80,7 +97,9 @@ export function formatMediaPresentation(media) {
             canNext: false,
             canPrevious: false,
             progress: 0.0,
-            volume: 1.0,
+            // Core reports the sink even with nothing playing, so the volume
+            // row keeps matching the laptop instead of snapping to full.
+            ...levels,
         };
     }
 
@@ -104,9 +123,6 @@ export function formatMediaPresentation(media) {
         progress = Math.min(1.0, Math.max(0.0, pos / dur));
     }
 
-    const volume = (typeof media?.volume === 'number' && !Number.isNaN(media.volume))
-        ? Math.max(0, Math.min(1, media.volume)) : 1.0;
-
     return {
         hasPlayer: true,
         title,
@@ -117,7 +133,7 @@ export function formatMediaPresentation(media) {
         canNext,
         canPrevious,
         progress,
-        volume,
+        ...levels,
     };
 }
 
@@ -152,18 +168,17 @@ export class MediaView {
      * @param {Function} [options.artworkLoader] - async validated local icon loader
      */
     constructor({onControlAction, onDismiss, onThemeToggle, onSetActivePlayer, onUpdateSettings,
-        onCompanionStart, onCompanionEnd,
-        searchEngine = DEFAULT_SEARCH_ENGINE, artworkLoader = loadLocalArtwork,
+        onStartTimer, onControlTimer, onTimerStats,
+        artworkLoader = loadLocalArtwork,
         clock = () => GLib ? GLib.get_monotonic_time() : 0, scheduler} = {}) {
         this._onControlAction = onControlAction ?? (() => {});
         this._onDismiss = onDismiss ?? (() => {});
+        this._onStartTimer = onStartTimer ?? (() => {});
+        this._onControlTimer = onControlTimer ?? (() => {});
+        this._onTimerStats = onTimerStats ?? (() => {});
         this._onThemeToggle = onThemeToggle ?? (() => {});
         this._onSetActivePlayer = onSetActivePlayer ?? (() => {});
         this._onUpdateSettings = onUpdateSettings ?? (() => {});
-        this._onCompanionStart = onCompanionStart ?? (() => {});
-        this._onCompanionEnd = onCompanionEnd ?? (() => {});
-        this._companionSubprocess = null;
-        this._searchEngine = searchEngine;
         this._availablePlayers = [];
         this._playerSwitcherBtn = null;
         this._playerSwitcherLabel = null;
@@ -196,7 +211,7 @@ export class MediaView {
             cancel: id => { if (GLib && id) GLib.source_remove(id); },
         };
         this._aiQuotaSection = null;
-        this._searchSection = null;
+        this._timeSection = null;
         this._netView = null;
         this._metricsSlot = null;
         this._togglesSlot = null;
@@ -211,9 +226,9 @@ export class MediaView {
                 if (!this._actor?.mapped) {
                     this._metricsRow?.stop();
                     this._aiQuotaSection?.stop();
-                } else if (this._carousel?.activeIndex === 1) {
+                } else if (this._carousel?.currentPage === 1) {
                     this._metricsRow?.start();
-                } else if (this._carousel?.activeIndex === 2) {
+                } else if (this._carousel?.currentPage === 2) {
                     this._aiQuotaSection?.start();
                 }
             });
@@ -612,16 +627,12 @@ export class MediaView {
             this._aiQuotaSection.setWidth(320);
         }
 
-        // Section 4: Web Search
-        this._searchSection = new SearchSection({
-            engine: this._searchEngine,
-            onEngineChanged: engine => this._onUpdateSettings({searchEngine: engine}),
-            onSearch: url => this._openSearch(url),
-            onDismiss: () => this._onDismiss?.(),
+        // Section 4: the timer page.
+        this._timeSection = new TimeSection({
+            onStart: request => this._onStartTimer(request),
+            onControl: action => this._onControlTimer(action),
+            onStats: () => this._onTimerStats(),
         });
-        if (this._searchSection.actor) {
-            this._searchSection.setWidth(320);
-        }
 
 
         // Slideable Carousel between Music section and System/Controls section
@@ -643,11 +654,11 @@ export class MediaView {
                     onActivate: () => this._aiQuotaSection?.start(),
                 },
                 {
-                    id: 'search',
-                    actor: this._searchSection?.actor,
-                    label: 'Search',
-                    iconName: 'system-search-symbolic',
-                    onActivate: () => this._searchSection?.focus(),
+                    id: 'timer',
+                    actor: this._timeSection?.actor,
+                    label: 'Timer',
+                    iconName: 'alarm-symbolic',
+                    onActivate: () => this._onTimerStats(),
                 },
             ],
             onPageChanged: (idx) => {
@@ -661,6 +672,7 @@ export class MediaView {
                 } else {
                     this._aiQuotaSection?.stop();
                 }
+                if (idx === 3) this._onTimerStats();
             },
         });
         if (this._carousel.actor) {
@@ -670,10 +682,6 @@ export class MediaView {
 
     setTheme(theme) {
         this._quickTogglesRow?.setTheme(theme);
-    }
-
-    setSearchEngine(engine) {
-        this._searchSection?.setEngine(engine);
     }
 
     _cyclePlayer() {
@@ -722,6 +730,14 @@ export class MediaView {
         return false;
     }
 
+    setTimer(timer) {
+        this._timeSection?.setTimer(timer);
+    }
+
+    setTimerStats(stats) {
+        this._timeSection?.setStats(stats);
+    }
+
     setCapsuleSize(size) {
         if (!Object.hasOwn(CAPSULE_SIZES, size) || !this._actor) return;
         const preset = CAPSULE_SIZES[size];
@@ -735,11 +751,14 @@ export class MediaView {
         // so request contentWidth - 8 to make the outer box exactly contentWidth.
         // 8px is the section's horizontal padding (4px each side).
         const systemWidth = Math.max(0, contentWidth - 8);
+        const columns = computeSystemColumns(systemWidth);
         if (this._systemSection) {
-            this._systemSection.style = `width: ${systemWidth}px; height: 98px; spacing: 10px; padding: 0 4px;`;
+            // The gap comes from computeSystemColumns: narrow cards tighten it
+            // to 6px so NET keeps its readable width instead of collapsing.
+            this._systemSection.style =
+                `width: ${systemWidth}px; height: 98px; spacing: ${columns.gap}px; padding: 0 4px;`;
             this._systemSection.width = systemWidth;
         }
-        const columns = computeSystemColumns(systemWidth);
         if (this._metricsSlot) {
             this._metricsSlot.style = `width: ${columns.metricsWidth}px; spacing: 0;`;
             this._metricsSlot.width = columns.metricsWidth;
@@ -758,7 +777,7 @@ export class MediaView {
             // the requested width to keep the page flush with the card.
             this._aiQuotaSection.setWidth(Math.max(0, contentWidth - 8));
         }
-        this._searchSection?.setWidth(Math.max(0, contentWidth - 8));
+        this._timeSection?.setWidth(contentWidth);
         if (this._carousel) {
             this._carousel.setPageWidth?.(contentWidth);
         }
@@ -823,9 +842,8 @@ export class MediaView {
         const pres = formatMediaPresentation(this._connected ? effectiveMedia : null);
         this._beatBars?.setPlayback(pres.isPlaying, pres.hasPlayer, effectiveMedia?.audioLevels);
 
-        // Volume: keep the optimistic value while the core echo is still in
-        // flight (the wpctl-only path emits no MPRIS PropertiesChanged), then
-        // reconcile with whatever the core reports.
+        // Volume: keep the optimistic value while the sink poll catches up,
+        // then reconcile with whatever Core reports.
         const volumeAge = this._lastUserVolume?.at ? this._clock() - this._lastUserVolume.at : Infinity;
         if (this._lastUserVolume?.at && volumeAge < 1200000) {
             if (Math.abs(pres.volume - this._volumeFraction) < 0.005) {
@@ -836,6 +854,11 @@ export class MediaView {
         } else {
             this._lastUserVolume = null;
             this._volumeFraction = pres.volume;
+        }
+        // The core keeps the sink level behind a mute, so the restore value is
+        // authoritative rather than a local guess.
+        if (pres.unmutedVolume > 0) {
+            this._lastUnmutedVolume = pres.unmutedVolume;
         }
         this._renderVolume();
 
@@ -989,81 +1012,6 @@ export class MediaView {
             }
         }).catch(() => {});
     }
-    _openSearch(url) {
-        // Only real web pages may reach the companion or the default browser.
-        // SearchSection validates too, but MediaView is also called directly
-        // by other callers, so the check must live at the launch boundary.
-        if (!isValidNavigationUrl(url)) return;
-        let launchedCompanion = false;
-        if (typeof Gio !== 'undefined' && Gio?.Subprocess) {
-            try {
-                const home = GLib?.get_home_dir ? GLib.get_home_dir() : '';
-                const candidates = [
-                    home + '/.local/libexec/linux-island-ui',
-                    '/usr/libexec/linux-island-ui',
-                    '/app/libexec/linux-island-ui',
-                    'linux-island-ui',
-                    'linux-island-launch',
-                ];
-                let bin = 'linux-island-ui';
-                if (GLib?.find_program_in_path) {
-                    for (const cand of candidates) {
-                        if (GLib.find_program_in_path(cand)) {
-                            bin = cand;
-                            break;
-                        }
-                    }
-                }
-                // A second search must replace the first companion window,
-                // not stack another WebEngine process on top of it.
-                const previous = this._companionSubprocess;
-                if (previous) {
-                    try {
-                        previous.send_signal(15);
-                    } catch (_) {
-                        try {
-                            previous.force_exit();
-                        } catch (_) {}
-                    }
-                }
-                const proc = new Gio.Subprocess({
-                    argv: [bin, '--companion', url],
-                    flags: Gio.SubprocessFlags.NONE,
-                });
-                proc.init(null);
-                this._companionSubprocess = proc;
-                launchedCompanion = true;
-                // onCompanionStart dismisses the capsule; calling onDismiss
-                // here as well dispatched a duplicate 'DISMISS'.
-                this._onCompanionStart?.();
-                proc.wait_async(null, (_p, res) => {
-                    try {
-                        proc.wait_finish(res);
-                    } catch (_) {}
-                    // The replaced process exits after the new one is already
-                    // installed; clearing state here would orphan it.
-                    if (this._companionSubprocess !== proc) return;
-                    this._companionSubprocess = null;
-                    this._onCompanionEnd?.();
-                    // A companion that died on startup (missing WebEngine,
-                    // broken profile) must not swallow the search: hand the
-                    // URL to the default browser instead of failing silently.
-                    if (typeof proc.get_if_exited === 'function' && proc.get_if_exited() &&
-                        typeof proc.get_exit_status === 'function' && proc.get_exit_status() !== 0) {
-                        try {
-                            Gio?.AppInfo?.launch_default_for_uri(url, null);
-                        } catch (_) {}
-                    }
-                });
-            } catch (_) {}
-        }
-        if (!launchedCompanion) {
-            try {
-                Gio?.AppInfo?.launch_default_for_uri(url, null);
-            } catch (_) {}
-            this._onDismiss?.();
-        }
-    }
 
 
     destroy() {
@@ -1082,21 +1030,8 @@ export class MediaView {
         this._togglesSlot = null;
         this._aiQuotaSection?.destroy();
         this._aiQuotaSection = null;
-        this._searchSection?.destroy();
-        this._searchSection = null;
-        if (this._companionSubprocess) {
-            try {
-                // SIGTERM (not force_exit/SIGKILL) lets WebEngine flush its
-                // cookie store, so the user's logins survive the Island
-                // reloading its own UI.
-                this._companionSubprocess.send_signal(15);
-            } catch (_) {
-                try {
-                    this._companionSubprocess.force_exit();
-                } catch (_) {}
-            }
-            this._companionSubprocess = null;
-        }
+        this._timeSection?.destroy();
+        this._timeSection = null;
         this._playerSwitcherBtn = null;
         this._playerSwitcherLabel = null;
         ++this._artGeneration;

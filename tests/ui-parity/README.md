@@ -16,7 +16,7 @@ This directory contains the reproducible test harnesses, fixtures, and execution
 
 ## 2. Deterministic Fixture Catalog
 
-The fixture runner (`tests/ui-parity/fixture_runner.py`) provides 12 deterministic states covering all 4 carousel pages:
+The fixture runner (`tests/ui-parity/fixture_runner.py`) provides 10 deterministic states covering all 4 carousel pages:
 
 | Fixture ID | Carousel Page | Scenario Tested | Key Invariants to Verify |
 |---|---|---|---|
@@ -30,8 +30,6 @@ The fixture runner (`tests/ui-parity/fixture_runner.py`) provides 12 determinist
 | `FIX-SYSTEM-NO-BAT` | System (1) | Desktop without battery | Battery tile cleanly hidden; CPU and RAM tiles balance without gap. |
 | `FIX-AI-QUOTA-NORMAL` | AI Quota (2) | Normal quotas loaded | 3 provider rows (Antigravity, Codex, Claude), 5h/Wk toggles, active progress tracks, reset countdowns. |
 | `FIX-AI-QUOTA-OFFLINE` | AI Quota (2) | Offline AI session | Honest "No active session" detail, progress 0%, "--%". |
-| `FIX-SEARCH-INITIAL` | Search (3) | Initial web search page | Google and Brave engine selection chips, 32px query field with search icon, hint "Enter to search · Esc to close". |
-| `FIX-SEARCH-FOCUSED` | Search (3) | Active search focus | Focus outline on query field, typed query text, primary search action button enabled (1.0 opacity). |
 
 ### Listing & Inspecting Fixtures
 ```bash
@@ -67,9 +65,14 @@ build/dev/island-ui/linux-island-ui --smoke-test
 QT_QPA_PLATFORM=xcb build/dev/island-ui/linux-island-ui &
 PID=$!
 
-# Capture screenshots via scrot / import / spectacle
-import -window root build/ui-parity/qt-overlay/fullscreen.png
-import -window root -crop 360x220+503+8 build/ui-parity/qt-overlay/crop-expanded.png
+# Capture screenshots via scrot / import / spectacle.
+# NOTE: `import -window root` reads the XWayland root window, which is empty
+# under GNOME Wayland, and gnome-screenshot is denied on GNOME 46+. Use the
+# portal-based capture in scripts/dev/capture-visual.sh instead:
+scripts/dev/capture-visual.sh --out build/ui-parity/qt-overlay/
+# The legacy X11 commands below only work in a real X11 session:
+# import -window root build/ui-parity/qt-overlay/fullscreen.png
+# import -window root -crop 360x220+503+8 build/ui-parity/qt-overlay/crop-expanded.png
 
 kill $PID
 ```

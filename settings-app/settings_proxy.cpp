@@ -155,9 +155,29 @@ void SettingsProxy::applySettingsMap(const QVariantMap &settings) {
         m_horizontalOffset = settings.value(QStringLiteral("horizontalOffset")).toInt();
         emit horizontalOffsetChanged();
     }
-    if (settings.contains(QStringLiteral("searchEngine")) && m_searchEngine != settings.value(QStringLiteral("searchEngine")).toString()) {
-        m_searchEngine = settings.value(QStringLiteral("searchEngine")).toString();
-        emit searchEngineChanged();
+    if (settings.contains(QStringLiteral("timerLongBreakMinutes")) && m_timerLongBreakMinutes != settings.value(QStringLiteral("timerLongBreakMinutes")).toInt()) {
+        m_timerLongBreakMinutes = settings.value(QStringLiteral("timerLongBreakMinutes")).toInt();
+        emit timerLongBreakMinutesChanged();
+    }
+    if (settings.contains(QStringLiteral("timerCycles")) && m_timerCycles != settings.value(QStringLiteral("timerCycles")).toInt()) {
+        m_timerCycles = settings.value(QStringLiteral("timerCycles")).toInt();
+        emit timerCyclesChanged();
+    }
+    if (settings.contains(QStringLiteral("timerAutoAdvance")) && m_timerAutoAdvance != settings.value(QStringLiteral("timerAutoAdvance")).toBool()) {
+        m_timerAutoAdvance = settings.value(QStringLiteral("timerAutoAdvance")).toBool();
+        emit timerAutoAdvanceChanged();
+    }
+    if (settings.contains(QStringLiteral("timerCompactHintEnabled")) && m_timerCompactHintEnabled != settings.value(QStringLiteral("timerCompactHintEnabled")).toBool()) {
+        m_timerCompactHintEnabled = settings.value(QStringLiteral("timerCompactHintEnabled")).toBool();
+        emit timerCompactHintEnabledChanged();
+    }
+    if (settings.contains(QStringLiteral("timerPresetMinutes")) && m_timerPresetMinutes != settings.value(QStringLiteral("timerPresetMinutes")).toInt()) {
+        m_timerPresetMinutes = settings.value(QStringLiteral("timerPresetMinutes")).toInt();
+        emit timerPresetMinutesChanged();
+    }
+    if (settings.contains(QStringLiteral("timerBreakMinutes")) && m_timerBreakMinutes != settings.value(QStringLiteral("timerBreakMinutes")).toInt()) {
+        m_timerBreakMinutes = settings.value(QStringLiteral("timerBreakMinutes")).toInt();
+        emit timerBreakMinutesChanged();
     }
 }
 
@@ -263,17 +283,61 @@ void SettingsProxy::setHorizontalOffset(int val) {
     }
 }
 
-void SettingsProxy::setDisplayMode(const QString &mode) {
-    if (m_displayMode != mode) {
-        sendPatch({{QStringLiteral("displayMode"), mode}});
+void SettingsProxy::setTimerLongBreakMinutes(int minutes) {
+    const int clamped = std::clamp(minutes, 1, 60);
+    if (m_timerLongBreakMinutes != clamped) {
+        m_timerLongBreakMinutes = clamped;
+        emit timerLongBreakMinutesChanged();
+        sendPatch({{QStringLiteral("timerLongBreakMinutes"), clamped}});
     }
 }
 
-void SettingsProxy::setSearchEngine(const QString &engine) {
-    if (m_searchEngine != engine) {
-        m_searchEngine = engine;
-        emit searchEngineChanged();
-        sendPatch({{QStringLiteral("searchEngine"), engine}});
+void SettingsProxy::setTimerCycles(int cycles) {
+    const int clamped = std::clamp(cycles, 2, 12);
+    if (m_timerCycles != clamped) {
+        m_timerCycles = clamped;
+        emit timerCyclesChanged();
+        sendPatch({{QStringLiteral("timerCycles"), clamped}});
+    }
+}
+
+void SettingsProxy::setTimerAutoAdvance(bool enabled) {
+    if (m_timerAutoAdvance != enabled) {
+        m_timerAutoAdvance = enabled;
+        emit timerAutoAdvanceChanged();
+        sendPatch({{QStringLiteral("timerAutoAdvance"), enabled}});
+    }
+}
+
+void SettingsProxy::setTimerCompactHintEnabled(bool enabled) {
+    if (m_timerCompactHintEnabled != enabled) {
+        m_timerCompactHintEnabled = enabled;
+        emit timerCompactHintEnabledChanged();
+        sendPatch({{QStringLiteral("timerCompactHintEnabled"), enabled}});
+    }
+}
+
+void SettingsProxy::setTimerPresetMinutes(int minutes) {
+    const int clamped = std::clamp(minutes, 1, 180);
+    if (m_timerPresetMinutes != clamped) {
+        m_timerPresetMinutes = clamped;
+        emit timerPresetMinutesChanged();
+        sendPatch({{QStringLiteral("timerPresetMinutes"), clamped}});
+    }
+}
+
+void SettingsProxy::setTimerBreakMinutes(int minutes) {
+    const int clamped = std::clamp(minutes, 1, 60);
+    if (m_timerBreakMinutes != clamped) {
+        m_timerBreakMinutes = clamped;
+        emit timerBreakMinutesChanged();
+        sendPatch({{QStringLiteral("timerBreakMinutes"), clamped}});
+    }
+}
+
+void SettingsProxy::setDisplayMode(const QString &mode) {
+    if (m_displayMode != mode) {
+        sendPatch({{QStringLiteral("displayMode"), mode}});
     }
 }
 

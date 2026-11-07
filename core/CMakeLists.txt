@@ -6,9 +6,12 @@ add_executable(linux-island-core
     dbus/core_adaptor.h
     dbus/variant_codec.h
     dbus/variant_codec.cpp
+    dbus/time_adaptor.h
     media/media_state.h
     media/audio_meter.h
     media/audio_meter.cpp
+    media/sink_volume.h
+    media/sink_volume.cpp
     media/media_normalizer.h
     media/media_normalizer.cpp
     media/player_registry.h
@@ -23,6 +26,9 @@ add_executable(linux-island-core
     settings/settings_schema.cpp
     settings/settings_store.h
     settings/settings_store.cpp
+    time/time_types.h
+    time/timer_service.h
+    time/timer_service.cpp
 )
 
 target_include_directories(linux-island-core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

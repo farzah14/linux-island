@@ -184,10 +184,12 @@ export class AiQuotaProviderRow {
             } else if (this._state.source === 'local-installed') {
                 this._detailLabel.text = this._state.detailText;
             } else {
-                this._detailLabel.text = this._state.detailText || '';
+                // No 5h window for this provider: show the weekly detail rather
+                // than a 5h string that does not exist.
+                this._detailLabel.text = this._state.altDetailText || this._state.detailText || '';
             }
         } else {
-            const wWk = windows.find(w => w.window === '7d' || w.window === 'Weekly' || w.window === '30d' || w.window === 'Argon 7d');
+            const wWk = windows.find(w => w.window === '7d' || w.window === 'Weekly' || w.window === '30d');
             const wArgon = windows.find(w => w.window === 'Argon 7d');
             if (wWk) {
                 let txt = `${wWk.remainingPercent}% left (${wWk.usedPercent}% used)`;
@@ -217,13 +219,21 @@ export class AiQuotaProviderRow {
         }
         const windows = Array.isArray(providerState.windows) ? providerState.windows : [];
         const w5h = windows.find(w => w.window === '5h');
-        const wWeekly = windows.find(w => w.window === '7d' || w.window === 'Weekly' || w.window === '30d' || w.window === 'Argon 7d');
+        const wWeekly = windows.find(w => w.window === '7d' || w.window === 'Weekly' || w.window === '30d');
+
+        // A provider that only reports one window (Claude shared is weekly-only)
+        // must not inherit the other window's percentage. Show "--%" instead of
+        // inventing a number.
+        const has5h = (typeof providerState.has5h === 'boolean')
+            ? providerState.has5h
+            : Boolean(w5h);
+        const has7d = (typeof providerState.has7d === 'boolean')
+            ? providerState.has7d
+            : Boolean(wWeekly);
 
         if (this._btn5h) {
-            if (w5h && typeof w5h.remainingPercent === 'number') {
+            if (has5h && w5h && typeof w5h.remainingPercent === 'number') {
                 this._btn5h.label = `5h: ${w5h.remainingPercent}%`;
-            } else if (providerState.connected) {
-                this._btn5h.label = `5h: ${providerState.remainingPercent}%`;
             } else {
                 this._btn5h.label = '5h: --%';
             }
@@ -231,10 +241,8 @@ export class AiQuotaProviderRow {
 
         if (this._btnWeekly) {
             const prefix = (wWeekly && wWeekly.window === '30d') ? '30d' : '7d';
-            if (wWeekly && typeof wWeekly.remainingPercent === 'number') {
+            if (has7d && wWeekly && typeof wWeekly.remainingPercent === 'number') {
                 this._btnWeekly.label = `${prefix}: ${wWeekly.remainingPercent}%`;
-            } else if (providerState.connected) {
-                this._btnWeekly.label = `7d: ${providerState.remainingPercent}%`;
             } else {
                 this._btnWeekly.label = '7d: --%';
             }
@@ -370,6 +378,9 @@ export class AiQuotaSection {
 
     _applySnapshot(snap) {
         if (!snap || this._destroyed) return;
+        if (this._titleLabel) {
+            this._titleLabel.text = snap.checking ? 'AI Quota · checking…' : 'AI Quota';
+        }
         if (this._antigravityRow && snap.antigravity) {
             this._antigravityRow.update(snap.antigravity);
         }

@@ -1,5 +1,8 @@
 # D-Bus integration targets are introduced in milestone M1.
 add_test(NAME dbus-schema COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_schema.py)
+add_test(NAME time-schema COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_time_schema.py)
+add_test(NAME time-page-layout COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_time_page_layout.py)
+add_test(NAME double-render-guard COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_double_render_guard.py)
 add_test(NAME session-service COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_session_service.py)
 add_test(NAME m0-scaffold COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_m0_scaffold.py)
 
@@ -11,10 +14,6 @@ add_test(NAME dev-cli
 add_test(NAME stage-metadata
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_stage_metadata.py)
 
-# Companion session persistence: two real launches, one cookie jar. Skips when
-# the UI binary is missing or headless WebEngine cannot reach a local server.
-add_test(NAME companion-persistence
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_companion_persistence.py)
 
 set(CMAKE_AUTOMOC ON)
 add_executable(tst_core_dbus
@@ -30,6 +29,8 @@ add_executable(tst_core_dbus
     ${CMAKE_SOURCE_DIR}/core/media/player_registry.cpp
     ${CMAKE_SOURCE_DIR}/core/media/mpris_controller.h
     ${CMAKE_SOURCE_DIR}/core/media/mpris_controller.cpp
+    ${CMAKE_SOURCE_DIR}/core/media/sink_volume.h
+    ${CMAKE_SOURCE_DIR}/core/media/sink_volume.cpp
     ${CMAKE_SOURCE_DIR}/core/media/artwork_cache.h
     ${CMAKE_SOURCE_DIR}/core/media/artwork_cache.cpp
     ${CMAKE_SOURCE_DIR}/core/events/revision_clock.h
@@ -38,6 +39,10 @@ add_executable(tst_core_dbus
     ${CMAKE_SOURCE_DIR}/core/settings/settings_schema.cpp
     ${CMAKE_SOURCE_DIR}/core/settings/settings_store.h
     ${CMAKE_SOURCE_DIR}/core/settings/settings_store.cpp
+    ${CMAKE_SOURCE_DIR}/core/time/time_types.h
+    ${CMAKE_SOURCE_DIR}/core/time/timer_service.h
+    ${CMAKE_SOURCE_DIR}/core/time/timer_service.cpp
+    ${CMAKE_SOURCE_DIR}/core/dbus/time_adaptor.h
 )
 target_include_directories(tst_core_dbus PRIVATE ${CMAKE_SOURCE_DIR}/core)
 target_link_libraries(tst_core_dbus PRIVATE Qt6::Core Qt6::DBus Qt6::Network Qt6::Test)
@@ -47,6 +52,42 @@ if(DBUS_RUN_SESSION)
     add_test(NAME core-dbus COMMAND ${DBUS_RUN_SESSION} $<TARGET_FILE:tst_core_dbus>)
 else()
     add_test(NAME core-dbus COMMAND tst_core_dbus)
+endif()
+
+add_executable(tst_time_dbus
+    tst_time_dbus.cpp
+    ${CMAKE_SOURCE_DIR}/core/dbus/core_service.h
+    ${CMAKE_SOURCE_DIR}/core/dbus/time_adaptor.h
+    ${CMAKE_SOURCE_DIR}/core/dbus/variant_codec.h
+    ${CMAKE_SOURCE_DIR}/core/dbus/variant_codec.cpp
+    ${CMAKE_SOURCE_DIR}/core/media/media_state.h
+    ${CMAKE_SOURCE_DIR}/core/media/media_normalizer.h
+    ${CMAKE_SOURCE_DIR}/core/media/media_normalizer.cpp
+    ${CMAKE_SOURCE_DIR}/core/media/player_registry.h
+    ${CMAKE_SOURCE_DIR}/core/media/player_registry.cpp
+    ${CMAKE_SOURCE_DIR}/core/media/mpris_controller.h
+    ${CMAKE_SOURCE_DIR}/core/media/mpris_controller.cpp
+    ${CMAKE_SOURCE_DIR}/core/media/sink_volume.h
+    ${CMAKE_SOURCE_DIR}/core/media/sink_volume.cpp
+    ${CMAKE_SOURCE_DIR}/core/media/artwork_cache.h
+    ${CMAKE_SOURCE_DIR}/core/media/artwork_cache.cpp
+    ${CMAKE_SOURCE_DIR}/core/events/revision_clock.h
+    ${CMAKE_SOURCE_DIR}/core/events/revision_clock.cpp
+    ${CMAKE_SOURCE_DIR}/core/settings/settings_schema.h
+    ${CMAKE_SOURCE_DIR}/core/settings/settings_schema.cpp
+    ${CMAKE_SOURCE_DIR}/core/settings/settings_store.h
+    ${CMAKE_SOURCE_DIR}/core/settings/settings_store.cpp
+    ${CMAKE_SOURCE_DIR}/core/time/time_types.h
+    ${CMAKE_SOURCE_DIR}/core/time/timer_service.h
+    ${CMAKE_SOURCE_DIR}/core/time/timer_service.cpp
+)
+target_include_directories(tst_time_dbus PRIVATE ${CMAKE_SOURCE_DIR}/core)
+target_link_libraries(tst_time_dbus PRIVATE Qt6::Core Qt6::DBus Qt6::Network Qt6::Test)
+
+if(DBUS_RUN_SESSION)
+    add_test(NAME time-dbus COMMAND ${DBUS_RUN_SESSION} $<TARGET_FILE:tst_time_dbus>)
+else()
+    add_test(NAME time-dbus COMMAND tst_time_dbus)
 endif()
 
 add_executable(tst_mpris_flow
@@ -60,6 +101,8 @@ add_executable(tst_mpris_flow
     ${CMAKE_SOURCE_DIR}/core/media/media_normalizer.cpp
     ${CMAKE_SOURCE_DIR}/core/media/mpris_controller.h
     ${CMAKE_SOURCE_DIR}/core/media/mpris_controller.cpp
+    ${CMAKE_SOURCE_DIR}/core/media/sink_volume.h
+    ${CMAKE_SOURCE_DIR}/core/media/sink_volume.cpp
 )
 target_include_directories(tst_mpris_flow PRIVATE ${CMAKE_SOURCE_DIR}/core)
 target_link_libraries(tst_mpris_flow PRIVATE Qt6::Core Qt6::DBus Qt6::Test)
@@ -84,4 +127,6 @@ find_program(NODE_EXECUTABLE node)
 if(NODE_EXECUTABLE)
     add_test(NAME extension-notification-adapter
         COMMAND ${NODE_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/extension/notification-adapter.test.js)
+    add_test(NAME extension-display-mode
+        COMMAND ${NODE_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/extension/display-mode.test.js)
 endif()

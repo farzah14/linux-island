@@ -74,7 +74,9 @@ function assertEqual(actual, expected, message) {
     assertEqual(getPageIcon({id: 'ai'}), 'applications-science-symbolic');
     assertEqual(getPageIcon({id: 'quota'}), 'applications-science-symbolic');
     assertEqual(getPageIcon({id: 'ai-quota'}), 'applications-science-symbolic');
-    assertEqual(getPageIcon({id: 'search'}), 'system-search-symbolic');
+    assertEqual(getPageIcon({id: 'search'}), 'view-more-symbolic');
+    assertEqual(getPageIcon({id: 'time'}), 'alarm-symbolic');
+    assertEqual(getPageIcon({id: 'timer'}), 'alarm-symbolic');
     assertEqual(getPageIcon(null), 'view-more-symbolic');
     assertEqual(getLocalNavGIcon(null), null);
     assertEqual(getLocalNavGIcon({id: 'unknown'}), null);
@@ -121,15 +123,11 @@ function assertEqual(actual, expected, message) {
     assertEqual(carousel._isInteractiveControl({classes: new Set(['linux-island__progress-fill'])}), true);
     assertEqual(carousel._isInteractiveControl({classes: new Set(['linux-island__quota-action'])}), true);
     assertEqual(carousel._isInteractiveControl({classes: new Set(['linux-island__quota-row'])}), true);
-    assertEqual(carousel._isInteractiveControl({classes: new Set(['linux-island__search-entry'])}), true);
-    assertEqual(carousel._isInteractiveControl({classes: new Set(['linux-island__search-action'])}), true);
-    assertEqual(carousel._isInteractiveControl({classes: new Set(['linux-island__search-engine-btn'])}), true);
-    assertEqual(carousel._isInteractiveControl({classes: new Set(['linux-island__search-engine-btn--active'])}), true);
     assertEqual(carousel._isInteractiveControl({classes: new Set(['other-class'])}), false);
     // Real GJS St.Widget actors have no `.classes` Set; they expose
     // has_style_class_name(). This is the runtime shape that must be detected.
     const gjsLikeActor = {
-        has_style_class_name: name => name === 'linux-island__search-entry',
+        has_style_class_name: name => name === 'linux-island__quota-row',
         get_parent: () => null,
     };
     assertEqual(carousel._isInteractiveControl(gjsLikeActor), true);

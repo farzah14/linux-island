@@ -14,6 +14,36 @@ if (typeof process === 'undefined') {
     } catch (_) {}
 }
 
+export function getLocalUiGIcon(name) {
+    if (!Gio || typeof Gio.File?.new_for_uri !== 'function') return null;
+    try {
+        const thisFile = Gio.File.new_for_uri(import.meta.url);
+        const iconFile = thisFile.get_parent().get_parent().get_child('icons').get_child('ui').get_child(name);
+        if (iconFile.query_exists(null)) {
+            return new Gio.FileIcon({file: iconFile});
+        }
+    } catch (_) {}
+    return null;
+}
+
+function mapToggleIconToSvg(iconName) {
+    switch (iconName) {
+    case 'weather-clear-night-symbolic':
+    case 'weather-clear-symbolic':
+    case 'preferences-desktop-display-symbolic':
+        return 'theme-symbolic.svg';
+    case 'notifications-disabled-symbolic':
+    case 'preferences-system-notifications-symbolic':
+        return 'dnd-symbolic.svg';
+    case 'night-light-symbolic':
+        return 'night-light-symbolic.svg';
+    case 'preferences-system-symbolic':
+        return 'system-symbolic.svg';
+    default:
+        return null;
+    }
+}
+
 // Quick-setting icon column. Geometry mirrors the CPU/RAM/BAT metric tiles:
 //   metric tile = 20px row, 4px gap, 4px side inset, 14px glyph
 //   toggle      = 20px row, 4px gap, 4px side inset, 14px glyph
@@ -57,9 +87,12 @@ export class QuickToggle {
             y_align: Clutter.ActorAlign.CENTER,
         });
 
+        const svg = mapToggleIconToSvg(this._iconName);
+        const gicon = svg ? getLocalUiGIcon(svg) : null;
         this._icon = new St.Icon({
             icon_name: this._iconName,
             fallback_icon_name: this._iconName,
+            ...(gicon ? {gicon} : {}),
             icon_size: 14,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
@@ -74,6 +107,11 @@ export class QuickToggle {
         if (this._icon) {
             this._icon.icon_name = iconName;
             this._icon.fallback_icon_name = iconName;
+            const svg = mapToggleIconToSvg(iconName);
+            const gicon = svg ? getLocalUiGIcon(svg) : null;
+            if (gicon && this._icon.set_gicon) {
+                this._icon.set_gicon(gicon);
+            }
         }
     }
 

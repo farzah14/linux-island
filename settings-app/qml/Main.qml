@@ -425,6 +425,16 @@ ApplicationWindow {
                     }
                 }
             }
+
+            Text {
+                text: settingsProxy.displayMode === "integrated"
+                    ? "Panel Integrated has no top-panel button yet; this falls back to the Qt overlay."
+                    : "Dynamic sits in the top bar. Floating renders the same capsule below the panel with a shadow."
+                font.pixelSize: 12
+                color: "#A69C8F"
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
         }
 
             // Screen & Notch Alignment
@@ -789,73 +799,6 @@ ApplicationWindow {
             }
         }
 
-        // Web Search
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: 8
-
-            Text {
-                text: "Web Search"
-                font.bold: true
-                font.pixelSize: 14
-                color: "#F4F0E9"
-            }
-
-            Text {
-                text: "Choose the engine used by the Island Search tab."
-                font.pixelSize: 12
-                color: "#A69C8F"
-            }
-
-            RowLayout {
-                spacing: 12
-                RadioButton {
-                    id: engineGoogleRadio
-                    text: "Google"
-                    onClicked: settingsProxy.setSearchEngine("google")
-                    Binding {
-                        target: engineGoogleRadio
-                        property: "checked"
-                        value: settingsProxy.searchEngine === "google"
-                        restoreMode: Binding.RestoreBindingOrValue
-                    }
-                }
-                RadioButton {
-                    id: engineDuckRadio
-                    text: "DuckDuckGo"
-                    onClicked: settingsProxy.setSearchEngine("duckduckgo")
-                    Binding {
-                        target: engineDuckRadio
-                        property: "checked"
-                        value: settingsProxy.searchEngine === "duckduckgo"
-                        restoreMode: Binding.RestoreBindingOrValue
-                    }
-                }
-                RadioButton {
-                    id: engineBraveRadio
-                    text: "Brave"
-                    onClicked: settingsProxy.setSearchEngine("brave")
-                    Binding {
-                        target: engineBraveRadio
-                        property: "checked"
-                        value: settingsProxy.searchEngine === "brave"
-                        restoreMode: Binding.RestoreBindingOrValue
-                    }
-                }
-                RadioButton {
-                    id: engineBingRadio
-                    text: "Bing"
-                    onClicked: settingsProxy.setSearchEngine("bing")
-                    Binding {
-                        target: engineBingRadio
-                        property: "checked"
-                        value: settingsProxy.searchEngine === "bing"
-                        restoreMode: Binding.RestoreBindingOrValue
-                    }
-                }
-            }
-        }
-
         // Interaction Toggles
         ColumnLayout {
             Layout.fillWidth: true
@@ -896,6 +839,279 @@ ApplicationWindow {
                 text: "WhatsApp Activity Indicator (Opt-in notification activity)"
                 checked: settingsProxy.whatsappIntegrationEnabled
                 onToggled: settingsProxy.setWhatsappIntegrationEnabled(checked)
+            }
+        }
+
+        // Timer
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            Text {
+                text: "Timer"
+                font.bold: true
+                font.pixelSize: 14
+                color: "#F4F0E9"
+            }
+
+            CheckBox {
+                text: "Show Timer in Compact Capsule"
+                checked: settingsProxy.timerCompactHintEnabled
+                onToggled: settingsProxy.setTimerCompactHintEnabled(checked)
+            }
+
+            CheckBox {
+                text: "Auto-advance Pomodoro Phases"
+                checked: settingsProxy.timerAutoAdvance
+                onToggled: settingsProxy.setTimerAutoAdvance(checked)
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Text {
+                    text: "Focus Length: " + Math.round(timerPresetSlider.value) + " min"
+                    font.pixelSize: 13
+                    color: "#F4F0E9"
+                }
+                Item { Layout.fillWidth: true }
+            }
+
+            Slider {
+                id: timerPresetSlider
+                Layout.fillWidth: true
+                from: 1
+                to: 180
+                stepSize: 1
+                value: settingsProxy.timerPresetMinutes
+
+                Binding {
+                    target: timerPresetSlider
+                    property: "value"
+                    value: settingsProxy.timerPresetMinutes
+                    when: !timerPresetSlider.pressed
+                }
+
+                background: Rectangle {
+                    x: timerPresetSlider.leftPadding
+                    y: timerPresetSlider.topPadding + timerPresetSlider.availableHeight / 2 - height / 2
+                    implicitWidth: 200
+                    implicitHeight: 6
+                    width: timerPresetSlider.availableWidth
+                    height: implicitHeight
+                    radius: 3
+                    color: "#302D28"
+
+                    Rectangle {
+                        width: timerPresetSlider.visualPosition * parent.width
+                        height: parent.height
+                        color: "#D8B77F"
+                        radius: 3
+                    }
+                }
+
+                handle: Rectangle {
+                    x: timerPresetSlider.leftPadding + timerPresetSlider.visualPosition * (timerPresetSlider.availableWidth - width)
+                    y: timerPresetSlider.topPadding + timerPresetSlider.availableHeight / 2 - height / 2
+                    implicitWidth: 18
+                    implicitHeight: 18
+                    radius: 9
+                    color: timerPresetSlider.pressed ? "#F4F0E9" : "#D8B77F"
+                    border.color: "#191816"
+                    border.width: 1
+                }
+
+                onMoved: {
+                    if (!pressed) settingsProxy.setTimerPresetMinutes(Math.round(value))
+                }
+                onPressedChanged: {
+                    if (!pressed) settingsProxy.setTimerPresetMinutes(Math.round(value))
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Text {
+                    text: "Short Break: " + Math.round(timerBreakSlider.value) + " min"
+                    font.pixelSize: 13
+                    color: "#F4F0E9"
+                }
+                Item { Layout.fillWidth: true }
+            }
+
+            Slider {
+                id: timerBreakSlider
+                Layout.fillWidth: true
+                from: 1
+                to: 60
+                stepSize: 1
+                value: settingsProxy.timerBreakMinutes
+
+                Binding {
+                    target: timerBreakSlider
+                    property: "value"
+                    value: settingsProxy.timerBreakMinutes
+                    when: !timerBreakSlider.pressed
+                }
+
+                background: Rectangle {
+                    x: timerBreakSlider.leftPadding
+                    y: timerBreakSlider.topPadding + timerBreakSlider.availableHeight / 2 - height / 2
+                    implicitWidth: 200
+                    implicitHeight: 6
+                    width: timerBreakSlider.availableWidth
+                    height: implicitHeight
+                    radius: 3
+                    color: "#302D28"
+
+                    Rectangle {
+                        width: timerBreakSlider.visualPosition * parent.width
+                        height: parent.height
+                        color: "#D8B77F"
+                        radius: 3
+                    }
+                }
+
+                handle: Rectangle {
+                    x: timerBreakSlider.leftPadding + timerBreakSlider.visualPosition * (timerBreakSlider.availableWidth - width)
+                    y: timerBreakSlider.topPadding + timerBreakSlider.availableHeight / 2 - height / 2
+                    implicitWidth: 18
+                    implicitHeight: 18
+                    radius: 9
+                    color: timerBreakSlider.pressed ? "#F4F0E9" : "#D8B77F"
+                    border.color: "#191816"
+                    border.width: 1
+                }
+
+                onMoved: {
+                    if (!pressed) settingsProxy.setTimerBreakMinutes(Math.round(value))
+                }
+                onPressedChanged: {
+                    if (!pressed) settingsProxy.setTimerBreakMinutes(Math.round(value))
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Text {
+                    text: "Long Break: " + Math.round(timerLongBreakSlider.value) + " min"
+                    font.pixelSize: 13
+                    color: "#F4F0E9"
+                }
+                Item { Layout.fillWidth: true }
+            }
+
+            Slider {
+                id: timerLongBreakSlider
+                Layout.fillWidth: true
+                from: 1
+                to: 60
+                stepSize: 1
+                value: settingsProxy.timerLongBreakMinutes
+
+                Binding {
+                    target: timerLongBreakSlider
+                    property: "value"
+                    value: settingsProxy.timerLongBreakMinutes
+                    when: !timerLongBreakSlider.pressed
+                }
+
+                background: Rectangle {
+                    x: timerLongBreakSlider.leftPadding
+                    y: timerLongBreakSlider.topPadding + timerLongBreakSlider.availableHeight / 2 - height / 2
+                    implicitWidth: 200
+                    implicitHeight: 6
+                    width: timerLongBreakSlider.availableWidth
+                    height: implicitHeight
+                    radius: 3
+                    color: "#302D28"
+
+                    Rectangle {
+                        width: timerLongBreakSlider.visualPosition * parent.width
+                        height: parent.height
+                        color: "#D8B77F"
+                        radius: 3
+                    }
+                }
+
+                handle: Rectangle {
+                    x: timerLongBreakSlider.leftPadding + timerLongBreakSlider.visualPosition * (timerLongBreakSlider.availableWidth - width)
+                    y: timerLongBreakSlider.topPadding + timerLongBreakSlider.availableHeight / 2 - height / 2
+                    implicitWidth: 18
+                    implicitHeight: 18
+                    radius: 9
+                    color: timerLongBreakSlider.pressed ? "#F4F0E9" : "#D8B77F"
+                    border.color: "#191816"
+                    border.width: 1
+                }
+
+                onMoved: {
+                    if (!pressed) settingsProxy.setTimerLongBreakMinutes(Math.round(value))
+                }
+                onPressedChanged: {
+                    if (!pressed) settingsProxy.setTimerLongBreakMinutes(Math.round(value))
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Text {
+                    text: "Pomodoro Cycles: " + Math.round(timerCyclesSlider.value)
+                    font.pixelSize: 13
+                    color: "#F4F0E9"
+                }
+                Item { Layout.fillWidth: true }
+            }
+
+            Slider {
+                id: timerCyclesSlider
+                Layout.fillWidth: true
+                from: 2
+                to: 12
+                stepSize: 1
+                value: settingsProxy.timerCycles
+
+                Binding {
+                    target: timerCyclesSlider
+                    property: "value"
+                    value: settingsProxy.timerCycles
+                    when: !timerCyclesSlider.pressed
+                }
+
+                background: Rectangle {
+                    x: timerCyclesSlider.leftPadding
+                    y: timerCyclesSlider.topPadding + timerCyclesSlider.availableHeight / 2 - height / 2
+                    implicitWidth: 200
+                    implicitHeight: 6
+                    width: timerCyclesSlider.availableWidth
+                    height: implicitHeight
+                    radius: 3
+                    color: "#302D28"
+
+                    Rectangle {
+                        width: timerCyclesSlider.visualPosition * parent.width
+                        height: parent.height
+                        color: "#D8B77F"
+                        radius: 3
+                    }
+                }
+
+                handle: Rectangle {
+                    x: timerCyclesSlider.leftPadding + timerCyclesSlider.visualPosition * (timerCyclesSlider.availableWidth - width)
+                    y: timerCyclesSlider.topPadding + timerCyclesSlider.availableHeight / 2 - height / 2
+                    implicitWidth: 18
+                    implicitHeight: 18
+                    radius: 9
+                    color: timerCyclesSlider.pressed ? "#F4F0E9" : "#D8B77F"
+                    border.color: "#191816"
+                    border.width: 1
+                }
+
+                onMoved: {
+                    if (!pressed) settingsProxy.setTimerCycles(Math.round(value))
+                }
+                onPressedChanged: {
+                    if (!pressed) settingsProxy.setTimerCycles(Math.round(value))
+                }
             }
         }
 

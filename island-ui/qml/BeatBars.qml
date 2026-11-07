@@ -7,6 +7,7 @@ Item {
     property var audioLevels: [0.0, 0.0, 0.0]
     property bool isPlaying: false
     property color barColor: IslandTheme.accentPrimary
+    property bool animationEnabled: true
 
     implicitWidth: 16
     implicitHeight: 14
@@ -23,7 +24,10 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             radius: 1.5
             color: root.barColor
-            Behavior on Layout.preferredHeight { NumberAnimation { duration: 60 } }
+            Behavior on Layout.preferredHeight {
+                enabled: root.animationEnabled
+                NumberAnimation { duration: 60 }
+            }
         }
 
         Rectangle {
@@ -34,7 +38,10 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             radius: 1.5
             color: root.barColor
-            Behavior on Layout.preferredHeight { NumberAnimation { duration: 60 } }
+            Behavior on Layout.preferredHeight {
+                enabled: root.animationEnabled
+                NumberAnimation { duration: 60 }
+            }
         }
 
         Rectangle {
@@ -45,7 +52,10 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             radius: 1.5
             color: root.barColor
-            Behavior on Layout.preferredHeight { NumberAnimation { duration: 60 } }
+            Behavior on Layout.preferredHeight {
+                enabled: root.animationEnabled
+                NumberAnimation { duration: 60 }
+            }
         }
     }
 
@@ -54,7 +64,7 @@ Item {
     property real animHeight2: 6
 
     SequentialAnimation {
-        running: root.isPlaying && (!root.audioLevels || root.audioLevels[0] <= 0.02)
+        running: root.isPlaying && root.animationEnabled && (!root.audioLevels || root.audioLevels[0] <= 0.02)
         loops: Animation.Infinite
 
         ParallelAnimation {

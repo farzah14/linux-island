@@ -49,6 +49,7 @@ def check_layout(prefix: Path):
         'share/metainfo/io.github.linuxisland.metainfo.xml',
         'share/icons/hicolor/scalable/apps/io.github.linuxisland.svg',
         'share/dbus-1/interfaces/io.github.linuxisland.Core1.xml',
+        'share/dbus-1/interfaces/io.github.linuxisland.Time1.xml',
         'share/licenses/linux-island/LICENSE',
         'share/linux-island/window-rules/kwin-linux-island.kwinrule',
         'share/linux-island/window-rules/hyprland.conf',
@@ -124,8 +125,6 @@ def check_packages(build_dir: Path, tmp: Path):
     require(len(debs) == 1, f'expected one DEB, found {[d.name for d in debs]}')
     fields = run(['dpkg-deb', '-f', str(debs[0])])
     require(fields.returncode == 0, 'dpkg-deb -f failed')
-    require('qml6-module-qtwebengine' in fields.stdout,
-            f'Depends lacks qml6-module-qtwebengine:\n{fields.stdout}')
     require('qml6-module-qtquick-effects' in fields.stdout,
             f'Depends lacks qml6-module-qtquick-effects:\n{fields.stdout}')
     require('libqt6svg6' in fields.stdout,

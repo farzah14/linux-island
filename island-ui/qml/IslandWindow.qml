@@ -18,17 +18,60 @@ Window {
     }
 
     onActiveChanged: {
-        if (!active && islandContainer && islandContainer.isExpanded && !companionLoader.active) {
+        if (!active && islandContainer && islandContainer.isExpanded) {
             islandClient.dispatchEvent("DISMISS");
         }
     }
 
     // Function to calculate target capsule width
+    function getCompactFontSize() {
+        if (islandClient.capsuleSize === "small" || islandClient.capsuleSize === "circle") return 12;
+        if (islandClient.capsuleSize === "large") return 14;
+        return 13;
+    }
+
+    function getCompactCharLimit() {
+        if (islandClient.capsuleSize === "small" || islandClient.capsuleSize === "circle") return 28;
+        if (islandClient.capsuleSize === "large") return 44;
+        return 36;
+    }
+
+    function truncateCompact(str) {
+        var limit = getCompactCharLimit();
+        if (!str) return "";
+        return str.length > limit ? (str.substring(0, limit - 1) + "…") : str;
+    }
+
+    function getCompactDisplayIcon() {
+        if (!islandClient.connected) return "🏝️";
+        if (timeClient.timerActive && timeClient.compactIcon) return timeClient.compactIcon;
+        if (islandClient.title && islandClient.title.trim().length > 0) {
+            return islandClient.isPlaying ? "🎵" : "🏝️";
+        }
+        return "🏝️";
+    }
+
+    function getCompactDisplayText() {
+        if (!islandClient.connected) return "Core offline";
+        if (timeClient.timerActive && timeClient.compactText) return truncateCompact(timeClient.compactText);
+        if (islandClient.title && islandClient.title.trim().length > 0) {
+            var t = islandClient.title.trim();
+            var a = (islandClient.artist && islandClient.artist.trim().length > 0) ? (" • " + islandClient.artist.trim()) : "";
+            return truncateCompact(t + a);
+        }
+        return "Island";
+    }
+
     function getPillWidth() {
-        if (islandClient.capsuleSize === "circle") return 36;
-        if (islandClient.capsuleSize === "small") return 146;
-        if (islandClient.capsuleSize === "large") return 204;
-        return 174; // medium default
+        var padH = (islandClient.capsuleSize === "small" || islandClient.capsuleSize === "circle") ? 24
+                 : (islandClient.capsuleSize === "large" ? 44 : 36);
+        var natural = compactRowLayout ? (compactRowLayout.implicitWidth + padH) : 174;
+        return Math.max(96, Math.min(260, Math.round(natural)));
+    }
+
+    function getPillHeight() {
+        if (islandClient.capsuleSize === "small") return 32;
+        return 36;
     }
 
     function getExpandedWidth() {
@@ -38,9 +81,14 @@ Window {
     }
 
     function getExpandedHeight() {
-        if (carouselView && carouselView.currentIndex === 2) return 190;
-        if (carouselView && carouselView.currentIndex === 0) return musicPage.implicitHeight + 52;
-        return 174;
+        var waExtra = notificationWatcher.whatsappActivity ? 30 : 0;
+        if (carouselView && carouselView.currentIndex === 1)
+            return 98 + 52 + waExtra;
+        if (carouselView && carouselView.currentIndex === 2)
+            return 116 + 52 + waExtra;
+        if (carouselView && carouselView.currentIndex === 3)
+            return timePage.contentHeight + 52 + waExtra;
+        return musicPage.implicitHeight + 52 + waExtra;
     }
 
     // Dynamic Island Root Box
@@ -48,23 +96,56 @@ Window {
         id: islandContainer
 
         property bool isExpanded: islandClient.uiState === "EXPANDED"
-        property bool isCircle: islandClient.capsuleSize === "circle" && !isExpanded
+        property bool isIdleCircle: false
+        property bool isPillExpanded: false
+        property bool isCircle: !isExpanded && ((islandClient.capsuleSize === "circle" && !isPillExpanded) || isIdleCircle)
         property bool isHovered: islandClient.uiState === "PREVIEW"
 
-        onIsExpandedChanged: {
-            if (isExpanded && carouselView.currentIndex === 3) {
-                windowRoot.requestActivate();
-                Qt.callLater(searchPage.forceFocus);
+        Timer {
+            id: idleCircleTimer
+            interval: 10000
+            repeat: false
+            running: !islandContainer.isExpanded
+                     && islandClient.uiState === "COMPACT"
+                     && islandClient.capsuleSize !== "circle"
+                     && !islandContainer.isIdleCircle
+                     && !compactMouse.containsMouse
+                     && !timeClient.timerActive
+            onTriggered: islandContainer.isIdleCircle = true
+        }
+
+        Connections {
+            target: timeClient
+            function onTimerChanged() {
+                if (timeClient.timerActive) {
+                    islandContainer.isIdleCircle = false;
+                }
             }
         }
 
+        Connections {
+            target: islandClient
+            function onMediaChanged() {
+                if (islandClient.uiState === "COMPACT" && islandClient.capsuleSize !== "circle") {
+                    idleCircleTimer.restart();
+                }
+            }
+            function onUiStateChanged() {
+                if (islandClient.uiState === "EXPANDED") {
+                    islandContainer.isIdleCircle = false;
+                    islandContainer.isPillExpanded = false;
+                }
+            }
+        }
+
+
         width: isExpanded ? windowRoot.getExpandedWidth() : (isCircle ? 36 : windowRoot.getPillWidth())
-        height: isExpanded ? windowRoot.getExpandedHeight() : 36
+        height: isExpanded ? windowRoot.getExpandedHeight() : (isCircle ? 36 : windowRoot.getPillHeight())
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 4
-        radius: isExpanded ? IslandTheme.radiusXl : (isCircle ? IslandTheme.radiusPill : 18)
-        color: IslandTheme.surfaceIsland
-        border.color: "transparent"
+        y: 0
+        radius: isCircle ? IslandTheme.radiusPill : IslandTheme.radiusXl
+        color: (!isExpanded && compactMouse.containsMouse) ? IslandTheme.surfaceHover : IslandTheme.surfaceIsland
+        border.color: (islandClient.displayMode === "floating" && !isExpanded && !isCircle) ? IslandTheme.borderSubtle : "transparent"
         border.width: 1
         clip: true
         Behavior on width {
@@ -115,53 +196,85 @@ Window {
                 NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
             }
             RowLayout {
+                id: compactRowLayout
                 anchors.centerIn: parent
-                spacing: 6
+                spacing: 8
                 visible: !islandContainer.isCircle
 
                 Text {
-                    text: islandClient.isPlaying ? "🎵" : "🏝️"
-                    font.pixelSize: 12
+                    text: windowRoot.getCompactDisplayIcon()
+                    font.pixelSize: windowRoot.getCompactFontSize()
                     Layout.alignment: Qt.AlignVCenter
                 }
 
                 Text {
-                    text: islandClient.title ? islandClient.title : "Island"
-                    font.pixelSize: 11
-                    font.bold: true
+                    text: windowRoot.getCompactDisplayText()
+                    font.pixelSize: windowRoot.getCompactFontSize()
+                    font.weight: Font.DemiBold
                     color: IslandTheme.textPrimary
-                    Layout.maximumWidth: islandContainer.width - 68
+                    Layout.maximumWidth: 200
                     elide: Text.ElideRight
                     Layout.alignment: Qt.AlignVCenter
                 }
 
                 BeatBars {
+                    visible: islandClient.isPlaying && islandClient.connected && !timeClient.timerActive
                     isPlaying: islandClient.isPlaying
+                    animationEnabled: islandClient.animationEnabled
                     audioLevels: islandClient.audioLevels
                     barColor: IslandTheme.accentPrimary
                     Layout.alignment: Qt.AlignVCenter
                 }
 
-                // WhatsApp green notification indicator dot
                 Rectangle {
                     implicitWidth: 6
                     implicitHeight: 6
                     radius: 3
-                    color: IslandTheme.statusSuccess // WhatsApp brand indicator
+                    color: IslandTheme.statusSuccess
                     visible: notificationWatcher.whatsappActivity
                     Layout.alignment: Qt.AlignVCenter
                 }
             }
 
-            // Circle thumbnail mode view
+            // Circle thumbnail mode view (matches capsule.js:_circleArtBox)
             Item {
                 anchors.fill: parent
                 visible: islandContainer.isCircle
 
+                Rectangle {
+                    id: circleArtBox
+                    anchors.centerIn: parent
+                    width: 32
+                    height: 32
+                    radius: 999
+                    color: IslandTheme.surfaceRaised
+                    border.width: 1
+                    border.color: IslandTheme.borderSubtle
+                    visible: islandClient.isPlaying && islandClient.connected
+                    clip: true
+
+                    Image {
+                        id: circleArtImg
+                        anchors.fill: parent
+                        source: (islandClient.isPlaying && islandClient.connected && islandClient.albumArtUri) ? islandClient.albumArtUri : ""
+                        fillMode: Image.PreserveAspectCrop
+                        visible: status === Image.Ready
+                    }
+
+                    NavIcon {
+                        anchors.centerIn: parent
+                        size: 20
+                        source: "qrc:/linuxisland/ui/icons/ui/media-symbolic.svg"
+                        color: IslandTheme.textSecondary
+                        visible: circleArtImg.status !== Image.Ready
+                    }
+                }
+
                 Text {
                     anchors.centerIn: parent
-                    text: islandClient.isPlaying ? "🎵" : "🏝️"
-                    font.pixelSize: 16
+                    text: "🏝️"
+                    font.pixelSize: 18
+                    visible: !(islandClient.isPlaying && islandClient.connected)
                 }
 
                 Rectangle {
@@ -203,6 +316,8 @@ Window {
                 cursorShape: Qt.PointingHandCursor
                 onEntered: {
                     hoverExitTimer.stop();
+                    islandContainer.isIdleCircle = false;
+                    islandContainer.isPillExpanded = true;
                     if (islandClient.hoverPreviewEnabled && islandClient.uiState === "COMPACT") {
                         if (islandClient.animationEnabled) {
                             hoverEnterTimer.start();
@@ -213,6 +328,9 @@ Window {
                 }
                 onExited: {
                     hoverEnterTimer.stop();
+                    if (islandClient.capsuleSize === "circle") {
+                        islandContainer.isPillExpanded = false;
+                    }
                     if (islandClient.uiState === "PREVIEW") {
                         if (islandClient.animationEnabled) {
                             hoverExitTimer.start();
@@ -244,49 +362,6 @@ Window {
             Behavior on opacity {
                 enabled: islandClient.animationEnabled
                 NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
-            }
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 24
-                radius: 6
-                color: IslandTheme.surfaceRaised
-                border.color: IslandTheme.statusSuccess
-                visible: notificationWatcher.whatsappActivity
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.margins: 4
-                    spacing: 6
-
-                    Rectangle {
-                        implicitWidth: 6
-                        implicitHeight: 6
-                        radius: 3
-                        color: IslandTheme.statusSuccess
-                    }
-
-                    Text {
-                        text: "WhatsApp Activity"
-                        font.pixelSize: 10
-                        font.bold: true
-                        color: IslandTheme.textPrimary
-                    }
-
-                    Item { Layout.fillWidth: true }
-
-                    Text {
-                        text: "Open →"
-                        font.pixelSize: 10
-                        font.bold: true
-                        color: IslandTheme.statusSuccess
-
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: notificationWatcher.activateWhatsapp()
-                        }
-                    }
-                }
             }
 
             // Minimalist Carousel Section Navigation (matches GNOME FeatureCarousel)
@@ -366,7 +441,7 @@ Window {
                         }
                     }
 
-                    // Tab 3: Search
+                    // Tab 3: Timer
                     Rectangle {
                         implicitWidth: 28
                         implicitHeight: 22
@@ -375,7 +450,7 @@ Window {
 
                         NavIcon {
                             anchors.centerIn: parent
-                            source: "qrc:/linuxisland/ui/icons/ui/search-symbolic.svg"
+                            source: "qrc:/linuxisland/ui/icons/ui/timer-symbolic.svg"
                             color: carouselView.currentIndex === 3 ? IslandTheme.surfaceIsland : (tab3Mouse.containsMouse ? IslandTheme.textPrimary : IslandTheme.textSecondary)
                         }
 
@@ -387,6 +462,7 @@ Window {
                             onClicked: carouselView.currentIndex = 3
                         }
                     }
+
                 }
                 Item { Layout.fillWidth: true }
             }
@@ -400,39 +476,71 @@ Window {
                 clip: true
 
                 MusicPage { id: musicPage; capsuleSize: islandClient.capsuleSize }
-                SystemPage {}
+                SystemPage { capsuleSize: islandClient.capsuleSize }
                 AiQuotaPage {}
-                SearchPage { id: searchPage }
+                TimePage { id: timePage }
 
-                onCurrentIndexChanged: {
-                    if (currentIndex === 3 && islandContainer.isExpanded) {
-                        windowRoot.requestActivate();
-                        Qt.callLater(searchPage.forceFocus);
+            }
+
+            // Bottom WhatsApp Activity Pill (matches GNOME capsule.js:_waActionRow)
+            Rectangle {
+                Layout.alignment: Qt.AlignHCenter
+                implicitHeight: 24
+                implicitWidth: waRowLayout.implicitWidth + 20
+                radius: 12
+                color: IslandTheme.surfaceRaised
+                border.width: 1
+                border.color: IslandTheme.borderSubtle
+                visible: notificationWatcher.whatsappActivity
+
+                RowLayout {
+                    id: waRowLayout
+                    anchors.centerIn: parent
+                    spacing: 8
+
+                    Rectangle {
+                        implicitWidth: 6
+                        implicitHeight: 6
+                        radius: 3
+                        color: IslandTheme.statusSuccess
+                    }
+
+                    Text {
+                        text: "New WhatsApp activity"
+                        font.pixelSize: 11
+                        font.weight: Font.DemiBold
+                        color: IslandTheme.textPrimary
+                    }
+
+                    Rectangle {
+                        implicitHeight: 18
+                        implicitWidth: waBtnLabel.implicitWidth + 16
+                        radius: 6
+                        color: waBtnMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
+
+                        Text {
+                            id: waBtnLabel
+                            anchors.centerIn: parent
+                            text: "Open WhatsApp"
+                            font.pixelSize: 10
+                            font.weight: Font.DemiBold
+                            color: IslandTheme.accentPrimary
+                        }
+
+                        MouseArea {
+                            id: waBtnMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                notificationWatcher.activateWhatsapp();
+                                notificationWatcher.clearWhatsappActivity();
+                            }
+                        }
                     }
                 }
             }
         }
     }
 
-    Connections {
-        target: searchProvider
-        function onOpenEmbeddedRequested(url) {
-            companionLoader.targetUrl = url;
-            companionLoader.active = false;
-            companionLoader.active = true;
-        }
-    }
-
-    Loader {
-        id: companionLoader
-        active: false
-        property string targetUrl: ""
-        source: "CompanionWindow.qml"
-        onLoaded: {
-            item.initialUrl = targetUrl;
-            item.closedByUser.connect(function() {
-                companionLoader.active = false;
-            });
-        }
-    }
 }

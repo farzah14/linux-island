@@ -3,10 +3,13 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
+import Shell from 'gi://Shell';
 import * as GrabHelper from 'resource:///org/gnome/shell/ui/grabHelper.js';
 import {MediaView, CAPSULE_SIZES} from './mediaView.js';
 import {BeatBars} from './beatBars.js';
 import {loadLocalArtwork} from '../lib/localArtwork.js';
+import {formatTimerCompact, isTimerActive} from '../lib/timeFormat.js';
+import {capsuleOrigin, clampToMonitor, isFloating, extensionModeFor} from '../lib/displayMode.js';
 
 export class Capsule {
     constructor({
@@ -16,6 +19,9 @@ export class Capsule {
         onUpdateSettings,
         onSetActivePlayer,
         onWhatsAppActivate,
+        onStartTimer,
+        onControlTimer,
+        onTimerStats,
         scheduler,
         artworkLoader,
         idleTimeoutMs = 10000,
@@ -26,6 +32,9 @@ export class Capsule {
         this._onUpdateSettings = onUpdateSettings ?? (() => {});
         this._onSetActivePlayer = onSetActivePlayer ?? (() => {});
         this._onWhatsAppActivate = onWhatsAppActivate ?? (() => {});
+        this._onStartTimer = onStartTimer ?? (() => {});
+        this._onControlTimer = onControlTimer ?? (() => {});
+        this._onTimerStats = onTimerStats ?? (() => {});
         this._whatsappEnabled = false;
         this._whatsappActivity = false;
         this._scheduler = scheduler ?? {
@@ -46,10 +55,11 @@ export class Capsule {
         this._connected = true;
         this._hoverPreviewEnabled = true;
         this._lastMedia = null;
+        this._displayMode = 'dynamic';
+        this._timer = null;
+        this._lastTimerState = 'idle';
         this._verticalOffset = 8;
         this._horizontalOffset = 0;
-        this._searchEngine = 'google';
-        this._companionActive = false;
 
         // Root floating island widget
         this._widget = new St.BoxLayout({
@@ -66,7 +76,14 @@ export class Capsule {
         this._systemSettings = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});
         this._themeSettingsId = this._systemSettings.connect('changed::color-scheme', () => this._applyTheme());
         this._applyTheme();
-        this._grabHelper = new GrabHelper.GrabHelper(this._widget);
+        // A modal grab defaults to Shell.ActionMode.NONE, which filters out every
+        // global keybinding while the island is open: Print would not open the
+        // screenshot UI and Super would not open the overview. GNOME's own
+        // popups pass POPUP mode for exactly this reason, so screenshot,
+        // screencast, overview and other shell shortcuts keep working.
+        this._grabHelper = new GrabHelper.GrabHelper(this._widget, {
+            actionMode: Shell.ActionMode.POPUP,
+        });
 
         // Compact pill row (visible in COMPACT/PREVIEW/PEEK)
         this._compactRow = new St.BoxLayout({
@@ -129,9 +146,9 @@ export class Capsule {
             onThemeToggle: () => this.cycleTheme(),
             onSetActivePlayer: this._onSetActivePlayer,
             onUpdateSettings: this._onUpdateSettings,
-            searchEngine: this._searchEngine,
-            onCompanionStart: () => this.hideForCompanion(),
-            onCompanionEnd: () => this.restoreFromCompanion(),
+            onStartTimer: request => this._onStartTimer(request),
+            onControlTimer: action => this._onControlTimer(action),
+            onTimerStats: () => this._onTimerStats(),
         });
         if (this._mediaView.actor) {
             this._mediaView.actor.visible = false;
@@ -174,9 +191,6 @@ export class Capsule {
 
         // Hover handling
         this._widget.connect('notify::hover', () => {
-            // While the companion window owns the screen, the pointer leaving
-            // or entering the collapsed pill must not pop it back open.
-            if (this._companionActive) return;
             const isHovered = this._widget.hover;
             if (isHovered) {
                 this._clearIdleTimer();
@@ -265,6 +279,9 @@ export class Capsule {
 
     _scheduleIdleTimer() {
         this._clearIdleTimer();
+        // An active timer keeps the pill in place so the countdown stays visible.
+        if (isTimerActive(this._timer))
+            return;
         if (this._capsuleSize === 'circle' || this._currentState !== 'COMPACT' || this._idleTimeoutMs <= 0)
             return;
         this._idleTimer = this._scheduler.setTimeout(() => {
@@ -445,10 +462,12 @@ export class Capsule {
     }
 
     _exitIdleCircle() {
-        if (!this._isIdleCircle && this._capsuleSize !== 'circle')
+        if (!this._isIdleCircle && this._capsuleSize !== 'circle' && (this._label?.visible ?? true) && !this._circleResizing)
             return;
         this._isIdleCircle = false;
         this._isPillExpanded = false;
+        this._circleResizing = false;
+        this._cancelCircleFades();
         this._widget?.remove_style_class_name('linux-island__capsule--circle');
         if (this._circleArtBox) this._circleArtBox.visible = false;
         if (this._label) {
@@ -462,9 +481,11 @@ export class Capsule {
             this._icon.text = isPlaying ? '🎵' : '🏝️';
         }
         if (this._beatBars?.actor) {
-            this._beatBars.actor.visible = Boolean(this._lastMedia?.playbackStatus === 'Playing' && this._connected);
+            this._beatBars.actor.visible = Boolean(this._lastMedia?.playbackStatus === 'Playing' &&
+                this._connected && !isTimerActive(this._timer));
             this._beatBars.actor.opacity = 255;
         }
+        this._renderCompactContent();
 
         this._applySize();
         this._relayout();
@@ -510,14 +531,65 @@ export class Capsule {
             width = this._isCircleMode() ? 36 : (natW > 0 ? natW : 160);
         }
 
-        // Position at the exact horizontal center of the primary monitor
-        const x = Math.round(monitor.x + (monitor.width - width) / 2) + this._horizontalOffset;
-        // Position at top with configurable vertical offset from the screen edge
-        const y = monitor.y + this._verticalOffset;
+        const floating = isFloating(this._displayMode);
+        const origin = capsuleOrigin({
+            monitor,
+            width,
+            verticalOffset: this._verticalOffset,
+            horizontalOffset: this._horizontalOffset,
+            floating,
+            panelHeight: this._panelHeight(),
+            workAreaY: this._workAreaY(monitor),
+        });
+        const height = this._widget.height > 0 ? this._widget.height : 36;
+        const {x, y} = clampToMonitor({...origin, width, height, monitor});
         const [curX, curY] = this._widget.get_position ? this._widget.get_position() : (this._widget.position ?? []);
         if (curX !== x || curY !== y) {
             this._widget.set_position(x, y);
         }
+    }
+
+    /** Panel strut height, or 0 when the Shell does not expose one. */
+    _panelHeight() {
+        const panel = Main.layoutManager.panelBox;
+        return panel && Number.isFinite(panel.height) ? panel.height : 0;
+    }
+
+    /**
+     * Top of the monitor's work area. Only consulted in floating mode; when the
+     * Shell has no work-area API we fall back to the panel height.
+     */
+    _workAreaY(monitor) {
+        try {
+            const index = Main.layoutManager.primaryIndex;
+            if (typeof Main.layoutManager.getWorkAreaForMonitor === 'function' && index >= 0) {
+                const area = Main.layoutManager.getWorkAreaForMonitor(index);
+                if (area && Number.isFinite(area.y)) return area.y;
+            }
+        } catch (_) {}
+        return monitor.y + this._panelHeight();
+    }
+
+    /**
+     * Switch between the top-bar strip and a free-floating overlay. Unknown
+     * values keep dynamic placement so a bad settings write cannot strand the
+     * capsule off-screen.
+     */
+    setDisplayMode(mode) {
+        const next = extensionModeFor(mode);
+        this._displayMode = mode;
+        if (this._widget) {
+            if (next === 'floating') {
+                this._widget.add_style_class_name('linux-island__capsule--floating');
+            } else {
+                this._widget.remove_style_class_name('linux-island__capsule--floating');
+            }
+        }
+        this._relayout();
+    }
+
+    get displayMode() {
+        return this._displayMode;
     }
 
     mount() {
@@ -526,6 +598,13 @@ export class Capsule {
             trackFullscreen: false,
         });
         Main.layoutManager.connectObject('monitors-changed', () => this._relayout(), this);
+        // The Shell emits this before taking its own modal grab (screenshot UI,
+        // screencast UI, modal dialogs). GNOME's popup menus close here for the
+        // same reason: leaving our grab in place would block the incoming one.
+        Main.layoutManager.connectObject('system-modal-opened', () => {
+            if (this._currentState === 'EXPANDED')
+                this._onInteractionEvent('DISMISS');
+        }, this);
         this._relayout();
     }
 
@@ -562,7 +641,9 @@ export class Capsule {
 
         if (state === 'COMPACT') {
             if (previousState !== 'COMPACT' && this._capsuleSize !== 'circle') {
-                this._exitIdleCircle();
+                if (!hoverOnly || !this._circleResizing) {
+                    this._exitIdleCircle();
+                }
                 this._scheduleIdleTimer();
             }
         } else if (!hoverOnly) {
@@ -574,6 +655,11 @@ export class Capsule {
             } else {
                 this._isIdleCircle = false;
                 this._isPillExpanded = false;
+                this._circleResizing = false;
+                if (this._label) {
+                    this._label.visible = true;
+                    this._label.opacity = 255;
+                }
                 this._widget?.remove_style_class_name('linux-island__capsule--circle');
                 if (this._circleArtBox) this._circleArtBox.visible = false;
             }
@@ -639,9 +725,6 @@ export class Capsule {
             this._onInteractionEvent('DISMISS');
             return;
         }
-        if (state === 'EXPANDED' && this._mediaView?._carousel?.currentPage === 3) {
-            this._mediaView._searchSection?.focus();
-        }
         // The Shell also scales animation time according to accessibility settings.
         if (state === 'EXPANDED' && previousState !== 'EXPANDED') {
             if (typeof GLib !== 'undefined' && GLib?.idle_add) {
@@ -685,14 +768,6 @@ export class Capsule {
         }
     }
 
-    hideForCompanion() {
-        this._companionActive = true;
-        this._onInteractionEvent('DISMISS');
-    }
-
-    restoreFromCompanion() {
-        this._companionActive = false;
-    }
 
 
     setHoverPreviewEnabled(enabled) {
@@ -701,7 +776,7 @@ export class Capsule {
         this._hoverPreviewEnabled = next;
         if (!next && this._currentState === 'PREVIEW')
             this._onInteractionEvent('HOVER_LEAVE');
-        else if (next && !this._companionActive && this._widget.hover
+        else if (next && this._widget.hover
             && this._currentState === 'COMPACT')
             this._onInteractionEvent('HOVER_ENTER');
     }
@@ -768,10 +843,6 @@ export class Capsule {
         this._mediaView?.setTheme(theme);
     }
 
-    setSearchEngine(engine) {
-        this._searchEngine = engine;
-        this._mediaView?.setSearchEngine(engine);
-    }
 
     setVerticalOffset(offset) {
         let val = Number(offset);
@@ -867,13 +938,78 @@ export class Capsule {
         }
     }
 
+    _renderCompactContent() {
+        if (!this._label || !this._icon || this._isCircleMode()) return;
+        if (!this._circleResizing) {
+            this._label.visible = true;
+            this._label.opacity = 255;
+        }
+        const limit = this._sizePreset.limit;
+        const truncate = text => {
+            const characters = Array.from(text);
+            return characters.length > limit ? characters.slice(0, limit - 1).join('') + '…' : text;
+        };
+
+        if (!this._connected) {
+            this._label.text = 'Core offline';
+            this._icon.text = '🏝️';
+            return;
+        }
+
+        if (isTimerActive(this._timer)) {
+            this._label.text = truncate(formatTimerCompact(this._timer));
+            this._icon.text = '⏱';
+            return;
+        }
+
+        const media = this._lastMedia;
+        if (media && media.title && media.title.trim().length > 0) {
+            const title = media.title.trim();
+            const artist = (media.artist && media.artist.trim().length > 0) ? ` • ${media.artist.trim()}` : '';
+            this._label.text = truncate(title + artist);
+            this._icon.text = (media.playbackStatus === 'Playing') ? '🎵' : '🏝️';
+            return;
+        }
+
+        this._label.text = 'Island';
+        this._icon.text = '🏝️';
+    }
+
+    setTimer(timer) {
+        this._timer = timer ?? null;
+        const state = timer?.state ?? 'idle';
+        if (state !== this._lastTimerState) {
+            this._lastTimerState = state;
+            if (isTimerActive(timer)) {
+                this._clearIdleTimer();
+                this._exitIdleCircle();
+            } else if (state === 'idle' && this._currentState === 'COMPACT') {
+                this._scheduleIdleTimer();
+            }
+        }
+
+        if (this._beatBars?.actor) {
+            const isPlaying = this._lastMedia?.playbackStatus === 'Playing';
+            this._beatBars.actor.visible = Boolean(isPlaying && !this._isCircleMode() &&
+                this._connected && !isTimerActive(this._timer));
+        }
+
+        this._mediaView?.setTimer(this._timer);
+        this._renderCompactContent();
+        this._relayout();
+    }
+
+    setTimerStats(stats) {
+        this._mediaView?.setTimerStats(stats);
+    }
+
     setConnected(connected) {
         this._connected = Boolean(connected);
         this._mediaView?.setConnected(connected);
+        this._renderCompactContent();
         if (!connected) {
+            // Keep `_timer` so a reconnect restores the timer branch.
             this._beatBars.setPlayback(false, false);
-            this._label.text = 'Core offline';
-            this._icon.text = '🏝️';
             if (this._isCircleMode()) {
                 if (this._circleArtBox) this._circleArtBox.visible = false;
                 if (this._icon) {
@@ -896,29 +1032,13 @@ export class Capsule {
         this._lastMedia = media;
         this._beatBars.setPlayback(isPlaying, Boolean(media?.playerId), media?.audioLevels);
         if (this._beatBars?.actor) {
-            this._beatBars.actor.visible = Boolean(isPlaying && !this._isCircleMode() && this._connected);
+            this._beatBars.actor.visible = Boolean(isPlaying && !this._isCircleMode() &&
+                this._connected && !isTimerActive(this._timer));
             if (isPlaying && !this._isCircleMode() && this._connected) {
                 this._beatBars.actor.opacity = 255;
             }
         }
-        if (this._label) {
-            if (media && media.title && media.title.trim().length > 0) {
-                const title = media.title.trim();
-                const artist = (media.artist && media.artist.trim().length > 0) ? ` • ${media.artist.trim()}` : '';
-                const fullText = title + artist;
-                const characters = Array.from(fullText);
-                const limit = this._sizePreset.limit;
-                this._label.text = characters.length > limit ? characters.slice(0, limit - 1).join('') + '…' : fullText;
-                if (this._icon && !this._isCircleMode()) {
-                    this._icon.text = (media.playbackStatus === 'Playing') ? '🎵' : '🏝️';
-                }
-            } else {
-                this._label.text = this._connected ? 'Island' : 'Core offline';
-                if (this._icon && !this._isCircleMode()) {
-                    this._icon.text = '🏝️';
-                }
-            }
-        }
+        this._renderCompactContent();
 
         if (this._isCircleMode()) {
             if (media?.playbackStatus === 'Playing') {

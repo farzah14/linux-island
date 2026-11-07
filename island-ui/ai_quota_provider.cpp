@@ -3,6 +3,10 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QDateTime>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QStandardPaths>
 #include <cmath>
 #include <algorithm>
 
@@ -10,6 +14,21 @@ static const char *PROBE_SNIPPET = R"PY(
 import sqlite3, os, glob, json, urllib.request, urllib.parse, datetime
 
 raw = {'ompCache': [], 'deviceCodex': None, 'claudeLocal': {'installed': False}}
+
+# On dual-stack hosts getaddrinfo returns AAAA first and every Google/OpenAI
+# connect then stalls ~11s waiting for the broken IPv6 route before falling
+# back to IPv4. Prefer A records so the whole probe finishes in ~1s.
+import socket as _socket
+_orig_getaddrinfo = _socket.getaddrinfo
+def _prefer_ipv4(host, port, family=0, type=0, proto=0, flags=0):
+    try:
+        infos = _orig_getaddrinfo(host, port, _socket.AF_INET, type, proto, flags)
+        if infos:
+            return infos
+    except Exception:
+        pass
+    return _orig_getaddrinfo(host, port, family, type, proto, flags)
+_socket.getaddrinfo = _prefer_ipv4
 
 def iso_to_ms(iso_str):
     if not iso_str or not isinstance(iso_str, str):
@@ -274,30 +293,91 @@ print(json.dumps(raw))
 
 AiQuotaProvider::AiQuotaProvider(QObject *parent)
     : QObject(parent) {
-    // Initial default offline maps
+    // Initial default offline maps. m_checking stays true until the first probe
+    // finishes so the UI says "Checking…" instead of claiming "No active session".
     m_antigravity = {
         {QStringLiteral("connected"), false},
         {QStringLiteral("remainingPercent"), 0},
         {QStringLiteral("usedPercent"), 0},
-        {QStringLiteral("primaryText"), QStringLiteral("Offline")},
-        {QStringLiteral("detailText"), QStringLiteral("No active session")},
-        {QStringLiteral("altDetailText"), QStringLiteral("No active session")},
+        {QStringLiteral("primaryText"), QStringLiteral("Checking…")},
+        {QStringLiteral("detailText"), QStringLiteral("Checking…")},
+        {QStringLiteral("altDetailText"), QStringLiteral("Checking…")},
         {QStringLiteral("percent5h"), 0},
         {QStringLiteral("percent7d"), 0},
+        {QStringLiteral("has5h"), false},
+        {QStringLiteral("has7d"), false},
         {QStringLiteral("detail5h"), QStringLiteral("5h: --%")},
         {QStringLiteral("detail7d"), QStringLiteral("7d: --%")}
     };
     m_codex = m_antigravity;
     m_claude = m_antigravity;
 
+    loadCachedSnapshot();
     refresh();
 }
 
 AiQuotaProvider::~AiQuotaProvider() {
+    if (m_timeout) {
+        m_timeout->stop();
+    }
     if (m_process && m_process->state() != QProcess::NotRunning) {
         m_process->kill();
         m_process->waitForFinished(500);
     }
+}
+
+QString AiQuotaProvider::cacheFilePath() const {
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation)
+                        + QStringLiteral("/linux-island");
+    return dir + QStringLiteral("/ai-quota-probe.json");
+}
+
+void AiQuotaProvider::loadCachedSnapshot() {
+    QFile file(cacheFilePath());
+    if (!file.open(QIODevice::ReadOnly)) return;
+    const QByteArray contents = file.readAll();
+    file.close();
+
+    QJsonDocument doc = QJsonDocument::fromJson(contents);
+    QJsonObject root = doc.object();
+    const qint64 savedAt = qint64(root.value(QStringLiteral("savedAt")).toDouble());
+    const QJsonObject raw = root.value(QStringLiteral("raw")).toObject();
+    if (raw.isEmpty() || savedAt <= 0) return;
+
+    // A stale quota reading is worse than an honest "checking" state.
+    constexpr qint64 kCacheTtlMs = 30LL * 60 * 1000;
+    if (QDateTime::currentMSecsSinceEpoch() - savedAt > kCacheTtlMs) return;
+
+    const QByteArray rawJson = QJsonDocument(raw).toJson(QJsonDocument::Compact);
+    QVariantMap snapshot = buildSnapshotFromRawJson(rawJson, QDateTime::currentMSecsSinceEpoch());
+    if (!snapshot.contains(QStringLiteral("antigravity"))) return;
+
+    m_antigravity = snapshot.value(QStringLiteral("antigravity")).toMap();
+    m_codex = snapshot.value(QStringLiteral("codex")).toMap();
+    m_claude = snapshot.value(QStringLiteral("claude")).toMap();
+    m_antigravity[QStringLiteral("cached")] = true;
+    m_codex[QStringLiteral("cached")] = true;
+    m_claude[QStringLiteral("cached")] = true;
+    // Cached numbers are shown immediately, so the page is no longer "checking"
+    // even though a background refresh is still in flight.
+    m_checking = false;
+}
+
+void AiQuotaProvider::saveCachedSnapshot(const QByteArray &rawJson) {
+    const QJsonDocument rawDoc = QJsonDocument::fromJson(rawJson);
+    if (!rawDoc.isObject()) return;
+
+    QJsonObject root;
+    root[QStringLiteral("savedAt")] = double(QDateTime::currentMSecsSinceEpoch());
+    root[QStringLiteral("raw")] = rawDoc.object();
+
+    const QString path = cacheFilePath();
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) return;
+    file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+    file.close();
 }
 
 QString AiQuotaProvider::formatResetCountdown(qint64 resetsAtMs, qint64 nowMs) {
@@ -354,6 +434,10 @@ QVariantMap AiQuotaProvider::buildSnapshotFromRawJson(const QByteArray &rawJson,
     agy[QStringLiteral("altDetailText")] = QStringLiteral("No active session");
     agy[QStringLiteral("percent5h")] = 0;
     agy[QStringLiteral("percent7d")] = 0;
+    agy[QStringLiteral("has5h")] = false;
+    agy[QStringLiteral("has7d")] = false;
+    agy[QStringLiteral("checking")] = false;
+    agy[QStringLiteral("cached")] = false;
     agy[QStringLiteral("detail5h")] = QStringLiteral("5h: --%");
     agy[QStringLiteral("detail7d")] = QStringLiteral("7d: --%");
 
@@ -434,12 +518,19 @@ QVariantMap AiQuotaProvider::buildSnapshotFromRawJson(const QByteArray &rawJson,
                 agy[QStringLiteral("primaryText")] = QString::number(minRem) + QStringLiteral("% left");
                 agy[QStringLiteral("percent5h")] = act5;
                 agy[QStringLiteral("percent7d")] = act7;
+                agy[QStringLiteral("has5h")] = p5 >= 0;
+                agy[QStringLiteral("has7d")] = p7 >= 0 || pArgon >= 0;
                 agy[QStringLiteral("detail5h")] = QStringLiteral("5h: ") + QString::number(act5) + QStringLiteral("%");
                 agy[QStringLiteral("detail7d")] = QStringLiteral("7d: ") + QString::number(act7) + QStringLiteral("%");
 
-                QString detail = QString::number(act5) + QStringLiteral("% left (") + QString::number(100 - act5) + QStringLiteral("% used)");
-                if (!reset5.isEmpty() && reset5 != QLatin1String("now")) {
+                QString detail = (p5 >= 0)
+                    ? QString::number(act5) + QStringLiteral("% left (") + QString::number(100 - act5) + QStringLiteral("% used)")
+                    : QString::number(act7) + QStringLiteral("% left (") + QString::number(100 - act7) + QStringLiteral("% used)");
+                if (p5 >= 0 && !reset5.isEmpty() && reset5 != QLatin1String("now")) {
                     detail += QStringLiteral(" · ↻ resets in ") + reset5;
+                } else if (p5 < 0) {
+                    QString eff = !reset7.isEmpty() ? reset7 : resetArgon;
+                    if (!eff.isEmpty() && eff != QLatin1String("now")) detail += QStringLiteral(" · ↻ resets in ") + eff;
                 }
                 QString altDetail = QString::number(act7) + QStringLiteral("% left (") + QString::number(100 - act7) + QStringLiteral("% used)");
                 if (pArgon >= 0 && p7 >= 0) {
@@ -451,6 +542,8 @@ QVariantMap AiQuotaProvider::buildSnapshotFromRawJson(const QByteArray &rawJson,
                 }
                 agy[QStringLiteral("detailText")] = detail;
                 agy[QStringLiteral("altDetailText")] = altDetail;
+                agy[QStringLiteral("checking")] = false;
+                agy[QStringLiteral("cached")] = false;
             }
         } else if (provider == QLatin1String("claude") || provider == QLatin1String("claude-code") || provider == QLatin1String("anthropic")) {
             int p5 = -1;
@@ -484,6 +577,10 @@ QVariantMap AiQuotaProvider::buildSnapshotFromRawJson(const QByteArray &rawJson,
                 claude[QStringLiteral("primaryText")] = QString::number(minRem) + QStringLiteral("% left");
                 claude[QStringLiteral("percent5h")] = act5;
                 claude[QStringLiteral("percent7d")] = act7;
+                claude[QStringLiteral("has5h")] = p5 >= 0;
+                claude[QStringLiteral("has7d")] = p7 >= 0;
+                claude[QStringLiteral("checking")] = false;
+                claude[QStringLiteral("cached")] = false;
                 claude[QStringLiteral("detail5h")] = QStringLiteral("5h: ") + QString::number(act5) + QStringLiteral("%");
                 claude[QStringLiteral("detail7d")] = QStringLiteral("7d: ") + QString::number(act7) + QStringLiteral("%");
                 QString d5 = QString::number(act5) + QStringLiteral("% left (") + QString::number(100 - act5) + QStringLiteral("% used)");
@@ -523,6 +620,10 @@ QVariantMap AiQuotaProvider::buildSnapshotFromRawJson(const QByteArray &rawJson,
         codex[QStringLiteral("primaryText")] = QString::number(minRem) + QStringLiteral("% left");
         codex[QStringLiteral("percent5h")] = rem5;
         codex[QStringLiteral("percent7d")] = rem7;
+        codex[QStringLiteral("has5h")] = !pw.isEmpty();
+        codex[QStringLiteral("has7d")] = !sw.isEmpty();
+        codex[QStringLiteral("checking")] = false;
+        codex[QStringLiteral("cached")] = false;
         codex[QStringLiteral("detail5h")] = QStringLiteral("5h: ") + QString::number(rem5) + QStringLiteral("%");
         codex[QStringLiteral("detail7d")] = QStringLiteral("7d: ") + QString::number(rem7) + QStringLiteral("%");
 
@@ -546,12 +647,18 @@ QVariantMap AiQuotaProvider::buildSnapshotFromRawJson(const QByteArray &rawJson,
         claude[QStringLiteral("primaryText")] = QString::number(minRem) + QStringLiteral("% left");
         claude[QStringLiteral("percent5h")] = act5;
         claude[QStringLiteral("percent7d")] = act7;
+        claude[QStringLiteral("has5h")] = agyShared5 >= 0;
+        claude[QStringLiteral("has7d")] = agyShared7 >= 0;
+        claude[QStringLiteral("checking")] = false;
+        claude[QStringLiteral("cached")] = false;
         claude[QStringLiteral("detail5h")] = QStringLiteral("5h: ") + QString::number(act5) + QStringLiteral("%");
         claude[QStringLiteral("detail7d")] = QStringLiteral("7d: ") + QString::number(act7) + QStringLiteral("%");
         QString d5 = QString::number(act5) + QStringLiteral("% left (") + QString::number(100 - act5) + QStringLiteral("% used)");
         if (!agySharedReset5.isEmpty() && agySharedReset5 != QLatin1String("now")) d5 += QStringLiteral(" · ↻ resets in ") + agySharedReset5;
         QString d7 = QString::number(act7) + QStringLiteral("% left (") + QString::number(100 - act7) + QStringLiteral("% used)");
         if (!agySharedReset7.isEmpty() && agySharedReset7 != QLatin1String("now")) d7 += QStringLiteral(" · ↻ resets in ") + agySharedReset7;
+        if (agyShared5 < 0 && agyShared7 >= 0) d5 = QStringLiteral("7d ") + d7 + QStringLiteral(" (AGY)");
+        else if (agyShared7 < 0 && agyShared5 >= 0) d7 = QStringLiteral("5h ") + d5 + QStringLiteral(" (AGY)");
         claude[QStringLiteral("detailText")] = d5;
         claude[QStringLiteral("altDetailText")] = d7;
     }
@@ -567,10 +674,12 @@ QVariantMap AiQuotaProvider::buildSnapshotFromRawJson(const QByteArray &rawJson,
             claude[QStringLiteral("primaryText")] = QStringLiteral("Ready");
             claude[QStringLiteral("detailText")] = QStringLiteral("Claude Code CLI installed");
             claude[QStringLiteral("altDetailText")] = QStringLiteral("Claude Code CLI installed");
-            claude[QStringLiteral("percent5h")] = 100;
-            claude[QStringLiteral("percent7d")] = 100;
-            claude[QStringLiteral("detail5h")] = QStringLiteral("5h: 100%");
-            claude[QStringLiteral("detail7d")] = QStringLiteral("7d: 100%");
+            claude[QStringLiteral("has5h")] = false;
+            claude[QStringLiteral("has7d")] = false;
+            claude[QStringLiteral("checking")] = false;
+            claude[QStringLiteral("cached")] = false;
+            claude[QStringLiteral("detail5h")] = QStringLiteral("5h: --%");
+            claude[QStringLiteral("detail7d")] = QStringLiteral("7d: --%");
         }
     }
     result[QStringLiteral("antigravity")] = agy;
@@ -591,20 +700,36 @@ void AiQuotaProvider::refresh() {
         // If python3 is missing or fails to start, finished() is never emitted
         // and m_refreshing would stay true forever, permanently wedging refresh().
         connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
-            if (m_refreshing) {
-                m_refreshing = false;
-                emit refreshingChanged();
-            }
+            finishRefresh();
         });
     }
+
+    if (!m_timeout) {
+        m_timeout = new QTimer(this);
+        m_timeout->setSingleShot(true);
+        connect(m_timeout, &QTimer::timeout, this, [this]() {
+            // A hung probe must not leave the page stuck on "Checking…" forever.
+            if (m_process && m_process->state() != QProcess::NotRunning) {
+                m_process->kill();
+            }
+            finishRefresh();
+        });
+    }
+    m_timeout->start(15000);
 
     m_process->start(QStringLiteral("python3"), {QStringLiteral("-c"), QString::fromUtf8(PROBE_SNIPPET)});
 }
 
-void AiQuotaProvider::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus) {
+void AiQuotaProvider::finishRefresh() {
+    if (m_timeout) m_timeout->stop();
+    if (!m_refreshing && !m_checking) return;
     m_refreshing = false;
+    m_checking = false;
     emit refreshingChanged();
+    emit quotaChanged();
+}
 
+void AiQuotaProvider::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus) {
     if (exitStatus == QProcess::NormalExit && exitCode == 0 && m_process) {
         QByteArray stdoutData = m_process->readAllStandardOutput();
         qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
@@ -613,7 +738,8 @@ void AiQuotaProvider::onProcessFinished(int exitCode, QProcess::ExitStatus exitS
             m_antigravity = snapshot.value(QStringLiteral("antigravity")).toMap();
             m_codex = snapshot.value(QStringLiteral("codex")).toMap();
             m_claude = snapshot.value(QStringLiteral("claude")).toMap();
-            emit quotaChanged();
+            saveCachedSnapshot(stdoutData);
         }
     }
+    finishRefresh();
 }

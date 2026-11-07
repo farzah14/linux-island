@@ -3,12 +3,26 @@ import {SystemMetricsCollector} from '../lib/systemMetrics.js';
 let St = null;
 let Clutter = null;
 let GLib = null;
+let Gio = null;
 if (typeof process === 'undefined') {
     try {
         St = (await import('gi://St')).default;
         Clutter = (await import('gi://Clutter')).default;
         GLib = (await import('gi://GLib')).default;
+        Gio = (await import('gi://Gio')).default;
     } catch (_) {}
+}
+
+export function getLocalUiGIcon(name) {
+    if (!Gio || typeof Gio.File?.new_for_uri !== 'function') return null;
+    try {
+        const thisFile = Gio.File.new_for_uri(import.meta.url);
+        const iconFile = thisFile.get_parent().get_parent().get_child('icons').get_child('ui').get_child(name);
+        if (iconFile.query_exists(null)) {
+            return new Gio.FileIcon({file: iconFile});
+        }
+    } catch (_) {}
+    return null;
 }
 
 // Vertical rhythm inside the disk block: glyph, percentage and used/total.
@@ -18,6 +32,17 @@ if (typeof process === 'undefined') {
 export const STORAGE_LINE_SPACING = 2;
 export const STORAGE_PADDING_Y = 3;
 export const STORAGE_GLYPH_SIZE = 13;
+
+// At the small preset each side slot falls to ~72px. The full tile needs 92px
+// (14px glyph + 8px gap + label + 8px gap + value + 8px padding), which is why
+// the old budget floored the sides at 92px and starved NET instead. Below this
+// width the glyph is dropped so label + value stay readable.
+export const METRIC_COMPACT_WIDTH = 76;
+// The disk block lives beside the 22px icon column, so at the small preset it
+// only gets ~42px: enough for the percentage, not for "147/249 GB". Pango
+// measures that string at 58px in Sans 9px, so the detail line is only shown
+// when the block can actually hold it.
+export const STORAGE_COMPACT_WIDTH = 58;
 
 export class SystemMetricTile {
     constructor({label = 'METRIC', iconName = ''} = {}) {
@@ -45,9 +70,14 @@ export class SystemMetricTile {
         });
 
         if (this._iconName) {
+            const svgName = this._label === 'CPU' ? 'cpu-symbolic.svg'
+                          : this._label === 'RAM' ? 'ram-symbolic.svg'
+                          : this._label === 'BAT' ? 'battery-symbolic.svg' : null;
+            const gicon = svgName ? getLocalUiGIcon(svgName) : null;
             this._icon = new St.Icon({
                 icon_name: this._iconName,
                 fallback_icon_name: this._iconName,
+                ...(gicon ? {gicon} : {}),
                 icon_size: 14,
                 style_class: 'linux-island__metric-icon',
                 y_align: Clutter.ActorAlign.CENTER,
@@ -65,6 +95,10 @@ export class SystemMetricTile {
         this._valueLabel = new St.Label({
             text: '--%',
             style_class: 'linux-island__metric-value',
+            // The value is the flexible part of the row: when "100% ⚡" cannot
+            // fit beside the glyph and label, it absorbs the remainder instead
+            // of overflowing into the NET column.
+            x_expand: true,
             x_align: Clutter.ActorAlign.END,
             y_align: Clutter.ActorAlign.CENTER,
         });
@@ -73,8 +107,16 @@ export class SystemMetricTile {
 
     setWidth(w) {
         if (!this.actor || w <= 0) return;
-        this.actor.style = `width: ${w}px; spacing: 8px; height: 20px;`;
+        const compact = w < METRIC_COMPACT_WIDTH;
+        // St's CSS width is the content box: the stylesheet's 2px 4px padding
+        // is added outside it. Compact mode therefore drops padding entirely
+        // (and the glyph) so the tile occupies exactly the slot width instead
+        // of overflowing it — 22px label + 4px gap + 38px "100% ⚡" = 64px.
+        const gap = compact ? 4 : 8;
+        const padding = compact ? '0' : '2px 4px';
+        this.actor.style = `width: ${w}px; spacing: ${gap}px; height: 20px; padding: ${padding};`;
         this.actor.width = w;
+        if (this._icon) this._icon.visible = Boolean(this._iconName) && !compact;
     }
 
     setIcon(iconName) {
@@ -121,16 +163,25 @@ export class SystemMetricTile {
  * (disk readout + quick-setting icon column). Because both side columns expand
  * by the same amount, the NET column lands exactly on the page centre line.
  *
+ * NET keeps its full width at every real preset. It is the only column whose
+ * text cannot degrade — "↓ 999.9 KB/s" needs ~66px at 11px bold — so the side
+ * columns give way first and NET only shrinks once they hit minSideWidth.
+ * The Qt overlay already behaves this way (SystemPage.qml pins NET at 78px and
+ * lets the flexible side slots absorb the squeeze); the extension used to do
+ * the opposite and starved NET to 22px on the small preset, hiding its text.
+ *
  * Pure math so it can be asserted without a GNOME Shell session.
  */
 export function computeSystemColumns(contentWidth,
-    {toggleWidth = 92, netWidth = 78, gap = 10, minSideWidth = 92} = {}) {
+    {toggleWidth = 92, netWidth = 78, gap = 10, narrowGap = 6,
+        minSideWidth = 64, narrowBelow = 286} = {}) {
     const width = Math.max(0, Number(contentWidth) || 0);
     const toggles = Math.max(0, toggleWidth);
-    const spacing = Math.max(0, gap);
+    const narrow = width < narrowBelow;
+    const spacing = Math.max(0, narrow ? narrowGap : gap);
     const minSide = Math.max(0, minSideWidth);
-    // NET may shrink on narrow capsules, but the side columns never go below
-    // minSideWidth, so CPU/RAM/BAT stay readable.
+    // NET is protected: it only gives up width once both side columns have
+    // already collapsed to their floor.
     const netRoom = width - spacing * 2 - minSide * 2;
     const net = Math.max(0, Math.min(Math.max(0, netWidth), Math.max(0, netRoom)));
     const sideWidth = Math.max(0, (width - net - spacing * 2) / 2);
@@ -138,7 +189,9 @@ export function computeSystemColumns(contentWidth,
     return {
         metricsWidth: sideWidth,
         netWidth: net,
-        togglesWidth: toggles,
+        // The right group occupies the same slot as the left one, so this is
+        // the width it actually gets, not just its 92px design budget.
+        togglesWidth: Math.min(toggles, sideWidth),
         gap: spacing,
         netOffset,
         netCentre: netOffset + net / 2,
@@ -176,9 +229,11 @@ export class NetMonitorView {
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
         });
+        const netGicon = getLocalUiGIcon('network-symbolic.svg');
         this._icon = new St.Icon({
             icon_name: 'network-transmit-receive-symbolic',
             fallback_icon_name: 'network-wireless-symbolic',
+            ...(netGicon ? {gicon: netGicon} : {}),
             icon_size: 13,
             style_class: 'linux-island__metric-icon',
             y_align: Clutter.ActorAlign.CENTER,
@@ -197,7 +252,6 @@ export class NetMonitorView {
             style_class: 'linux-island__metric-value',
             x_align: Clutter.ActorAlign.CENTER,
         });
-        this._rxLabel.clutter_text?.set_ellipsize(3);
         this.actor.add_child(this._rxLabel);
 
         this._txLabel = new St.Label({
@@ -205,7 +259,6 @@ export class NetMonitorView {
             style_class: 'linux-island__metric-value',
             x_align: Clutter.ActorAlign.CENTER,
         });
-        this._txLabel.clutter_text?.set_ellipsize(3);
         this.actor.add_child(this._txLabel);
     }
 
@@ -221,6 +274,7 @@ export class NetMonitorView {
         const txText = network.txText || '↑ 0 B/s';
         if (this._rxLabel) this._rxLabel.text = rxText;
         if (this._txLabel) this._txLabel.text = txText;
+        if (this._label && network.label) this._label.text = network.label;
         if (this._icon && network.iconName) this._icon.icon_name = network.iconName;
         this._onUpdate(network);
     }
@@ -273,14 +327,15 @@ export class StorageIndicator {
             return Clutter.EVENT_STOP;
         });
 
+        const diskGicon = getLocalUiGIcon('disk-symbolic.svg');
         this._icon = new St.Icon({
             icon_name: 'drive-harddisk-symbolic',
             fallback_icon_name: 'drive-harddisk-symbolic',
+            ...(diskGicon ? {gicon: diskGicon} : {}),
             icon_size: STORAGE_GLYPH_SIZE,
             style_class: 'linux-island__metric-icon',
             x_align: Clutter.ActorAlign.CENTER,
         });
-        this.actor.add_child(this._icon);
 
         this._valueLabel = new St.Label({
             text: '--%',
@@ -355,6 +410,10 @@ export class StorageIndicator {
             `spacing: ${STORAGE_LINE_SPACING}px; padding: ${STORAGE_PADDING_Y}px 0; width: ${w}px;`;
         this.actor.width = w;
         this.setLabelWidth(w);
+        // Narrow slots cannot fit "147/249 GB" (~49px at 9px); hide the line
+        // instead of letting it clip against the capsule edge.
+        if (this._detailLabel)
+            this._detailLabel.visible = w >= STORAGE_COMPACT_WIDTH;
     }
 
     destroy() {
