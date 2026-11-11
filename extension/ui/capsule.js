@@ -268,7 +268,7 @@ export class Capsule {
             return Clutter.EVENT_PROPAGATE;
         });
 
-        this._widget.connect('notify::allocation', () => this._relayout());
+        this._widget.connect('notify::allocation', () => this._relayout(true));
         this._scheduleIdleTimer();
     }
 
@@ -520,7 +520,7 @@ export class Capsule {
         }).catch(() => {});
     }
 
-    _relayout() {
+    _relayout(fromAllocation = false) {
         const monitor = Main.layoutManager.primaryMonitor;
         if (!monitor || !this._widget)
             return;
@@ -544,6 +544,16 @@ export class Capsule {
         const height = this._widget.height > 0 ? this._widget.height : 36;
         const {x, y} = clampToMonitor({...origin, width, height, monitor});
         const [curX, curY] = this._widget.get_position ? this._widget.get_position() : (this._widget.position ?? []);
+        // Moving the layout position during allocation invalidates it again.
+        // Keep resize frames centred with a transform; explicit relayouts
+        // absorb that offset back into the layout position.
+        if (fromAllocation) {
+            this._widget.translation_x = x - curX;
+            this._widget.translation_y = y - curY;
+            return;
+        }
+        this._widget.translation_x = 0;
+        this._widget.translation_y = 0;
         if (curX !== x || curY !== y) {
             this._widget.set_position(x, y);
         }

@@ -187,3 +187,19 @@ GNOME 46 acceptance NOT_RUN. Timeline is read-only; transport controls unchanged
 Optional media field `positionSampleUs` uses the host monotonic clock; frozen
 Core1 XML methods/signals are unchanged. Native MPRIS queries remain asynchronous
 from the Shell's perspective; sampling and metadata are never logged.
+
+
+## M3-14B — Allocation-safe centering repair (2026-11-08)
+
+Status: **PARTIAL**. Source repair and disposable GNOME 50.1 headless checks completed; physical-display smoothness remains **NOT_RUN**.
+
+- RED: `node tests/extension/capsule-rendering.test.js`, exit 1, `resize allocation must not change layout position`.
+- GREEN: same command, exit 0; existing transition, reduced-motion, fullscreen and cleanup checks pass alongside the new centering/input regression.
+- Normal expand/collapse: 16 transitions per version; root allocation warnings 206 before, 0 after.
+- Circle hover: 8 transitions per version; warnings 92 before, 0 after.
+- Rapid reversal: 8 transitions per version; warnings 31 before, 2 after. These remaining warnings are unresolved.
+- Reduced motion: 4 transitions, no active width/height tween after persisting the setting to the isolated Core.
+- All 52 accepted fixed-version transitions retained native center-point picking; maximum center error 0.5 logical pixels.
+- Environment: Ubuntu 26.04.1 LTS, GNOME Shell 50.1, GJS 1.88.0, private D-Bus/XDG/dconf, 1280x800 virtual monitor. Daily extension not replaced.
+- Evidence: `build/diagnostics/2026-11-08-resize-fix/REPORT.md`, `summary.json`, `edge-final-summary.json`, accepted raw profiles and filtered shell logs. The build directory is ignored and is local evidence.
+- Timing remains inconclusive: worst normal resize paint interval was about 48 ms both before and after. No claim that all user-visible lag is fixed.

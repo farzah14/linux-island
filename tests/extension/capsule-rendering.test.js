@@ -30,6 +30,10 @@ class Actor {
     remove_style_class_name(name) { this.classes.delete(name); }
     set_pivot_point(x, y) { this.pivot = [x, y]; }
     set_position(x, y) { this.position = [x, y]; }
+    get_transformed_position() {
+        const [x, y] = this.position ?? [0, 0];
+        return [x + (this.translation_x ?? 0), y + (this.translation_y ?? 0)];
+    }
     get_preferred_width() { return [124, 360]; }
     get_preferred_height() { return [32, 184]; }
     remove_all_transitions() { this.cancelled++; this.transitions = []; }
@@ -223,6 +227,42 @@ assert.equal(capsule._widget.position[1], monitor.y + 8, 'unknown mode keeps dyn
 capsule.setDisplayMode('dynamic');
 assert.equal(capsule._widget.position[1], monitor.y + 8, 'reset vertical offset restores monitor.y + 8');
 assert.equal(capsule._widget.position[0], expectedCenter, 'reset horizontal offset restores baseline center');
+
+// Allocation callbacks must keep resize frames centred without invalidating
+// layout again. Input must follow the displayed capsule while it is moving.
+{
+    const events = [];
+    const moving = new Capsule({idleTimeoutMs: 0, onInteractionEvent: event => events.push(event)});
+    moving.applyState('EXPANDED');
+    const actor = moving._widget;
+    actor.width = 180;
+    actor.height = 80;
+    moving._relayout();
+    let allocating = false;
+    const setPosition = actor.set_position;
+    actor.set_position = function (...args) {
+        assert.equal(allocating, false, 'resize allocation must not change layout position');
+        setPosition.apply(this, args);
+    };
+    for (const width of [200, 328, 388, 180]) {
+        actor.width = width;
+        allocating = true;
+        actor.handlers['notify::allocation']();
+        allocating = false;
+        const [x, y] = actor.get_transformed_position();
+        assert.equal(x + width / 2, monitor.x + monitor.width / 2,
+            'growing and shrinking frames retain their visual centre');
+        assert.equal(y, monitor.y + 8);
+        stage.emit({type: () => 1, get_coords: () => [x + 1, y + 1]});
+        assert.deepEqual(events, [], 'inside clicks follow the transformed capsule');
+    }
+    moving.setHorizontalOffset(40);
+    assert.equal(actor.get_transformed_position()[0] + actor.width / 2,
+        monitor.x + monitor.width / 2 + 40, 'offset changes preserve the visual position');
+    assert.equal(actor.translation_x, 0, 'normal relayout absorbs the temporary translation');
+    moving.destroy();
+}
+
 capsule.setTheme('light');
 assert.equal(capsule._widget.classes.has('linux-island--light'), true);
 capsule.applyState('EXPANDED');
