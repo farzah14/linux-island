@@ -5,9 +5,11 @@ import {BeatBars} from './beatBars.js';
 import {estimateTimeline, formatTime} from '../lib/mediaTimeline.js';
 import {SystemMetricsRow, NetMonitorView, computeSystemColumns} from './systemMetricTile.js';
 import {QuickTogglesRow} from './quickToggle.js';
-import {FeatureCarousel} from './featureCarousel.js';
+import {FeatureCarousel, resolveCarouselPages} from './featureCarousel.js';
 import {AiQuotaSection} from './aiQuotaView.js';
 import {TimeSection} from './timeView.js';
+import {TodoSection} from './todoView.js';
+import {openFileChooserPortal, pasteClipboardToShelf, openShelfItem, revealShelfItem, copyShelfItemsToClipboard, launchShelfPopout} from '../lib/shelfActions.js';
 
 export const CAPSULE_SIZES = Object.freeze({
     circle: {width: 268, artwork: 40, button: 28, play: 36, icon: 12,
@@ -169,6 +171,7 @@ export class MediaView {
      */
     constructor({onControlAction, onDismiss, onThemeToggle, onSetActivePlayer, onUpdateSettings,
         onStartTimer, onControlTimer, onTimerStats,
+        onAddShelfFiles, onRemoveShelfFile, onClearShelf, onRefreshShelf,
         artworkLoader = loadLocalArtwork,
         clock = () => GLib ? GLib.get_monotonic_time() : 0, scheduler} = {}) {
         this._onControlAction = onControlAction ?? (() => {});
@@ -176,6 +179,10 @@ export class MediaView {
         this._onStartTimer = onStartTimer ?? (() => {});
         this._onControlTimer = onControlTimer ?? (() => {});
         this._onTimerStats = onTimerStats ?? (() => {});
+        this._onAddShelfFiles = onAddShelfFiles ?? (() => {});
+        this._onRemoveShelfFile = onRemoveShelfFile ?? (() => {});
+        this._onClearShelf = onClearShelf ?? (() => {});
+        this._onRefreshShelf = onRefreshShelf ?? (() => {});
         this._onThemeToggle = onThemeToggle ?? (() => {});
         this._onSetActivePlayer = onSetActivePlayer ?? (() => {});
         this._onUpdateSettings = onUpdateSettings ?? (() => {});
@@ -212,6 +219,7 @@ export class MediaView {
         };
         this._aiQuotaSection = null;
         this._timeSection = null;
+        this._shelfSection = null;
         this._netView = null;
         this._metricsSlot = null;
         this._togglesSlot = null;
@@ -634,45 +642,60 @@ export class MediaView {
             onStats: () => this._onTimerStats(),
         });
 
+        // Section 5: shared task list.
+        this._shelfSection = new TodoSection();
 
         // Slideable Carousel between Music section and System/Controls section
+        this._allPages = [
+            { id: 'media', actor: this._mediaSection, label: 'Music', iconName: 'audio-x-generic-symbolic' },
+            {
+                id: 'system',
+                actor: this._systemSection,
+                label: 'System & Controls',
+                iconName: 'preferences-system-symbolic',
+                onActivate: () => this._metricsRow?.start(),
+            },
+            {
+                id: 'ai',
+                actor: this._aiQuotaSection?.actor,
+                label: 'AI Quota',
+                iconName: 'applications-science-symbolic',
+                onActivate: () => this._aiQuotaSection?.start(),
+            },
+            {
+                id: 'timer',
+                actor: this._timeSection?.actor,
+                label: 'Timer',
+                iconName: 'alarm-symbolic',
+                onActivate: () => this._onTimerStats(),
+            },
+            {
+                id: 'shelf',
+                actor: this._shelfSection?.actor,
+                label: 'To-do',
+                iconName: 'emblem-ok-symbolic',
+                onActivate: () => this._shelfSection?.refresh(),
+            },
+        ];
+        this._carouselConfigKey = null;
+        this._defaultPageId = 'media';
+
         this._carousel = new FeatureCarousel({
-            pages: [
-                { id: 'media', actor: this._mediaSection, label: 'Music', iconName: 'audio-x-generic-symbolic' },
-                {
-                    id: 'system',
-                    actor: this._systemSection,
-                    label: 'System & Controls',
-                    iconName: 'preferences-system-symbolic',
-                    onActivate: () => this._metricsRow?.start(),
-                },
-                {
-                    id: 'ai',
-                    actor: this._aiQuotaSection?.actor,
-                    label: 'AI Quota',
-                    iconName: 'applications-science-symbolic',
-                    onActivate: () => this._aiQuotaSection?.start(),
-                },
-                {
-                    id: 'timer',
-                    actor: this._timeSection?.actor,
-                    label: 'Timer',
-                    iconName: 'alarm-symbolic',
-                    onActivate: () => this._onTimerStats(),
-                },
-            ],
-            onPageChanged: (idx) => {
-                if (idx === 1) {
+            pages: this._allPages,
+            onPageChanged: () => {
+                const activeId = this._carousel?.activePageId;
+                if (activeId === 'system') {
                     this._metricsRow?.start();
                 } else {
                     this._metricsRow?.stop();
                 }
-                if (idx === 2) {
+                if (activeId === 'ai') {
                     this._aiQuotaSection?.start();
                 } else {
                     this._aiQuotaSection?.stop();
                 }
-                if (idx === 3) this._onTimerStats();
+                if (activeId === 'timer') this._onTimerStats();
+                if (activeId === 'shelf') this._shelfSection?.refresh();
             },
         });
         if (this._carousel.actor) {
@@ -738,6 +761,28 @@ export class MediaView {
         this._timeSection?.setStats(stats);
     }
 
+    setShelf(snapshot) {
+        // Shelf data remains stored by Core, but is no longer displayed here.
+    }
+
+    selectShelfPage() {
+        this._carousel?.goToPageId?.('shelf');
+    }
+
+    setCarouselConfig(carouselPages, defaultPage) {
+        const key = `${carouselPages ?? ''}|${defaultPage ?? ''}`;
+        if (key === this._carouselConfigKey)
+            return;
+        this._carouselConfigKey = key;
+        const resolved = resolveCarouselPages(this._allPages, carouselPages, defaultPage);
+        this._defaultPageId = resolved.pages[resolved.defaultIndex]?.id ?? 'media';
+        this._carousel?.setPages?.(resolved.pages, resolved.defaultIndex);
+    }
+
+    openDefaultPage() {
+        this._carousel?.goToPageId?.(this._defaultPageId);
+    }
+
     setCapsuleSize(size) {
         if (!Object.hasOwn(CAPSULE_SIZES, size) || !this._actor) return;
         const preset = CAPSULE_SIZES[size];
@@ -778,6 +823,7 @@ export class MediaView {
             this._aiQuotaSection.setWidth(Math.max(0, contentWidth - 8));
         }
         this._timeSection?.setWidth(contentWidth);
+        this._shelfSection?.setWidth(contentWidth);
         if (this._carousel) {
             this._carousel.setPageWidth?.(contentWidth);
         }
@@ -1032,6 +1078,8 @@ export class MediaView {
         this._aiQuotaSection = null;
         this._timeSection?.destroy();
         this._timeSection = null;
+        this._shelfSection?.destroy();
+        this._shelfSection = null;
         this._playerSwitcherBtn = null;
         this._playerSwitcherLabel = null;
         ++this._artGeneration;

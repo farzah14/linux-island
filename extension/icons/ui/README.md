@@ -9,6 +9,8 @@
 - `media-symbolic.svg`: Musical eighth note (Media view navigation / fallback artwork)
 - `system-symbolic.svg`: Control sliders (System metrics & quick toggles navigation / Settings toggle)
 - `ai-symbolic.svg`: Conical laboratory flask (AI quota navigation)
+- `timer-symbolic.svg`: Stopwatch dial (Timer / Pomodoro navigation)
+- `shelf-symbolic.svg`: Staging tray with down arrow (File Shelf navigation)
 - `search-symbolic.svg`: Magnifying glass (Web search navigation)
 - `prev-symbolic.svg`: Skip backward transport control
 - `next-symbolic.svg`: Skip forward transport control

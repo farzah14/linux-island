@@ -16,6 +16,7 @@ private slots:
     void testFullscreenJsonParsing();
     void testDisplaySurfaceManagerGeometry();
     void testVolumeSetAndMute();
+    void testCarouselOrderAndToggleHelpers();
 };
 
 void TestIslandClientFsm::testStateTransitions() {
@@ -172,6 +173,37 @@ void TestIslandClientFsm::testVolumeSetAndMute() {
     // Under-range clamping
     client.setVolume(-0.5);
     QCOMPARE(client.volume(), 0.0);
+}
+
+void TestIslandClientFsm::testCarouselOrderAndToggleHelpers() {
+    IslandClient client;
+    QCOMPARE(client.orderedPages().size(), 5);
+    QCOMPARE(client.defaultSwipeIndex(), 0);
+
+    QVariantMap settings;
+    settings[QStringLiteral("carouselPages")] = QStringLiteral("timer,shelf");
+    settings[QStringLiteral("defaultPage")] = QStringLiteral("shelf");
+    QMetaObject::invokeMethod(&client, "onSettingsChanged",
+                              Qt::DirectConnection, Q_ARG(quint64, 2), Q_ARG(QVariantMap, settings));
+
+    const QVariantList pages = client.orderedPages();
+    QCOMPARE(pages.size(), 2);
+    const int timerSwipe = pages.at(0).toMap().value(QStringLiteral("swipeIndex")).toInt();
+    const int shelfSwipe = pages.at(1).toMap().value(QStringLiteral("swipeIndex")).toInt();
+    QVERIFY(timerSwipe != shelfSwipe);
+    QCOMPARE(client.defaultSwipeIndex(), shelfSwipe);
+    QCOMPARE(client.nearestOrderedSwipeIndex(timerSwipe), timerSwipe);
+    const int snapped = client.nearestOrderedSwipeIndex(0);
+    QVERIFY(snapped == timerSwipe || snapped == shelfSwipe);
+
+    QSignalSpy toggleSpy(&client, &IslandClient::toggleRequested);
+    QCOMPARE(client.uiState(), QStringLiteral("COMPACT"));
+    client.toggleExpanded();
+    QCOMPARE(client.uiState(), QStringLiteral("EXPANDED"));
+    QCOMPARE(toggleSpy.count(), 1);
+    client.toggleExpanded();
+    QCOMPARE(client.uiState(), QStringLiteral("COMPACT"));
+    QCOMPARE(toggleSpy.count(), 1);
 }
 
 QTEST_MAIN(TestIslandClientFsm)

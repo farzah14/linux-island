@@ -39,6 +39,7 @@ install(FILES packaging/icons/io.github.linuxisland.svg
 
 install(FILES schemas/io.github.linuxisland.Core1.xml
         schemas/io.github.linuxisland.Time1.xml
+        schemas/io.github.linuxisland.Shelf1.xml
         DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/interfaces)
 
 install(FILES LICENSE
@@ -53,6 +54,13 @@ install(DIRECTORY packaging/window-rules/
 
 install(DIRECTORY extension/
         DESTINATION ${CMAKE_INSTALL_DATADIR}/gnome-shell/extensions/linux-island@local)
+
+install(CODE "
+    find_program(GLIB_COMPILE_SCHEMAS glib-compile-schemas)
+    if(GLIB_COMPILE_SCHEMAS)
+        execute_process(COMMAND \${GLIB_COMPILE_SCHEMAS} \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/gnome-shell/extensions/linux-island@local/schemas\")
+    endif()
+")
 
 # The systemd unit needs the install prefix at install time, not configure time:
 # `cmake --install --prefix` and DESTDIR staging must both produce a unit whose

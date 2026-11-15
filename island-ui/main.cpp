@@ -19,11 +19,28 @@
 #include <iostream>
 #include "island_client.h"
 #include "time_client.h"
+#include "shelf_client.h"
+#include "todo_client.h"
 #include "system_metrics_provider.h"
 #include "quick_settings_provider.h"
 #include "ai_quota_provider.h"
 #include "notification_watcher.h"
 #include "display_surface_manager.h"
+
+class UiControlAdaptor : public QObject {
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "io.github.linuxisland.Ui1")
+public:
+    explicit UiControlAdaptor(IslandClient *client, QObject *parent = nullptr)
+        : QObject(parent), m_client(client) {}
+public slots:
+    void Toggle() {
+        if (m_client)
+            m_client->toggleExpanded();
+    }
+private:
+    IslandClient *m_client = nullptr;
+};
 
 int main(int argc, char *argv[]) {
     for (int i = 1; i < argc; ++i) {
@@ -34,11 +51,30 @@ int main(int argc, char *argv[]) {
     }
 
     bool smokeTest = false;
+    bool shelfPopout = false;
+    bool toggleMode = false;
     for (int i = 1; i < argc; ++i) {
         const QString arg = QString::fromUtf8(argv[i]);
         if (arg == QLatin1String("--smoke-test")) {
             smokeTest = true;
+        } else if (arg == QLatin1String("--shelf-popout")) {
+            shelfPopout = true;
+        } else if (arg == QLatin1String("--toggle")) {
+            toggleMode = true;
         }
+    }
+
+    if (toggleMode) {
+        QDBusConnection bus = QDBusConnection::sessionBus();
+        if (!bus.isConnected())
+            return 1;
+        QDBusMessage msg = QDBusMessage::createMethodCall(
+            QStringLiteral("io.github.linuxisland.Ui"),
+            QStringLiteral("/io/github/linuxisland/Ui"),
+            QStringLiteral("io.github.linuxisland.Ui1"),
+            QStringLiteral("Toggle"));
+        const QDBusMessage reply = bus.call(msg, QDBus::Block, 1000);
+        return reply.type() == QDBusMessage::ErrorMessage ? 1 : 0;
     }
 
     if (smokeTest && !qEnvironmentVariableIsSet("QT_QPA_PLATFORM")) {
@@ -50,7 +86,7 @@ int main(int argc, char *argv[]) {
     // directly (bypassing linux-island-launch, which disables the extension)
     // used to leave two capsules on screen. ISLAND_ALLOW_DOUBLE_RENDER=1
     // overrides this for deliberate side-by-side comparison.
-    if (!smokeTest && qEnvironmentVariableIsEmpty("ISLAND_ALLOW_DOUBLE_RENDER")) {
+    if (!smokeTest && !shelfPopout && qEnvironmentVariableIsEmpty("ISLAND_ALLOW_DOUBLE_RENDER")) {
         QDBusConnection bus = QDBusConnection::sessionBus();
         if (bus.isConnected() && bus.interface()) {
             const QDBusReply<bool> enabled = bus.interface()->isServiceRegistered(
@@ -90,6 +126,16 @@ int main(int argc, char *argv[]) {
 
     IslandClient client;
     TimeClient timeClient;
+    ShelfClient shelfClient;
+    TodoClient todoClient;
+    UiControlAdaptor uiControl(&client);
+    if (!smokeTest && QDBusConnection::sessionBus().isConnected()) {
+        QDBusConnection::sessionBus().registerService(QStringLiteral("io.github.linuxisland.Ui"));
+        QDBusConnection::sessionBus().registerObject(
+            QStringLiteral("/io/github/linuxisland/Ui"),
+            &uiControl,
+            QDBusConnection::ExportAllSlots);
+    }
     SystemMetricsProvider metrics;
     QuickSettingsProvider quickSettings;
     AiQuotaProvider aiQuota;
@@ -132,6 +178,9 @@ int main(int argc, char *argv[]) {
 
     engine.rootContext()->setContextProperty(QStringLiteral("islandClient"), &client);
     engine.rootContext()->setContextProperty(QStringLiteral("timeClient"), &timeClient);
+    engine.rootContext()->setContextProperty(QStringLiteral("shelfClient"), &shelfClient);
+    engine.rootContext()->setContextProperty(QStringLiteral("todoClient"), &todoClient);
+    engine.rootContext()->setContextProperty(QStringLiteral("shelfPopout"), shelfPopout);
     engine.rootContext()->setContextProperty(QStringLiteral("systemMetrics"), &metrics);
     engine.rootContext()->setContextProperty(QStringLiteral("quickSettings"), &quickSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("aiQuota"), &aiQuota);
@@ -260,6 +309,16 @@ int main(int argc, char *argv[]) {
             return 11;
         }
 
+        auto *shelfPage = rootWindow->findChild<QObject *>(QStringLiteral("todoPage"));
+        if (!shelfPage) {
+            std::cerr << "Smoke test error: shelf page missing" << std::endl;
+            return 12;
+        }
+        if (shelfPage->property("implicitHeight").toInt() != 116) {
+            std::cerr << "Smoke test error: shelf page height" << std::endl;
+            return 13;
+        }
+
         if (qmlWarnings) {
             std::cerr << "Smoke test error: QML runtime warnings" << std::endl;
             return 9;
@@ -270,3 +329,5 @@ int main(int argc, char *argv[]) {
 
     return app.exec();
 }
+
+#include "main.moc"

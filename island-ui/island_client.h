@@ -48,6 +48,11 @@ class IslandClient : public QObject {
     Q_PROPERTY(QString displayMode READ displayMode NOTIFY settingsChanged)
     Q_PROPERTY(int verticalOffset READ verticalOffset NOTIFY settingsChanged)
     Q_PROPERTY(int horizontalOffset READ horizontalOffset NOTIFY settingsChanged)
+    Q_PROPERTY(QString carouselPages READ carouselPages NOTIFY settingsChanged)
+    Q_PROPERTY(QString defaultPage READ defaultPage NOTIFY settingsChanged)
+    Q_PROPERTY(QString toggleShortcut READ toggleShortcut NOTIFY settingsChanged)
+    Q_PROPERTY(QVariantList orderedPages READ orderedPages NOTIFY settingsChanged)
+    Q_PROPERTY(int defaultSwipeIndex READ defaultSwipeIndex NOTIFY settingsChanged)
 
 public:
     explicit IslandClient(const QDBusConnection &bus = QDBusConnection::sessionBus(), QObject *parent = nullptr);
@@ -87,6 +92,11 @@ public:
     QString displayMode() const { return m_displayMode; }
     int verticalOffset() const { return m_verticalOffset; }
     int horizontalOffset() const { return m_horizontalOffset; }
+    QString carouselPages() const { return m_carouselPages; }
+    QString defaultPage() const { return m_defaultPage; }
+    QString toggleShortcut() const { return m_toggleShortcut; }
+    QVariantList orderedPages() const;
+    int defaultSwipeIndex() const;
 
     static QString transitionState(const QString &currentState, const QString &event);
     static QString formatTime(qlonglong us);
@@ -100,6 +110,8 @@ public:
     Q_INVOKABLE void cycleActivePlayer();
     Q_INVOKABLE void updateSettings(const QVariantMap &patch);
     Q_INVOKABLE void cycleTheme();
+    Q_INVOKABLE void toggleExpanded();
+    Q_INVOKABLE int nearestOrderedSwipeIndex(int swipeIndex) const;
 
 signals:
     void uiStateChanged();
@@ -107,6 +119,7 @@ signals:
     void mediaChanged();
     void availablePlayersChanged();
     void settingsChanged();
+    void toggleRequested();
 
 private slots:
     void onNameOwnerChanged(const QString &serviceName, const QString &oldOwner, const QString &newOwner);
@@ -159,4 +172,7 @@ private:
     QString m_displayMode = QStringLiteral("dynamic");
     int m_verticalOffset = 8;
     int m_horizontalOffset = 0;
+    QString m_carouselPages = QStringLiteral("media,system,ai,timer,shelf");
+    QString m_defaultPage = QStringLiteral("media");
+    QString m_toggleShortcut = QStringLiteral("<Super><Shift>i");
 };

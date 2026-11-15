@@ -58,6 +58,16 @@
 .linux-island__timer-chip--active { font-size: 10px; font-weight: 600; border-radius: 6px; padding: 1px 8px; border: 1px solid transparent; }
 .linux-island__timer-progress-track { border-radius: 2px; }
 .linux-island__timer-progress-fill { border-radius: 2px; }
+.linux-island__capsule--drop-target { border-width: 1.5px; }
+.linux-island__shelf-section { spacing: 4px; padding: 0; }
+.linux-island__shelf-title { font-size: 11px; font-weight: bold; }
+.linux-island__shelf-chip { font-size: 10px; font-weight: 600; border-radius: 6px; padding: 1px 7px; border: 1px solid transparent; }
+.linux-island__shelf-empty { border-radius: 10px; border: 1px solid transparent; padding: 6px 10px; }
+.linux-island__shelf-empty-text { font-size: 10px; font-weight: 600; }
+.linux-island__shelf-row { border-radius: 8px; padding: 3px 6px; border: 1px solid transparent; }
+.linux-island__shelf-name { font-size: 11px; font-weight: 600; }
+.linux-island__shelf-meta { font-size: 10px; }
+.linux-island__shelf-action { font-size: 10px; font-weight: 600; border-radius: 6px; padding: 1px 6px; border: 0; }
 
 .linux-island--dark.linux-island__capsule {
     background-color: #191816;
@@ -360,6 +370,72 @@
     background-color: #D8B77F;
 }
 
+.linux-island--dark.linux-island__capsule--drop-target {
+    background-color: #403B34;
+    border-color: #D8B77F;
+}
+
+.linux-island--dark.linux-island__preview.linux-island__capsule--drop-target {
+    background-color: #403B34;
+    border-color: #D8B77F;
+}
+
+.linux-island--dark .linux-island__shelf-section {
+    background-color: transparent;
+}
+
+.linux-island--dark .linux-island__shelf-title {
+    color: #F4F0E9;
+}
+
+.linux-island--dark .linux-island__shelf-chip {
+    background-color: #302D28;
+    color: #C8C0B5;
+    border-color: transparent;
+}
+
+.linux-island--dark .linux-island__shelf-chip:hover {
+    background-color: #403B34;
+    color: #F4F0E9;
+}
+
+.linux-island--dark .linux-island__shelf-empty {
+    background-color: #302D28;
+    border-color: #575148;
+}
+
+.linux-island--dark .linux-island__shelf-empty-text {
+    color: #A69C8F;
+}
+
+.linux-island--dark .linux-island__shelf-row {
+    background-color: #302D28;
+    border-color: transparent;
+}
+
+.linux-island--dark .linux-island__shelf-row:hover {
+    background-color: #403B34;
+    border-color: #575148;
+}
+
+.linux-island--dark .linux-island__shelf-name {
+    color: #F4F0E9;
+}
+
+.linux-island--dark .linux-island__shelf-meta {
+    color: #A69C8F;
+}
+
+.linux-island--dark .linux-island__shelf-action {
+    background-color: #191816;
+    color: #C8C0B5;
+}
+
+.linux-island--dark .linux-island__shelf-action:hover {
+    background-color: #403B34;
+    color: #D8B77F;
+}
+
 .linux-island--light.linux-island__capsule {
     background-color: #FBF8F1;
     color: #292621;
@@ -659,4 +735,70 @@
 
 .linux-island--light .linux-island__timer-progress-fill {
     background-color: #80551F;
+}
+
+.linux-island--light.linux-island__capsule--drop-target {
+    background-color: #E5DED3;
+    border-color: #80551F;
+}
+
+.linux-island--light.linux-island__preview.linux-island__capsule--drop-target {
+    background-color: #E5DED3;
+    border-color: #80551F;
+}
+
+.linux-island--light .linux-island__shelf-section {
+    background-color: transparent;
+}
+
+.linux-island--light .linux-island__shelf-title {
+    color: #292621;
+}
+
+.linux-island--light .linux-island__shelf-chip {
+    background-color: #EEE9DF;
+    color: #5D554B;
+    border-color: transparent;
+}
+
+.linux-island--light .linux-island__shelf-chip:hover {
+    background-color: #E5DED3;
+    color: #292621;
+}
+
+.linux-island--light .linux-island__shelf-empty {
+    background-color: #EEE9DF;
+    border-color: #C7BCAE;
+}
+
+.linux-island--light .linux-island__shelf-empty-text {
+    color: #665E53;
+}
+
+.linux-island--light .linux-island__shelf-row {
+    background-color: #EEE9DF;
+    border-color: transparent;
+}
+
+.linux-island--light .linux-island__shelf-row:hover {
+    background-color: #E5DED3;
+    border-color: #C7BCAE;
+}
+
+.linux-island--light .linux-island__shelf-name {
+    color: #292621;
+}
+
+.linux-island--light .linux-island__shelf-meta {
+    color: #665E53;
+}
+
+.linux-island--light .linux-island__shelf-action {
+    background-color: #FBF8F1;
+    color: #5D554B;
+}
+
+.linux-island--light .linux-island__shelf-action:hover {
+    background-color: #E5DED3;
+    color: #80551F;
 }

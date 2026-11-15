@@ -27,6 +27,7 @@ Item {
     readonly property bool showCycle: timeClient.timerMode === "pomodoro" && !idle
 
     property int customMin: 25
+    property bool pomodoroSelected: false
 
     readonly property var stats: timeClient.timerStats
     readonly property string statsText: {
@@ -71,6 +72,26 @@ Item {
         anchors.fill: parent
         spacing: 4
 
+        // Row 5: mode chips, idle only.
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 18
+            spacing: 4
+            Layout.alignment: Qt.AlignHCenter
+            visible: root.idle && timeClient.timerServiceAvailable
+
+            Chip {
+                label: "Timer"
+                active: !root.pomodoroSelected
+                onClicked: root.pomodoroSelected = false
+            }
+            Chip {
+                label: "Pomodoro"
+                active: root.pomodoroSelected
+                onClicked: root.pomodoroSelected = true
+            }
+        }
+
         // Row 1: clock, phase, cycle position.
         RowLayout {
             Layout.fillWidth: true
@@ -80,7 +101,7 @@ Item {
             Layout.alignment: Qt.AlignHCenter
 
             Text {
-                text: timeClient.formatClock(timeClient.timerRemainingSec)
+                text: root.idle ? (root.pomodoroSelected ? "Ready" : timeClient.formatClock(root.customMin * 60)) : timeClient.formatClock(timeClient.timerRemainingSec)
                 font.pixelSize: 20
                 font.bold: true
                 color: IslandTheme.textPrimary
@@ -149,28 +170,28 @@ Item {
             visible: timeClient.timerServiceAvailable
 
             Chip {
-                visible: root.idle
+                visible: root.idle && !root.pomodoroSelected
                 label: "5"
                 active: root.customMin === 5
-                onClicked: { root.customMin = 5; timeClient.startTimer(5); }
+                onClicked: root.customMin = 5
             }
             Chip {
-                visible: root.idle
+                visible: root.idle && !root.pomodoroSelected
                 label: "15"
                 active: root.customMin === 15
-                onClicked: { root.customMin = 15; timeClient.startTimer(15); }
+                onClicked: root.customMin = 15
             }
             Chip {
-                visible: root.idle
+                visible: root.idle && !root.pomodoroSelected
                 label: "25"
                 active: root.customMin === 25
-                onClicked: { root.customMin = 25; timeClient.startTimer(25); }
+                onClicked: root.customMin = 25
             }
             Chip {
-                visible: root.idle
+                visible: root.idle && !root.pomodoroSelected
                 label: "45"
                 active: root.customMin === 45
-                onClicked: { root.customMin = 45; timeClient.startTimer(45); }
+                onClicked: root.customMin = 45
             }
 
             Chip {
@@ -218,10 +239,12 @@ Item {
             visible: root.idle && timeClient.timerServiceAvailable
 
             Chip {
+                visible: !root.pomodoroSelected
                 label: "−5"
                 onClicked: root.customMin = Math.max(1, root.customMin - 5)
             }
             Text {
+                visible: !root.pomodoroSelected
                 text: root.customMin + " min"
                 font.pixelSize: 10
                 font.bold: true
@@ -231,33 +254,14 @@ Item {
                 Layout.preferredWidth: 44
             }
             Chip {
+                visible: !root.pomodoroSelected
                 label: "+5"
                 onClicked: root.customMin = Math.min(180, root.customMin + 5)
             }
             Chip {
-                label: "Start"
+                label: root.pomodoroSelected ? "Start Pomodoro" : "Start Timer"
                 active: true
-                onClicked: timeClient.startTimer(root.customMin)
-            }
-        }
-
-        // Row 5: mode chips, idle only.
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 18
-            spacing: 4
-            Layout.alignment: Qt.AlignHCenter
-            visible: root.idle && timeClient.timerServiceAvailable
-
-            Chip {
-                label: "Timer"
-                active: !(timeClient.timerMode === "pomodoro" && !root.idle)
-                onClicked: {}
-            }
-            Chip {
-                label: "Pomodoro"
-                active: timeClient.timerMode === "pomodoro" && !root.idle
-                onClicked: timeClient.startPomodoro()
+                onClicked: { if (root.pomodoroSelected) timeClient.startPomodoro(); else timeClient.startTimer(root.customMin); }
             }
         }
 

@@ -6,7 +6,8 @@ RevisionClock::RevisionClock()
     : m_instanceId(QUuid::createUuid().toString(QUuid::WithoutBraces)),
       m_media(0),
       m_settings(0),
-      m_timer(0) {}
+      m_timer(0),
+      m_shelf(0) {}
 
 QString RevisionClock::instanceId() const {
     return m_instanceId;
@@ -43,4 +44,15 @@ quint64 RevisionClock::timerChanged() {
         ++m_timer;
     }
     return m_timer;
+}
+
+quint64 RevisionClock::shelfRevision() const {
+    return m_shelf;
+}
+
+quint64 RevisionClock::shelfChanged() {
+    if (m_shelf < std::numeric_limits<quint64>::max()) {
+        ++m_shelf;
+    }
+    return m_shelf;
 }

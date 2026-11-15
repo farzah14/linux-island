@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<node>
+  <interface name="io.github.linuxisland.Shelf1">
+    <method name="GetShelf">
+      <arg name="shelf" type="a{sv}" direction="out"/>
+    </method>
+    <method name="AddFiles">
+      <arg name="uris" type="as" direction="in"/>
+      <arg name="accepted" type="b" direction="out"/>
+    </method>
+    <method name="RemoveFile">
+      <arg name="id" type="s" direction="in"/>
+      <arg name="accepted" type="b" direction="out"/>
+    </method>
+    <method name="ClearShelf">
+      <arg name="accepted" type="b" direction="out"/>
+    </method>
+    <signal name="ShelfChanged">
+      <arg name="revision" type="t"/>
+      <arg name="shelf" type="a{sv}"/>
+    </signal>
+  </interface>
+</node>

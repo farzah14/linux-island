@@ -99,3 +99,16 @@ add_executable(tst_sink_volume tst_sink_volume.cpp ${CMAKE_SOURCE_DIR}/core/medi
 target_include_directories(tst_sink_volume PRIVATE ${CMAKE_SOURCE_DIR}/core)
 target_link_libraries(tst_sink_volume PRIVATE Qt6::Core Qt6::Test)
 add_test(NAME sink-volume COMMAND tst_sink_volume)
+
+add_executable(tst_shelf_service
+    tst_shelf_service.cpp
+    ${CMAKE_SOURCE_DIR}/core/shelf/shelf_service.cpp
+)
+target_include_directories(tst_shelf_service PRIVATE ${CMAKE_SOURCE_DIR}/core)
+target_link_libraries(tst_shelf_service PRIVATE Qt6::Core Qt6::Test)
+add_test(NAME shelf-service COMMAND tst_shelf_service)
+
+add_executable(tst_todo_service tst_todo_service.cpp ${CMAKE_SOURCE_DIR}/core/todo/todo_service.cpp)
+target_include_directories(tst_todo_service PRIVATE ${CMAKE_SOURCE_DIR}/core)
+target_link_libraries(tst_todo_service PRIVATE Qt6::Core Qt6::Test)
+add_test(NAME todo-service COMMAND tst_todo_service)

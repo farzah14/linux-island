@@ -48,6 +48,7 @@ export class SystemMetricTile {
     constructor({label = 'METRIC', iconName = ''} = {}) {
         this._label = label;
         this._iconName = iconName;
+        this._compact = false;
         this.actor = null;
         this._icon = null;
         this._nameLabel = null;
@@ -108,6 +109,7 @@ export class SystemMetricTile {
     setWidth(w) {
         if (!this.actor || w <= 0) return;
         const compact = w < METRIC_COMPACT_WIDTH;
+        this._compact = compact;
         // St's CSS width is the content box: the stylesheet's 2px 4px padding
         // is added outside it. Compact mode therefore drops padding entirely
         // (and the glyph) so the tile occupies exactly the slot width instead
@@ -124,7 +126,7 @@ export class SystemMetricTile {
         if (this._icon) {
             this._icon.icon_name = iconName;
             this._icon.fallback_icon_name = iconName;
-            this._icon.visible = Boolean(iconName);
+            this._icon.visible = Boolean(iconName) && !this._compact;
         }
     }
 
@@ -529,7 +531,10 @@ export class SystemMetricsRow {
         if (metrics.battery && this._batTile) {
             this._batTile.setIcon(metrics.battery.iconName || 'battery-good-symbolic');
             this._batTile.setLabel(metrics.battery.device || 'BAT');
-            this._batTile.setValue(metrics.battery.text, metrics.battery.percent);
+            this._batTile.setValue(`${Math.round(metrics.battery.percent)}%`, metrics.battery.percent);
+            this._batTile.actor.accessible_name = metrics.battery.isCharging
+                ? `Battery ${Math.round(metrics.battery.percent)} percent, charging`
+                : `Battery ${Math.round(metrics.battery.percent)} percent`;
         }
         if (metrics.network) {
             this._onNetwork(metrics.network);

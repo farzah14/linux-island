@@ -1115,6 +1115,207 @@ ApplicationWindow {
             }
         }
 
+        // Carousel & Keyboard Shortcut
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            Text {
+                text: "Carousel & Keyboard Shortcut"
+                font.bold: true
+                font.pixelSize: 14
+                color: "#F4F0E9"
+            }
+
+            Text {
+                text: "Toggle which pages appear in the expanded island, reorder tabs, or pick the landing page."
+                font.pixelSize: 11
+                color: "#A69C8F"
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+
+            Repeater {
+                model: settingsProxy.carouselModel
+                delegate: Rectangle {
+                    required property var modelData
+                    required property int index
+                    Layout.fillWidth: true
+                    height: 36
+                    radius: 8
+                    color: "#22201D"
+                    border.color: "#3A352E"
+                    border.width: 1
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        spacing: 8
+
+                        CheckBox {
+                            checked: modelData.enabled
+                            onClicked: settingsProxy.togglePageEnabled(modelData.id)
+                        }
+
+                        Text {
+                            text: modelData.label
+                            color: modelData.enabled ? "#F4F0E9" : "#7F776C"
+                            font.pixelSize: 13
+                            Layout.fillWidth: true
+                        }
+
+                        Rectangle {
+                            implicitWidth: defLabel.implicitWidth + 14
+                            implicitHeight: 22
+                            radius: 6
+                            color: modelData.isDefault ? "#D8B77F" : "#302D28"
+                            border.color: modelData.isDefault ? "#D8B77F" : "#4A433A"
+
+                            Text {
+                                id: defLabel
+                                anchors.centerIn: parent
+                                text: modelData.isDefault ? "Default" : "Set Default"
+                                font.pixelSize: 11
+                                font.bold: modelData.isDefault
+                                color: modelData.isDefault ? "#191816" : "#C8C0B5"
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: settingsProxy.setDefaultPage(modelData.id)
+                            }
+                        }
+
+                        Button {
+                            text: "↑"
+                            enabled: modelData.enabled && index > 0
+                            implicitWidth: 28
+                            implicitHeight: 24
+                            onClicked: settingsProxy.movePage(modelData.id, -1)
+                        }
+
+                        Button {
+                            text: "↓"
+                            enabled: modelData.enabled
+                            implicitWidth: 28
+                            implicitHeight: 24
+                            onClicked: settingsProxy.movePage(modelData.id, 1)
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                id: shortcutCaptureBox
+                Layout.fillWidth: true
+                height: 44
+                radius: 8
+                color: "#22201D"
+                border.color: capturingShortcut ? "#D8B77F" : "#3A352E"
+                border.width: 1
+                property bool capturingShortcut: false
+                focus: capturingShortcut
+
+                function qtKeyToAccel(event) {
+                    if (event.key === Qt.Key_Escape) {
+                        capturingShortcut = false;
+                        return;
+                    }
+                    var mods = "";
+                    if (event.modifiers & Qt.MetaModifier) mods += "<Super>";
+                    if (event.modifiers & Qt.ControlModifier) mods += "<Control>";
+                    if (event.modifiers & Qt.AltModifier) mods += "<Alt>";
+                    if (event.modifiers & Qt.ShiftModifier) mods += "<Shift>";
+                    var keyName = "";
+                    if (event.key >= Qt.Key_A && event.key <= Qt.Key_Z) {
+                        keyName = String.fromCharCode(event.key).toLowerCase();
+                    } else if (event.key >= Qt.Key_0 && event.key <= Qt.Key_9) {
+                        keyName = String.fromCharCode(event.key);
+                    } else if (event.key === Qt.Key_Space) {
+                        keyName = "space";
+                    } else if (event.key === Qt.Key_Tab) {
+                        keyName = "Tab";
+                    } else if (event.key === Qt.Key_Grave) {
+                        keyName = "grave";
+                    } else if (event.key >= Qt.Key_F1 && event.key <= Qt.Key_F12) {
+                        keyName = "F" + (event.key - Qt.Key_F1 + 1);
+                    }
+                    if (!keyName || !mods)
+                        return;
+                    capturingShortcut = false;
+                    settingsProxy.setToggleShortcut(mods + keyName);
+                }
+
+                Keys.onPressed: (event) => {
+                    if (capturingShortcut) {
+                        qtKeyToAccel(event);
+                        event.accepted = true;
+                    }
+                }
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
+                    spacing: 8
+
+                    Text {
+                        text: "Toggle Island Shortcut"
+                        font.pixelSize: 13
+                        color: "#F4F0E9"
+                        Layout.fillWidth: true
+                    }
+
+                    Text {
+                        text: shortcutCaptureBox.capturingShortcut
+                            ? "Press keys (Esc cancels)…"
+                            : (settingsProxy.toggleShortcut || "Disabled")
+                        font.pixelSize: 12
+                        font.bold: true
+                        color: shortcutCaptureBox.capturingShortcut ? "#D8B77F" : "#C8C0B5"
+                    }
+
+                    Button {
+                        text: shortcutCaptureBox.capturingShortcut ? "Cancel" : "Change"
+                        implicitHeight: 26
+                        onClicked: {
+                            shortcutCaptureBox.capturingShortcut = !shortcutCaptureBox.capturingShortcut;
+                            if (shortcutCaptureBox.capturingShortcut)
+                                shortcutCaptureBox.forceActiveFocus();
+                        }
+                    }
+
+                    Button {
+                        text: "Reset"
+                        implicitHeight: 26
+                        onClicked: {
+                            shortcutCaptureBox.capturingShortcut = false;
+                            settingsProxy.setToggleShortcut("<Super><Shift>i");
+                        }
+                    }
+
+                    Button {
+                        text: "Clear"
+                        implicitHeight: 26
+                        onClicked: {
+                            shortcutCaptureBox.capturingShortcut = false;
+                            settingsProxy.setToggleShortcut("");
+                        }
+                    }
+                }
+            }
+
+            Text {
+                text: "GNOME Shell binds this automatically. On KDE/Sway/Hyprland, bind your DE shortcut to: linux-island-ui --toggle"
+                font.pixelSize: 11
+                color: "#A69C8F"
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+        }
+
         }
     }
         // Tab 1: Shortcuts & Guide View

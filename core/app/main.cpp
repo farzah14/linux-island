@@ -6,6 +6,8 @@
 #include "dbus/core_service.h"
 #include "dbus/core_adaptor.h"
 #include "dbus/time_adaptor.h"
+#include "dbus/shelf_adaptor.h"
+#include "dbus/todo_adaptor.h"
 #include "media/audio_meter.h"
 #include "media/sink_volume.h"
 
@@ -36,6 +38,8 @@ int main(int argc, char** argv) {
     QObject::connect(&service, &CoreService::settingsChanged, &meter, updateMeter);
     new CoreAdaptor(&service);
     new TimeAdaptor(&service);
+    new ShelfAdaptor(&service);
+    new TodoAdaptor(&service);
     auto bus = QDBusConnection::sessionBus();
     if (!bus.registerObject(QStringLiteral("/io/github/linuxisland/Core"), &service,
                             QDBusConnection::ExportAdaptors) ||

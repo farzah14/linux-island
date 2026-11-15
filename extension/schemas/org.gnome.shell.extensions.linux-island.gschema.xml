@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.linux-island"
+          path="/org/gnome/shell/extensions/linux-island/">
+    <key name="toggle-island" type="as">
+      <default>['&lt;Super&gt;&lt;Shift&gt;i']</default>
+      <summary>Toggle Linux Island expanded view</summary>
+    </key>
+  </schema>
+</schemalist>

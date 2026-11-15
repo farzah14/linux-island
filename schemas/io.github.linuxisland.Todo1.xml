@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<node>
+  <interface name="io.github.linuxisland.Todo1">
+    <method name="GetTasks"><arg name="json" type="s" direction="out"/></method>
+    <method name="AddTask"><arg name="title" type="s" direction="in"/><arg name="ok" type="b" direction="out"/></method>
+    <method name="SetDone"><arg name="id" type="s" direction="in"/><arg name="done" type="b" direction="in"/><arg name="ok" type="b" direction="out"/></method>
+    <method name="RemoveTask"><arg name="id" type="s" direction="in"/><arg name="ok" type="b" direction="out"/></method>
+    <signal name="Changed"><arg name="json" type="s"/></signal>
+  </interface>
+</node>

@@ -7,6 +7,10 @@ qt_add_executable(linux-island-ui
     island_client.cpp
     time_client.h
     time_client.cpp
+    todo_client.h
+    todo_client.cpp
+    shelf_client.h
+    shelf_client.cpp
     time_format.h
     time_format.cpp
     system_metrics_provider.h
@@ -53,6 +57,14 @@ set_source_files_properties(
 set_source_files_properties(
     ${CMAKE_SOURCE_DIR}/extension/icons/ui/timer-symbolic.svg
     PROPERTIES QT_RESOURCE_ALIAS "icons/ui/timer-symbolic.svg"
+)
+set_source_files_properties(
+    ${CMAKE_SOURCE_DIR}/extension/icons/ui/todo-symbolic.svg
+    PROPERTIES QT_RESOURCE_ALIAS "icons/ui/todo-symbolic.svg"
+)
+set_source_files_properties(
+    ${CMAKE_SOURCE_DIR}/extension/icons/ui/shelf-symbolic.svg
+    PROPERTIES QT_RESOURCE_ALIAS "icons/ui/shelf-symbolic.svg"
 )
 set_source_files_properties(
     ${CMAKE_SOURCE_DIR}/extension/icons/ui/prev-symbolic.svg
@@ -122,6 +134,8 @@ qt_add_qml_module(linux-island-ui
         qml/SystemPage.qml
         qml/AiQuotaPage.qml
         qml/TimePage.qml
+        qml/ShelfPage.qml
+        qml/TodoPage.qml
         qml/IslandWindow.qml
     RESOURCES
         ${CMAKE_SOURCE_DIR}/extension/icons/antigravity.png
@@ -132,6 +146,8 @@ qt_add_qml_module(linux-island-ui
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/ai-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/calendar-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/timer-symbolic.svg
+        ${CMAKE_SOURCE_DIR}/extension/icons/ui/todo-symbolic.svg
+        ${CMAKE_SOURCE_DIR}/extension/icons/ui/shelf-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/prev-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/next-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/play-symbolic.svg

@@ -18,6 +18,7 @@ class Actor {
         this.classes = new Set((props.style_class ?? '').split(' ').filter(Boolean));
     }
     add_child(child) { this.children.push(child); }
+    insert_child_at_index(child, index) { this.children.splice(index, 0, child); }
     set_child(child) { this.child = child; }
     get_child() { return this.child; }
     get_text() { return this.text; }
@@ -90,6 +91,7 @@ globalThis.renderTest = {
         LOGIN_SCREEN: 16, SYSTEM_MODAL: 32, LOOKING_GLASS: 64, POPUP: 128,
         ALL: 4294967295}},
     St: {BoxLayout: Actor, Label: Actor, Widget: Actor, Button: Actor, Icon: Actor, Bin: Actor,
+        ScrollView: Actor, PolicyType: {NEVER: 0, AUTOMATIC: 1},
         Entry: Actor, Settings: {get: () => settings}},
     Gio: {Cancellable: class { cancel() { this.cancelled = true; } },
         AppInfo: {launch_default_for_uri(uri) { globalThis.renderTest.launchedUris.push(uri); return true; }},
@@ -126,6 +128,9 @@ globalThis.renderTest.formatClock = timeFormat.formatClock;
 globalThis.renderTest.formatTimerCompact = timeFormat.formatTimerCompact;
 globalThis.renderTest.formatEventTime = timeFormat.formatEventTime;
 globalThis.renderTest.isTimerActive = timeFormat.isTimerActive;
+const shelfActionsSource = await readFile(new URL('../../extension/lib/shelfActions.js', import.meta.url), 'utf8');
+const shelfActions = await load(shelfActionsSource);
+Object.assign(globalThis.renderTest, shelfActions);
 const beatSource = (await readFile(new URL('../../extension/ui/beatBars.js', import.meta.url), 'utf8'))
     .replace('let St = null;', 'let St = globalThis.renderTest.St;')
     .replace("&& typeof process === 'undefined'", '')
@@ -140,6 +145,11 @@ const {SystemMetricsRow, SystemMetricTile, NetMonitorView, StorageIndicator, com
 const metric = new SystemMetricTile({label: 'CPU'});
 assert.equal(metric.actor.children[1], metric._valueLabel, 'percentage immediately follows metric text');
 metric.destroy();
+const compactBattery = new SystemMetricTile({label: 'BAT', iconName: 'battery-good-symbolic'});
+compactBattery.setWidth(60);
+compactBattery.setIcon('battery-good-charging-symbolic');
+assert.equal(compactBattery._icon.visible, false, 'icon update preserves compact layout');
+compactBattery.destroy();
 globalThis.renderTest.SystemMetricsRow = SystemMetricsRow;
 globalThis.renderTest.NetMonitorView = NetMonitorView;
 globalThis.renderTest.StorageIndicator = StorageIndicator;
@@ -154,8 +164,9 @@ globalThis.renderTest.QuickTogglesRow = QuickTogglesRow;
 let carouselSource = (await readFile(new URL('../../extension/ui/featureCarousel.js', import.meta.url), 'utf8'))
     .replace('let St = null;', 'let St = globalThis.renderTest.St;')
     .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
-const {FeatureCarousel} = await load(carouselSource);
+const {FeatureCarousel, resolveCarouselPages} = await load(carouselSource);
 globalThis.renderTest.FeatureCarousel = FeatureCarousel;
+globalThis.renderTest.resolveCarouselPages = resolveCarouselPages;
 let aiQuotaSource = (await readFile(new URL('../../extension/ui/aiQuotaView.js', import.meta.url), 'utf8'))
     .replace(/^import .*aiQuota\.js.*;$/gm, 'const {AiQuotaCollector} = globalThis.renderTest;')
     .replace('let St = null;', 'let St = globalThis.renderTest.St;')
@@ -173,6 +184,15 @@ timeViewSource = timeViewSource
     .replace("&& typeof process === 'undefined'", '');
 const {TimeSection} = await load(timeViewSource);
 globalThis.renderTest.TimeSection = TimeSection;
+let shelfViewSource = await readFile(new URL('../../extension/ui/shelfView.js', import.meta.url), 'utf8');
+shelfViewSource = shelfViewSource
+    .replace(/^import .*shelfActions\.js';$/gm, 'const {formatBytes, itemIconName} = globalThis.renderTest;')
+    .replace('let St = null;', 'let St = globalThis.renderTest.St;')
+    .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;')
+    .replace('let Pango = null;', 'let Pango = globalThis.renderTest.Pango;')
+    .replace("&& typeof process === 'undefined'", '');
+const {ShelfSection} = await load(shelfViewSource);
+globalThis.renderTest.ShelfSection = ShelfSection;
 
 let mediaSource = await readFile(new URL('../../extension/ui/mediaView.js', import.meta.url), 'utf8');
 mediaSource = mediaSource.replace('let St = null;', 'let St = globalThis.renderTest.St;')
@@ -181,10 +201,12 @@ mediaSource = mediaSource.replace('let St = null;', 'let St = globalThis.renderT
     .replace(/^import .*mediaTimeline.*;$/gm, 'const {estimateTimeline, formatTime} = globalThis.renderTest;')
     .replace(/^import .*systemMetricTile.*;$/gm, 'const {SystemMetricsRow, NetMonitorView, computeSystemColumns} = globalThis.renderTest;')
     .replace(/^import .*quickToggle.*;$/gm, 'const {QuickTogglesRow} = globalThis.renderTest;')
-    .replace(/^import .*featureCarousel.*;$/gm, 'const {FeatureCarousel} = globalThis.renderTest;')
+    .replace(/^import .*featureCarousel.*;$/gm, 'const {FeatureCarousel, resolveCarouselPages} = globalThis.renderTest;')
     .replace(/^import .*aiQuotaView.*;$/gm, 'const {AiQuotaSection} = globalThis.renderTest;')
     .replace(/^import .*displayMode\.js.*;$/gm, 'const {capsuleOrigin, clampToMonitor, isFloating, extensionModeFor} = globalThis.renderTest;')
     .replace(/^import .*timeView.*$/gm, 'const {TimeSection} = globalThis.renderTest;')
+    .replace(/^import .*todoView.*$/gm, 'const TodoSection = class { constructor() { this.actor = new globalThis.renderTest.St.BoxLayout(); } refresh() {} setWidth() {} destroy() {} };')
+    .replace(/^import .*shelfActions.*$/gm, 'const {openFileChooserPortal, pasteClipboardToShelf, openShelfItem, revealShelfItem, copyShelfItemsToClipboard, launchShelfPopout} = globalThis.renderTest;')
     .replace('let Gio = null;', 'let Gio = globalThis.renderTest.Gio;')
     .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
 const {MediaView, CAPSULE_SIZES} = await load(mediaSource);
@@ -192,7 +214,7 @@ globalThis.renderTest.MediaView = MediaView;
 globalThis.renderTest.CAPSULE_SIZES = CAPSULE_SIZES;
 let capsuleSource = await readFile(new URL('../../extension/ui/capsule.js', import.meta.url), 'utf8');
 capsuleSource = capsuleSource.replace(/^import .*;$/gm, '').replaceAll('global.stage', 'globalThis.renderTest.stage');
-const {Capsule} = await load(`const {St, Clutter, Gio, Shell, Main, MediaView, CAPSULE_SIZES, GrabHelper, BeatBars, loadLocalArtwork, formatTimerCompact, formatEventTime, isTimerActive, capsuleOrigin, clampToMonitor, isFloating, extensionModeFor} = globalThis.renderTest;\n${capsuleSource}`);
+const {Capsule} = await load(`const {St, Clutter, Gio, Shell, Main, MediaView, CAPSULE_SIZES, GrabHelper, BeatBars, loadLocalArtwork, formatTimerCompact, formatEventTime, isTimerActive, formatFileCountLabel, parseUriList, capsuleOrigin, clampToMonitor, isFloating, extensionModeFor} = globalThis.renderTest;\n${capsuleSource}`);
 
 const capsule = new Capsule();
 assert.equal(typeof capsule.setTheme, 'function', 'renderer needs live theme switching');
@@ -309,11 +331,11 @@ capsule.applyState('COMPACT');
 assert.ok(capsule._beatBars, 'compact title needs beat bars');
 assert.match(capsule._mediaView.actor.style, /width: 294px/, 'wide card content width');
 assert.ok(capsule._mediaView._carousel, 'media card has slideable features carousel');
-assert.equal(capsule._mediaView._carousel.pageCount, 4, 'music, system & controls, AI quota, and the timer page');
+assert.equal(capsule._mediaView._carousel.pageCount, 5, 'music, system & controls, AI quota, timer, and shelf pages');
 const carousel = capsule._mediaView._carousel;
 assert.ok(carousel._navBox, 'section nav box exists');
 assert.equal(carousel.actor.children[0], carousel._navBox, 'section nav is first child of carousel actor');
-assert.equal(carousel._navButtons.length, 4, 'four section buttons');
+assert.equal(carousel._navButtons.length, 5, 'five section buttons');
 assert.equal(carousel._navButtons[0].child.icon_name, 'audio-x-generic-symbolic', 'music section icon');
 assert.equal(carousel._navButtons[1].child.icon_name, 'preferences-system-symbolic', 'system section icon');
 assert.equal(carousel._navButtons[2].child.icon_name, 'applications-science-symbolic', 'AI quota section icon');
@@ -1414,4 +1436,29 @@ assert.equal(idleScheduler.count, 0, 'destroy clears pending idle timer');
 assert.equal(pendingCancellable.cancelled, true, 'destroy cancels pending artwork loader');
 assert.equal(circleCapsule._circleArtIcon, null);
 assert.equal(circleCapsule._circleArtBox, null);
+
+// 11. Shelf compact fallback and drag-over drop target highlight
+{
+    const shelfCapsule = new Capsule({idleTimeoutMs: 0});
+    shelfCapsule.setConnected(true);
+    shelfCapsule.setMedia(null);
+    shelfCapsule.setShelf({count: 2, maxItems: 12, items: [
+        {id: '1', name: 'a.txt', uri: 'file:///tmp/a.txt'},
+        {id: '2', name: 'b.txt', uri: 'file:///tmp/b.txt'},
+    ]});
+    assert.equal(shelfCapsule._icon.text, '🏝️');
+    assert.equal(shelfCapsule._label.text, 'Island');
+
+    shelfCapsule.setMedia({playerId: 'spotify', title: 'Track', playbackStatus: 'Playing'});
+    assert.equal(shelfCapsule._icon.text, '🎵', 'playing media takes precedence over shelf fallback');
+
+    shelfCapsule.setCarouselConfig('shelf,timer,media', 'timer');
+    assert.equal(shelfCapsule._mediaView._carousel.pageCount, 3, 'reconfigured carousel hides unselected pages');
+    assert.equal(shelfCapsule._mediaView._carousel.activePageId, 'timer', 'lands on custom defaultPage');
+    assert.equal(shelfCapsule._mediaView._carousel._navButtons.length, 3, 'nav bar updates to 3 buttons');
+    assert.equal(shelfCapsule._widget.classes !== undefined, true);
+    shelfCapsule.setCarouselConfig('shelf', 'shelf');
+    assert.equal(shelfCapsule._mediaView._carousel._navBox.visible, false, 'single-page carousel hides nav bar');
+    shelfCapsule.destroy();
+}
 console.log('PASS: media rendering, offline recovery, interrupted transitions, reduced motion, fullscreen and cleanup');

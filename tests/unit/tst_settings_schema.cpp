@@ -16,6 +16,7 @@ private slots:
     void testTooManyEntriesRejected();
     void testPartialInvalidLeavesCurrentUnchanged();
     void testCalendarAndTimerKeys();
+    void testCarouselAndShortcutKeys();
 };
 
 void TestSettingsSchema::testDefaultSettings() {
@@ -37,6 +38,11 @@ void TestSettingsSchema::testDefaultSettings() {
     QCOMPARE(defaults.value(QStringLiteral("timerCycles")).toInt(), 4);
     QCOMPARE(defaults.value(QStringLiteral("timerAutoAdvance")).toBool(), true);
     QCOMPARE(defaults.value(QStringLiteral("timerCompactHintEnabled")).toBool(), true);
+    QCOMPARE(defaults.value(QStringLiteral("carouselPages")).toString(),
+             QStringLiteral("media,system,ai,timer,shelf"));
+    QCOMPARE(defaults.value(QStringLiteral("defaultPage")).toString(), QStringLiteral("media"));
+    QCOMPARE(defaults.value(QStringLiteral("toggleShortcut")).toString(),
+             QStringLiteral("<Super><Shift>i"));
 }
 
 void TestSettingsSchema::testValidPatch() {
@@ -257,6 +263,29 @@ void TestSettingsSchema::testCalendarAndTimerKeys() {
         QVERIFY2(!bad.ok, qPrintable(r.key));
         QCOMPARE(bad.error, r.message);
     }
+}
+
+void TestSettingsSchema::testCarouselAndShortcutKeys() {
+    QVariantMap current = defaultSettings();
+
+    ValidationResult okRes = validateSettingsPatch(current, {
+        {QStringLiteral("carouselPages"), QStringLiteral("shelf,media,timer")},
+        {QStringLiteral("defaultPage"), QStringLiteral("shelf")},
+        {QStringLiteral("toggleShortcut"), QStringLiteral("<Control><Alt>space")},
+    });
+    QVERIFY2(okRes.ok, qPrintable(okRes.error));
+    QCOMPARE(okRes.effective.value(QStringLiteral("carouselPages")).toString(),
+             QStringLiteral("shelf,media,timer"));
+    QCOMPARE(okRes.effective.value(QStringLiteral("defaultPage")).toString(), QStringLiteral("shelf"));
+    QCOMPARE(okRes.effective.value(QStringLiteral("toggleShortcut")).toString(),
+             QStringLiteral("<Control><Alt>space"));
+
+    QVERIFY(validateSettingsPatch(current, {{QStringLiteral("toggleShortcut"), QString()}}).ok);
+    QVERIFY(!validateSettingsPatch(current, {{QStringLiteral("carouselPages"), QString()}}).ok);
+    QVERIFY(!validateSettingsPatch(current, {{QStringLiteral("carouselPages"), QStringLiteral("media,media")}}).ok);
+    QVERIFY(!validateSettingsPatch(current, {{QStringLiteral("carouselPages"), QStringLiteral("media,unknown")}}).ok);
+    QVERIFY(!validateSettingsPatch(current, {{QStringLiteral("defaultPage"), QStringLiteral("unknown")}}).ok);
+    QVERIFY(!validateSettingsPatch(current, {{QStringLiteral("toggleShortcut"), QStringLiteral("<Super> bad")}}).ok);
 }
 
 QTEST_MAIN(TestSettingsSchema)

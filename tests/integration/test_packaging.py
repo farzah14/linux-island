@@ -50,6 +50,7 @@ def check_layout(prefix: Path):
         'share/icons/hicolor/scalable/apps/io.github.linuxisland.svg',
         'share/dbus-1/interfaces/io.github.linuxisland.Core1.xml',
         'share/dbus-1/interfaces/io.github.linuxisland.Time1.xml',
+        'share/dbus-1/interfaces/io.github.linuxisland.Shelf1.xml',
         'share/licenses/linux-island/LICENSE',
         'share/linux-island/window-rules/kwin-linux-island.kwinrule',
         'share/linux-island/window-rules/hyprland.conf',

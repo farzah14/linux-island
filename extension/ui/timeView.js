@@ -35,6 +35,7 @@ export class TimeSection {
         this._stats = null;
         this._lastPreset = 25;
         this._customMin = 25;
+        this._selectedMode = 'countdown';
         this._lastState = null;
         this._lastMode = null;
         this._trackWidth = 0;
@@ -148,7 +149,8 @@ export class TimeSection {
         this._customRow.add_child(this._customPlus);
         this._customStart = this._makeChip('Start', () => {
             this._lastPreset = this._customMin;
-            this._onStart({mode: 'countdown', durationMin: this._customMin});
+            this._onStart(this._selectedMode === 'pomodoro'
+                ? {mode: 'pomodoro'} : {mode: 'countdown', durationMin: this._customMin});
         }, true);
         this._customRow.add_child(this._customStart);
         this.actor.add_child(this._customRow);
@@ -161,11 +163,11 @@ export class TimeSection {
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
         });
-        this._timerModeChip = this._makeChip('Timer', () => {}, true);
+        this._timerModeChip = this._makeChip('Timer', () => this._selectMode('countdown'), true);
         this._modeRow.add_child(this._timerModeChip);
-        this._pomodoroModeChip = this._makeChip('Pomodoro', () => this._onStart({mode: 'pomodoro'}), false);
+        this._pomodoroModeChip = this._makeChip('Pomodoro', () => this._selectMode('pomodoro'), false);
         this._modeRow.add_child(this._pomodoroModeChip);
-        this.actor.add_child(this._modeRow);
+        this.actor.insert_child_at_index(this._modeRow, 0);
 
         // Session statistics, idle only.
         this._statsLabel = new St.Label({
@@ -181,6 +183,7 @@ export class TimeSection {
         this.actor.add_child(this._statsLabel);
 
         this._renderButtons({state: 'idle', mode: 'countdown'});
+        this._syncIdle();
     }
 
     _makeChip(label, onClick, active = false) {
@@ -195,10 +198,29 @@ export class TimeSection {
         return chip;
     }
 
+    _selectMode(mode) {
+        this._selectedMode = mode;
+        this._syncIdle();
+    }
+
+    _syncIdle() {
+        const countdown = this._selectedMode === 'countdown';
+        this._clockLabel.text = countdown ? formatClock(this._customMin * 60) : 'Ready';
+        this._buttonsRow.visible = countdown;
+        this._customMinus.visible = countdown;
+        this._customLabel.visible = countdown;
+        this._customPlus.visible = countdown;
+        this._customStart.label = countdown ? 'Start Timer' : 'Start Pomodoro';
+        this._setChipActive(this._timerModeChip, countdown);
+        this._setChipActive(this._pomodoroModeChip, !countdown);
+    }
+
     _adjustCustom(delta) {
         this._customMin = Math.max(CUSTOM_MIN, Math.min(CUSTOM_MAX, this._customMin + delta));
         if (this._customLabel) this._customLabel.text = `${this._customMin} min`;
         this._lastPreset = this._customMin;
+        this._renderButtons({state: 'idle'});
+        this._syncIdle();
     }
 
     _clearButtons() {
@@ -219,7 +241,8 @@ export class TimeSection {
                     this._lastPreset = minutes;
                     this._customMin = minutes;
                     if (this._customLabel) this._customLabel.text = `${minutes} min`;
-                    this._onStart({mode: 'countdown', durationMin: minutes});
+                    this._renderButtons({state: 'idle'});
+                    this._syncIdle();
                 }, this._lastPreset === minutes);
                 this._buttonsRow.add_child(chip);
                 this._buttons.push(chip);
@@ -312,11 +335,8 @@ export class TimeSection {
         if (this._customRow) this._customRow.visible = idle;
         if (this._statsLabel) this._statsLabel.visible = idle && this._statsText() !== '';
 
-        if (this._modeRow) {
-            const isPomodoro = mode === 'pomodoro' && !idle;
-            this._setChipActive(this._timerModeChip, !isPomodoro);
-            this._setChipActive(this._pomodoroModeChip, isPomodoro);
-        }
+        if (idle) this._syncIdle();
+        else this._buttonsRow.visible = true;
 
         this._renderProgress();
     }

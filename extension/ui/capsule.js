@@ -9,6 +9,7 @@ import {MediaView, CAPSULE_SIZES} from './mediaView.js';
 import {BeatBars} from './beatBars.js';
 import {loadLocalArtwork} from '../lib/localArtwork.js';
 import {formatTimerCompact, isTimerActive} from '../lib/timeFormat.js';
+import {formatFileCountLabel, parseUriList} from '../lib/shelfActions.js';
 import {capsuleOrigin, clampToMonitor, isFloating, extensionModeFor} from '../lib/displayMode.js';
 
 export class Capsule {
@@ -22,6 +23,10 @@ export class Capsule {
         onStartTimer,
         onControlTimer,
         onTimerStats,
+        onAddShelfFiles,
+        onRemoveShelfFile,
+        onClearShelf,
+        onRefreshShelf,
         scheduler,
         artworkLoader,
         idleTimeoutMs = 10000,
@@ -35,6 +40,13 @@ export class Capsule {
         this._onStartTimer = onStartTimer ?? (() => {});
         this._onControlTimer = onControlTimer ?? (() => {});
         this._onTimerStats = onTimerStats ?? (() => {});
+        this._onAddShelfFiles = onAddShelfFiles ?? (() => {});
+        this._onRemoveShelfFile = onRemoveShelfFile ?? (() => {});
+        this._onClearShelf = onClearShelf ?? (() => {});
+        this._onRefreshShelf = onRefreshShelf ?? (() => {});
+        this._shelf = null;
+        this._dropTargetActive = false;
+        this._xdndEndId = null;
         this._whatsappEnabled = false;
         this._whatsappActivity = false;
         this._scheduler = scheduler ?? {
@@ -149,6 +161,10 @@ export class Capsule {
             onStartTimer: request => this._onStartTimer(request),
             onControlTimer: action => this._onControlTimer(action),
             onTimerStats: () => this._onTimerStats(),
+            onAddShelfFiles: uris => this._onAddShelfFiles(uris),
+            onRemoveShelfFile: id => this._onRemoveShelfFile(id),
+            onClearShelf: () => this._onClearShelf(),
+            onRefreshShelf: () => this._onRefreshShelf(),
         });
         if (this._mediaView.actor) {
             this._mediaView.actor.visible = false;
@@ -269,6 +285,7 @@ export class Capsule {
         });
 
         this._widget.connect('notify::allocation', () => this._relayout(true));
+
         this._scheduleIdleTimer();
     }
 
@@ -1013,6 +1030,80 @@ export class Capsule {
         this._mediaView?.setTimerStats(stats);
     }
 
+    setShelf(shelf) {
+        this._shelf = shelf ?? null;
+        this._mediaView?.setShelf(this._shelf);
+        this._renderCompactContent();
+        this._relayout();
+    }
+
+    setCarouselConfig(carouselPages, defaultPage) {
+        this._mediaView?.setCarouselConfig(carouselPages, defaultPage);
+    }
+
+    openDefaultPage() {
+        this._mediaView?.openDefaultPage();
+    }
+
+    _setDropTarget(active) {
+        const next = Boolean(active);
+        if (next === this._dropTargetActive || !this._widget)
+            return;
+        this._dropTargetActive = next;
+        if (next)
+            this._widget.add_style_class_name('linux-island__capsule--drop-target');
+        else
+            this._widget.remove_style_class_name('linux-island__capsule--drop-target');
+    }
+
+    _setupDropTarget() {
+        if (!this._widget)
+            return;
+        this._widget._delegate = {
+            handleDragOver: () => {
+                this._setDropTarget(true);
+                return 1; // DND.DragMotionResult.COPY_DROP
+            },
+            acceptDrop: () => {
+                this._setDropTarget(false);
+                this._consumeSelectionDnd();
+                return true;
+            },
+        };
+        this._widget.connect('leave-event', () => {
+            this._setDropTarget(false);
+            return Clutter.EVENT_PROPAGATE;
+        });
+        if (Main?.xdndHandler && typeof Main.xdndHandler.connect === 'function') {
+            this._xdndEndId = Main.xdndHandler.connect('drag-end', () => {
+                this._setDropTarget(false);
+            });
+        }
+    }
+
+    _consumeSelectionDnd() {
+        try {
+            const selection = global?.display?.get_selection?.();
+            if (!selection || !Gio?.MemoryOutputStream)
+                return;
+            const stream = Gio.MemoryOutputStream.new_resizable();
+            // Meta.SelectionType.SELECTION_DND === 2
+            selection.transfer_async(2, 'text/uri-list', 65536, stream, null, (sel, res) => {
+                try {
+                    sel.transfer_finish(res);
+                    stream.close(null);
+                    const bytes = stream.steal_as_bytes();
+                    const text = new TextDecoder('utf-8').decode(bytes.get_data());
+                    const uris = parseUriList(text);
+                    if (uris.length > 0) {
+                        this._onAddShelfFiles(uris);
+                        this._mediaView?.selectShelfPage();
+                    }
+                } catch (_) {}
+            });
+        } catch (_) {}
+    }
+
     setConnected(connected) {
         this._connected = Boolean(connected);
         this._mediaView?.setConnected(connected);
@@ -1082,6 +1173,12 @@ export class Capsule {
         global.stage.disconnect(this._outsideEventId);
         this._grabHelper.ungrab();
         this._beatBars.destroy();
+        if (this._xdndEndId && Main?.xdndHandler && typeof Main.xdndHandler.disconnect === 'function') {
+            try {
+                Main.xdndHandler.disconnect(this._xdndEndId);
+            } catch (_) {}
+            this._xdndEndId = null;
+        }
         Main.layoutManager.disconnectObject(this);
         try {
             this._mediaView?.destroy();
@@ -1089,6 +1186,7 @@ export class Capsule {
         this._mediaView = null;
 
         if (this._widget) {
+            this._widget._delegate = null;
             try {
                 this._widget.remove_all_transitions();
                 Main.layoutManager.removeChrome(this._widget);
