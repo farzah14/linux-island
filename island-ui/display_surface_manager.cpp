@@ -73,8 +73,11 @@ void DisplaySurfaceManager::updateWindowPosition() {
     const int hOffset = m_client ? m_client->horizontalOffset() : 0;
     const int vOffset = m_client ? m_client->verticalOffset() : 8;
     const bool floating = m_client && m_client->displayMode() == QLatin1String("floating");
+    const bool hasTopPanelStrut = workGeo.y() > screenGeo.y();
 
-    const int baseY = floating
+    // Respect top-panel struts in floating mode, and on non-GNOME desktops that
+    // reserve a top bar (XFCE, MATE, KDE top panel) so the capsule never overlaps it.
+    const int baseY = (floating || hasTopPanelStrut)
         ? std::min(std::max(screenGeo.y(), workGeo.y()), screenGeo.y() + screenGeo.height())
         : screenGeo.y();
 

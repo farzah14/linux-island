@@ -403,7 +403,7 @@ export class SystemMetricsCollector {
                     isCharging,
                     iconName: getBatteryIconName(finalPct, isCharging),
                     device: 'BAT',
-                    text: isCharging ? `${finalPct}% ⚡` : `${finalPct}%`,
+                    text: isCharging ? `${finalPct}% · AC` : `${finalPct}%`,
                 };
             } catch {
                 batData = null;

@@ -39,7 +39,7 @@ void TestSettingsSchema::testDefaultSettings() {
     QCOMPARE(defaults.value(QStringLiteral("timerAutoAdvance")).toBool(), true);
     QCOMPARE(defaults.value(QStringLiteral("timerCompactHintEnabled")).toBool(), true);
     QCOMPARE(defaults.value(QStringLiteral("carouselPages")).toString(),
-             QStringLiteral("media,system,ai,timer,shelf"));
+             QStringLiteral("media,system,ai,timer,todo"));
     QCOMPARE(defaults.value(QStringLiteral("defaultPage")).toString(), QStringLiteral("media"));
     QCOMPARE(defaults.value(QStringLiteral("toggleShortcut")).toString(),
              QStringLiteral("<Super><Shift>i"));
@@ -269,18 +269,22 @@ void TestSettingsSchema::testCarouselAndShortcutKeys() {
     QVariantMap current = defaultSettings();
 
     ValidationResult okRes = validateSettingsPatch(current, {
-        {QStringLiteral("carouselPages"), QStringLiteral("shelf,media,timer")},
-        {QStringLiteral("defaultPage"), QStringLiteral("shelf")},
+        {QStringLiteral("carouselPages"), QStringLiteral("todo,media,timer")},
+        {QStringLiteral("defaultPage"), QStringLiteral("todo")},
         {QStringLiteral("toggleShortcut"), QStringLiteral("<Control><Alt>space")},
     });
     QVERIFY2(okRes.ok, qPrintable(okRes.error));
     QCOMPARE(okRes.effective.value(QStringLiteral("carouselPages")).toString(),
-             QStringLiteral("shelf,media,timer"));
-    QCOMPARE(okRes.effective.value(QStringLiteral("defaultPage")).toString(), QStringLiteral("shelf"));
+             QStringLiteral("todo,media,timer"));
+    QCOMPARE(okRes.effective.value(QStringLiteral("defaultPage")).toString(), QStringLiteral("todo"));
     QCOMPARE(okRes.effective.value(QStringLiteral("toggleShortcut")).toString(),
              QStringLiteral("<Control><Alt>space"));
 
     QVERIFY(validateSettingsPatch(current, {{QStringLiteral("toggleShortcut"), QString()}}).ok);
+    QVERIFY(validateSettingsPatch(current, {{QStringLiteral("carouselPages"), QStringLiteral("media,system,ai,timer,todo")},
+                                            {QStringLiteral("defaultPage"), QStringLiteral("todo")}}).ok);
+    QVERIFY(!validateSettingsPatch(current, {{QStringLiteral("carouselPages"), QStringLiteral("media,shelf")}}).ok);
+    QVERIFY(!validateSettingsPatch(current, {{QStringLiteral("defaultPage"), QStringLiteral("shelf")}}).ok);
     QVERIFY(!validateSettingsPatch(current, {{QStringLiteral("carouselPages"), QString()}}).ok);
     QVERIFY(!validateSettingsPatch(current, {{QStringLiteral("carouselPages"), QStringLiteral("media,media")}}).ok);
     QVERIFY(!validateSettingsPatch(current, {{QStringLiteral("carouselPages"), QStringLiteral("media,unknown")}}).ok);

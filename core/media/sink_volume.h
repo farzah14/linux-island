@@ -36,6 +36,8 @@ signals:
     void changed(double volume, bool muted);
 
 private:
+    enum class Backend { None, Wpctl, Pactl };
+
     void poll();
     void emitIfChanged(double level, bool muted);
 
@@ -43,8 +45,11 @@ private:
     QProcess m_query;
     bool m_querying = false;
     bool m_running = false;
+    bool m_pactlReadingMute = false;
+    Backend m_backend = Backend::None;
     QString m_program;
     double m_level = 1.0;
+    double m_pendingPactlLevel = 1.0;
     bool m_muted = false;
     bool m_known = false;
 };

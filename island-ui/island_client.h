@@ -6,6 +6,7 @@
 #include <QDBusConnection>
 #include <QTimer>
 #include <QStringList>
+#include "events/portal_color_scheme.h"
 
 class IslandClient : public QObject {
     Q_OBJECT
@@ -135,6 +136,7 @@ private:
     void queryAvailablePlayers();
 
     QDBusConnection m_bus;
+    PortalColorSchemeObserver m_portalScheme;
     QString m_uiState = QStringLiteral("COMPACT");
     bool m_connected = false;
     QTimer m_peekTimer;
@@ -172,7 +174,7 @@ private:
     QString m_displayMode = QStringLiteral("dynamic");
     int m_verticalOffset = 8;
     int m_horizontalOffset = 0;
-    QString m_carouselPages = QStringLiteral("media,system,ai,timer,shelf");
+    QString m_carouselPages = QStringLiteral("media,system,ai,timer,todo");
     QString m_defaultPage = QStringLiteral("media");
     QString m_toggleShortcut = QStringLiteral("<Super><Shift>i");
 };

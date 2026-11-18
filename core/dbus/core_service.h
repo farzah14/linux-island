@@ -24,8 +24,6 @@
 #include "media/artwork_cache.h"
 #include "time/timer_service.h"
 #include "time/time_types.h"
-#include "shelf/shelf_service.h"
-#include "shelf/shelf_types.h"
 #include "todo/todo_service.h"
 #include <QJsonDocument>
 #include <QJsonArray>
@@ -47,7 +45,6 @@ public:
           m_bus(bus),
           m_status(QStringLiteral("ready")),
           m_settingsStore(configPath, this),
-          m_shelf(configPath.isEmpty() ? QString() : QFileInfo(configPath).dir().filePath(QStringLiteral("shelf.json")), this),
           m_todo(configPath.isEmpty() ? QString() : QFileInfo(configPath).dir().filePath(QStringLiteral("todo.json"))),
           m_playerRegistry(bus, this),
           m_controller(bus, sink, this) {
@@ -62,13 +59,6 @@ public:
             QVariantMap payload = timerSnapshot();
             payload[QStringLiteral("revision")] = QVariant::fromValue<quint64>(rev);
             emit timerChanged(rev, payload);
-        });
-
-        connect(&m_shelf, &ShelfService::changed, this, [this] {
-            const quint64 rev = m_clock.shelfChanged();
-            QVariantMap payload = shelfSnapshot();
-            payload[QStringLiteral("revision")] = QVariant::fromValue<quint64>(rev);
-            emit shelfChanged(rev, payload);
         });
     }
     QString instanceId() const { return m_clock.instanceId(); }
@@ -430,55 +420,6 @@ public:
         applyTimerSettings(m_settingsStore.settings());
     }
 
-    QVariantMap shelfSnapshot() const {
-        const ShelfSnapshot snap = m_shelf.snapshot();
-        QVariantList itemList;
-        itemList.reserve(snap.items.size());
-        for (const ShelfItem &item : snap.items) {
-            QVariantMap entry;
-            entry[QStringLiteral("id")] = item.id;
-            entry[QStringLiteral("uri")] = item.uri;
-            entry[QStringLiteral("path")] = item.path;
-            entry[QStringLiteral("name")] = item.name;
-            entry[QStringLiteral("sizeBytes")] = QVariant::fromValue<qint64>(item.sizeBytes);
-            entry[QStringLiteral("sizeText")] = item.sizeText;
-            entry[QStringLiteral("mimeType")] = item.mimeType;
-            entry[QStringLiteral("iconName")] = item.iconName;
-            entry[QStringLiteral("isDir")] = item.isDir;
-            entry[QStringLiteral("addedAtMs")] = QVariant::fromValue<qint64>(item.addedAtMs);
-            itemList.append(entry);
-        }
-
-        QVariantMap map;
-        map[QStringLiteral("revision")] = QVariant::fromValue<quint64>(m_clock.shelfRevision());
-        map[QStringLiteral("count")] = snap.items.size();
-        map[QStringLiteral("maxItems")] = snap.maxItems;
-        map[QStringLiteral("items")] = itemList;
-        return map;
-    }
-
-    bool addShelfFiles(const QStringList &uris) {
-        QString error;
-        if (!m_shelf.addFiles(uris, &error)) {
-            sendTimerError(QStringLiteral("io.github.linuxisland.Error.InvalidArgument"), error);
-            return false;
-        }
-        return true;
-    }
-
-    bool removeShelfFile(const QString &id) {
-        QString error;
-        if (!m_shelf.removeFile(id, &error)) {
-            sendTimerError(QStringLiteral("io.github.linuxisland.Error.InvalidArgument"), error);
-            return false;
-        }
-        return true;
-    }
-
-    bool clearShelf() {
-        return m_shelf.clear();
-    }
-
     QString todoJson() const { return QString::fromUtf8(QJsonDocument(QJsonArray::fromVariantList(m_todo.items())).toJson(QJsonDocument::Compact)); }
     bool addTodo(const QString &title) { if (!m_todo.add(title)) return false; emit todoChanged(todoJson()); return true; }
     bool setTodoDone(const QString &id, bool done) { if (!m_todo.setDone(id, done)) return false; emit todoChanged(todoJson()); return true; }
@@ -488,7 +429,6 @@ signals:
     void todoChanged(const QString &json);
     void mediaChanged(quint64 revision, const QVariantMap &media);
     void timerChanged(quint64 revision, const QVariantMap &timer);
-    void shelfChanged(quint64 revision, const QVariantMap &shelf);
     void settingsChanged(quint64 revision, const QVariantMap &settings);
     void coreStatusChanged(const QString &status);
 
@@ -507,7 +447,6 @@ private:
     QString m_status;
     MediaState m_mediaState;
     SettingsStore m_settingsStore;
-    ShelfService m_shelf;
     TodoService m_todo;
     PlayerRegistry m_playerRegistry;
     MprisController m_controller;

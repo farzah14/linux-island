@@ -366,9 +366,12 @@ const NOW = 1793169738000;
     const module = await import(`data:text/javascript;base64,${Buffer.from(
         `const MockSt = ${JSON.stringify(MockSt)};\n` +
         `class MockActor {\n` +
-        `  constructor(p = {}) { Object.assign(this, p); this.children = []; this.handlers = {}; this.text = p.text || ''; this.clutter_text = { set_ellipsize() {} }; }\n` +
+        `  constructor(p = {}) { Object.assign(this, p); this.children = []; this.handlers = {}; this.text = p.text || ''; this.classes = new Set((p.style_class || '').split(/\\s+/).filter(Boolean)); this.clutter_text = { set_ellipsize() {} }; }\n` +
         `  add_child(c) { this.children.push(c); }\n` +
         `  set_child(c) { this.children = [c]; }\n` +
+        `  add_style_class_name(c) { this.classes.add(c); }\n` +
+        `  remove_style_class_name(c) { this.classes.delete(c); }\n` +
+        `  has_style_class_name(c) { return this.classes.has(c); }\n` +
         `  connect(ev, fn) { this.handlers[ev] = fn; return ev; }\n` +
         `  disconnect(ev) { delete this.handlers[ev]; }\n` +
         `  destroy() { this.destroyed = true; }\n` +
@@ -398,8 +401,10 @@ const NOW = 1793169738000;
         detailText: '5h 100% · 7d 78%',
         altDetailText: 'Gemini 7d: 78% left',
     });
-    assertEqual(row._btn5h.label, '5h: 100%');
-    assertEqual(row._btnWeekly.label, '7d: 78%');
+    assertEqual(row._btn5h.label, '5h');
+    assertEqual(row._btnWeekly.label, '7d');
+    assert(row._quotaBars[0].style.includes('height: 34px'), 'full quota fills the equalizer bar');
+    assert(row._quotaBars[1].style.includes('height: 27px'), 'weekly quota is proportional');
     assert(row._detailLabel.text.includes('4h 15m'), '5h detail includes reset countdown');
 
     // Click weekly button on row
@@ -412,6 +417,8 @@ const NOW = 1793169738000;
     row._btn5h.handlers['clicked']();
     assertEqual(row._activeMode, '5h');
     assert(row._detailLabel.text.includes('4h 15m'), '5h detail restored');
+    row.update({connected: false, windows: [{window: '5h', remainingPercent: 100}]});
+    assert(row._quotaBars[0].style.includes('height: 0px'), 'offline quota does not show stale fill');
     row.destroy();
     assert(row.actor === null, 'row destroyed');
 
@@ -433,9 +440,16 @@ const NOW = 1793169738000;
         scheduler: mockScheduler,
     });
     assert(section.actor, 'section actor created');
-    assertEqual(section.actor.children.length, 4, 'section has top bar + 3 provider rows');
-    assertEqual(section._topBar.children.length, 1, 'top bar has only AI Quota title');
+    assertEqual(section.actor.children.length, 3, 'section has top bar, equalizer chart card, and bottom window card');
+    assertEqual(section._chartCard.children.length, 3, 'equalizer chart card holds 3 provider columns');
+    assertEqual(section._topBar.children.length, 3, 'top bar has title, summary readout, and refresh button');
+    assert(section._refreshBtn, 'section has manual refresh button');
     assertEqual(section._claudeRow._label, 'Claude', 'Claude row label is Claude');
+
+    // Only selected provider has active pill highlight
+    assert(section._antigravityRow._btn5h.has_style_class_name('linux-island__quota-pill-btn--active'), 'selected provider has active pill');
+    assert(!section._codexRow._btn5h.has_style_class_name('linux-island__quota-pill-btn--active'), 'unselected codex has no active pill');
+    assert(!section._claudeRow._btn5h.has_style_class_name('linux-island__quota-pill-btn--active'), 'unselected claude has no active pill');
 
     // Test Claude (AGY) dynamic naming
     section._claudeRow.update({
@@ -616,6 +630,60 @@ const NOW = 1793169738000;
     }
     const stale = new StaleCollector({ now: () => NOW, cachePath: '/tmp/linux-island-test-cache/probe.json' });
     assertEqual(stale.lastSnapshot.antigravity.connected, false, 'expired cache is not used');
+}
+
+// 12. Antigravity error classification & transient network cache preservation
+{
+    const expiredSnap = buildAiQuotaSnapshot({
+        errors: { antigravity: 'token_expired' },
+    }, NOW);
+    assertEqual(expiredSnap.antigravity.connected, false);
+    assertEqual(expiredSnap.antigravity.primaryText, 'Session expired');
+    assertEqual(expiredSnap.antigravity.detailText, 'Token expired · open CLI or refresh');
+    assertEqual(expiredSnap.antigravity.error, 'token_expired');
+
+    const netSnap = buildAiQuotaSnapshot({
+        errors: { antigravity: 'network' },
+    }, NOW);
+    assertEqual(netSnap.antigravity.connected, false);
+    assertEqual(netSnap.antigravity.primaryText, 'Unreachable');
+    assertEqual(netSnap.antigravity.detailText, 'Network error · retrying');
+    assertEqual(netSnap.antigravity.error, 'network');
+
+    const goodRaw = {
+        ompCache: [{
+            value: {
+                provider: 'google-antigravity',
+                limits: [{ id: 'gemini-5h', window: { durationMs: 18000000 }, amount: { remainingFraction: 0.88 } }],
+            },
+        }],
+    };
+    const store = new Map();
+    class ResilientCollector extends AiQuotaCollector {
+        _readProbeCache() {
+            const v = store.get('probe');
+            return v ? { raw: v, savedAt: NOW } : null;
+        }
+        _writeProbeCache(v) {
+            store.set('probe', v);
+        }
+    }
+    const col = new ResilientCollector({ now: () => NOW, cachePath: '/tmp/linux-island-test-cache/resilient.json' });
+    col._probeRunner = () => goodRaw;
+    await col.refreshAsync();
+    assertEqual(col.lastSnapshot.antigravity.remainingPercent, 88);
+
+    // Transient network error preserves previous Antigravity entry in snapshot & cache
+    col._probeRunner = () => ({ ompCache: [], errors: { antigravity: 'network' } });
+    await col.refreshAsync();
+    assertEqual(col.lastSnapshot.antigravity.connected, true, 'network error preserves cached Antigravity');
+    assertEqual(col.lastSnapshot.antigravity.remainingPercent, 88);
+
+    // Auth expiry is NOT hidden behind stale cache
+    col._probeRunner = () => ({ ompCache: [], errors: { antigravity: 'token_expired' } });
+    await col.refreshAsync();
+    assertEqual(col.lastSnapshot.antigravity.connected, false, 'token_expired clears stale Antigravity');
+    assertEqual(col.lastSnapshot.antigravity.primaryText, 'Session expired');
 }
 
 console.log('PASS: AI quota parsers, multi-window remaining % calculations, fallback, and view lifecycle tests');

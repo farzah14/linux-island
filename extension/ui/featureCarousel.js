@@ -80,7 +80,7 @@ export function getPageIcon(page) {
     if (id === 'system' || id === 'controls' || id === 'metrics') return 'preferences-system-symbolic';
     if (id === 'ai' || id === 'quota' || id === 'ai-quota') return 'applications-science-symbolic';
     if (id === 'time' || id === 'timer') return 'alarm-symbolic';
-    if (id === 'shelf' || id === 'files') return 'folder-open-symbolic';
+    if (id === 'todo') return 'emblem-ok-symbolic';
     return 'view-more-symbolic';
 }
 
@@ -113,7 +113,7 @@ export function getLocalNavGIcon(page) {
         else if (id === 'system' || id === 'controls' || id === 'metrics') name = 'system-symbolic.svg';
         else if (id === 'ai' || id === 'quota' || id === 'ai-quota') name = 'ai-symbolic.svg';
         else if (id === 'time' || id === 'timer') name = 'timer-symbolic.svg';
-        else if (id === 'shelf' || id === 'files') name = 'todo-symbolic.svg';
+        else if (id === 'todo') name = 'todo-symbolic.svg';
         if (!name) return null;
 
         const thisFile = Gio.File.new_for_uri(import.meta.url);
@@ -123,6 +123,25 @@ export function getLocalNavGIcon(page) {
         }
     } catch (_) {}
     return null;
+}
+
+const SHORT_NAV_LABELS = {
+    media: 'Music',
+    music: 'Music',
+    system: 'Sys',
+    controls: 'Sys',
+    metrics: 'Sys',
+    ai: 'AI',
+    quota: 'AI',
+    'ai-quota': 'AI',
+    time: 'Time',
+    timer: 'Time',
+    todo: 'Todo',
+};
+
+export function getShortNavLabel(page) {
+    const id = (page?.id || '').toLowerCase();
+    return SHORT_NAV_LABELS[id] || page?.label || page?.id || 'Tab';
 }
 
 export class FeatureCarousel {
@@ -174,6 +193,7 @@ export class FeatureCarousel {
         for (let i = 0; i < this._pages.length; ++i) {
             const page = this._pages[i];
             const btn = new St.Button({
+                label: getShortNavLabel(page),
                 style_class: (i === this._model.currentPage)
                     ? 'linux-island__section-btn linux-island__section-btn--active'
                     : 'linux-island__section-btn',
@@ -184,22 +204,6 @@ export class FeatureCarousel {
                 x_align: Clutter.ActorAlign.CENTER,
                 y_align: Clutter.ActorAlign.CENTER,
             });
-            const gicon = getLocalNavGIcon(page);
-            const icon = gicon
-                ? new St.Icon({
-                    gicon,
-                    icon_size: 14,
-                    x_align: Clutter.ActorAlign.CENTER,
-                    y_align: Clutter.ActorAlign.CENTER,
-                })
-                : new St.Icon({
-                    icon_name: getPageIcon(page),
-                    fallback_icon_name: 'view-more-symbolic',
-                    icon_size: 14,
-                    x_align: Clutter.ActorAlign.CENTER,
-                    y_align: Clutter.ActorAlign.CENTER,
-                });
-            btn.set_child(icon);
             btn.connect('clicked', () => this.setPage(i));
             this._navButtons.push(btn);
             this._navBox.add_child(btn);

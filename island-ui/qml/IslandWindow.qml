@@ -17,8 +17,17 @@ Window {
         onActivated: islandClient.dispatchEvent("DISMISS")
     }
 
+    property bool _expandFocusGrace: false
+
+    Timer {
+        id: expandFocusTimer
+        interval: 150
+        repeat: false
+        onTriggered: windowRoot._expandFocusGrace = false
+    }
+
     onActiveChanged: {
-        if (!active && islandContainer && islandContainer.isExpanded) {
+        if (!active && !windowRoot._expandFocusGrace && islandContainer && islandContainer.isExpanded) {
             islandClient.dispatchEvent("DISMISS");
         }
     }
@@ -42,13 +51,13 @@ Window {
         return str.length > limit ? (str.substring(0, limit - 1) + "…") : str;
     }
 
-    function getCompactDisplayIcon() {
-        if (!islandClient.connected) return "🏝️";
-        if (timeClient.timerActive && timeClient.compactIcon) return timeClient.compactIcon;
-        if (islandClient.title && islandClient.title.trim().length > 0) {
-            return islandClient.isPlaying ? "🎵" : "🏝️";
+    function getCompactIconSource() {
+        if (!islandClient.connected) return "qrc:/linuxisland/ui/icons/ui/island-symbolic.svg";
+        if (timeClient.timerActive) return "qrc:/linuxisland/ui/icons/ui/timer-symbolic.svg";
+        if (islandClient.title && islandClient.title.trim().length > 0 && islandClient.isPlaying) {
+            return "qrc:/linuxisland/ui/icons/ui/media-symbolic.svg";
         }
-        return "🏝️";
+        return "qrc:/linuxisland/ui/icons/ui/island-symbolic.svg";
     }
 
     function getCompactDisplayText() {
@@ -83,14 +92,23 @@ Window {
     function getExpandedHeight() {
         var waExtra = notificationWatcher.whatsappActivity ? 30 : 0;
         if (carouselView && carouselView.currentIndex === 1)
-            return 98 + 52 + waExtra;
+            return 132 + 52 + waExtra;
         if (carouselView && carouselView.currentIndex === 2)
-            return 116 + 52 + waExtra;
+            return 128 + 52 + waExtra;
         if (carouselView && carouselView.currentIndex === 3)
             return timePage.contentHeight + 52 + waExtra;
         if (carouselView && carouselView.currentIndex === 4)
             return todoPage.contentHeight + 52 + waExtra;
         return musicPage.implicitHeight + 52 + waExtra;
+    }
+
+    function shortNavLabel(id) {
+        if (id === "media") return "Music";
+        if (id === "system") return "Sys";
+        if (id === "ai") return "AI";
+        if (id === "timer") return "Time";
+        if (id === "todo") return "Todo";
+        return id || "";
     }
 
     // Dynamic Island Root Box
@@ -134,25 +152,49 @@ Window {
             }
             function onUiStateChanged() {
                 if (islandClient.uiState === "EXPANDED") {
+                    windowRoot._expandFocusGrace = true;
+                    expandFocusTimer.restart();
                     islandContainer.isIdleCircle = false;
                     islandContainer.isPillExpanded = false;
+                } else {
+                    expandFocusTimer.stop();
+                    windowRoot._expandFocusGrace = false;
                 }
             }
         }
 
 
-        property bool dropTargetActive: false
         width: isExpanded ? windowRoot.getExpandedWidth() : (isCircle ? 36 : windowRoot.getPillWidth())
         height: isExpanded ? windowRoot.getExpandedHeight() : (isCircle ? 36 : windowRoot.getPillHeight())
         anchors.horizontalCenter: parent.horizontalCenter
         y: 0
-        radius: isCircle ? IslandTheme.radiusPill : IslandTheme.radiusXl
+        radius: isExpanded ? IslandTheme.radiusPanel : IslandTheme.radiusPill
         color: (!isExpanded && compactMouse.containsMouse) ? IslandTheme.surfaceHover : IslandTheme.surfaceIsland
-        border.color: dropTargetActive
-            ? IslandTheme.borderFocus
-            : ((islandClient.displayMode === "floating" && !isExpanded && !isCircle) ? IslandTheme.borderSubtle : "transparent")
-        border.width: dropTargetActive ? 2 : 1
+        border.color: (isExpanded || (islandClient.displayMode === "floating" && !isCircle)) ? IslandTheme.borderSubtle : "transparent"
+        border.width: 1
         clip: true
+
+        Canvas {
+            id: expandedGlow
+            anchors.fill: parent
+            visible: islandContainer.isExpanded
+            onWidthChanged: requestPaint()
+            onHeightChanged: requestPaint()
+            onVisibleChanged: requestPaint()
+            Connections { target: IslandTheme; function onIsDarkChanged() { expandedGlow.requestPaint(); } }
+            onPaint: {
+                const ctx = getContext("2d");
+                ctx.clearRect(0, 0, width, height);
+                const c = IslandTheme.accentPrimary;
+                const gradient = ctx.createLinearGradient(0, 0, 0, height);
+                gradient.addColorStop(0, "transparent");
+                gradient.addColorStop(1, Qt.rgba(c.r, c.g, c.b, IslandTheme.isDark ? 0.10 : 0.06));
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.roundedRect(0, 0, width, height, islandContainer.radius, islandContainer.radius);
+                ctx.fill();
+            }
+        }
 
         Behavior on width {
             enabled: islandClient.animationEnabled
@@ -176,11 +218,6 @@ Window {
         onVisibleChanged: queueMaskUpdate()
         Component.onCompleted: {
             updateMask();
-            if (shelfPopout) {
-                carouselView.currentIndex = 4;
-                if (!islandContainer.isExpanded)
-                    islandClient.dispatchEvent("CLICK");
-            }
         }
 
         function queueMaskUpdate() {
@@ -214,9 +251,10 @@ Window {
                 spacing: 8
                 visible: !islandContainer.isCircle
 
-                Text {
-                    text: windowRoot.getCompactDisplayIcon()
-                    font.pixelSize: windowRoot.getCompactFontSize()
+                NavIcon {
+                    size: windowRoot.getCompactFontSize() + 1
+                    source: windowRoot.getCompactIconSource()
+                    color: timeClient.timerActive ? IslandTheme.accentPrimary : IslandTheme.textPrimary
                     Layout.alignment: Qt.AlignVCenter
                 }
 
@@ -283,10 +321,11 @@ Window {
                     }
                 }
 
-                Text {
+                NavIcon {
                     anchors.centerIn: parent
-                    text: "🏝️"
-                    font.pixelSize: 18
+                    size: 18
+                    source: "qrc:/linuxisland/ui/icons/ui/island-symbolic.svg"
+                    color: IslandTheme.accentPrimary
                     visible: !(islandClient.isPlaying && islandClient.connected)
                 }
 
@@ -394,15 +433,21 @@ Window {
                         delegate: Rectangle {
                             required property var modelData
                             readonly property bool active: carouselView.currentIndex === modelData.swipeIndex
-                            implicitWidth: 28
+                            implicitWidth: pillLbl.implicitWidth + 18
                             implicitHeight: 22
-                            radius: 8
-                            color: active ? IslandTheme.accentPrimary : (tabMouse.containsMouse ? IslandTheme.surfaceHover : "transparent")
+                            radius: 999
+                            color: active
+                                ? (tabMouse.containsMouse ? IslandTheme.accentHover : IslandTheme.accentPrimary)
+                                : (tabMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised)
+                            border.width: 0
 
-                            NavIcon {
+                            Text {
+                                id: pillLbl
                                 anchors.centerIn: parent
-                                source: modelData.icon
-                                color: active ? IslandTheme.surfaceIsland : (tabMouse.containsMouse ? IslandTheme.textPrimary : IslandTheme.textSecondary)
+                                text: windowRoot.shortNavLabel(modelData.id)
+                                font.pixelSize: 10
+                                font.weight: active ? Font.Bold : Font.Medium
+                                color: active ? IslandTheme.textOnAccent : (tabMouse.containsMouse ? IslandTheme.textPrimary : IslandTheme.textSecondary)
                             }
 
                             MouseArea {

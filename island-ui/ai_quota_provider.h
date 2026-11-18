@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QByteArray>
 #include <QVariantMap>
 #include <QString>
 #include <QProcess>
@@ -47,4 +48,6 @@ private:
     QVariantMap m_antigravity;
     QVariantMap m_codex;
     QVariantMap m_claude;
+    QByteArray m_lastRawJson;
+    qint64 m_lastAgySavedAt = 0;
 };

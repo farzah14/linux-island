@@ -17,6 +17,7 @@ private slots:
     void testDisplaySurfaceManagerGeometry();
     void testVolumeSetAndMute();
     void testCarouselOrderAndToggleHelpers();
+    void testPortalColorSchemeAndTheme();
 };
 
 void TestIslandClientFsm::testStateTransitions() {
@@ -178,23 +179,25 @@ void TestIslandClientFsm::testVolumeSetAndMute() {
 void TestIslandClientFsm::testCarouselOrderAndToggleHelpers() {
     IslandClient client;
     QCOMPARE(client.orderedPages().size(), 5);
+    QCOMPARE(client.orderedPages().at(4).toMap().value(QStringLiteral("id")).toString(), QStringLiteral("todo"));
+    QCOMPARE(client.orderedPages().at(4).toMap().value(QStringLiteral("swipeIndex")).toInt(), 4);
     QCOMPARE(client.defaultSwipeIndex(), 0);
 
     QVariantMap settings;
-    settings[QStringLiteral("carouselPages")] = QStringLiteral("timer,shelf");
-    settings[QStringLiteral("defaultPage")] = QStringLiteral("shelf");
+    settings[QStringLiteral("carouselPages")] = QStringLiteral("timer,todo");
+    settings[QStringLiteral("defaultPage")] = QStringLiteral("todo");
     QMetaObject::invokeMethod(&client, "onSettingsChanged",
                               Qt::DirectConnection, Q_ARG(quint64, 2), Q_ARG(QVariantMap, settings));
 
     const QVariantList pages = client.orderedPages();
     QCOMPARE(pages.size(), 2);
     const int timerSwipe = pages.at(0).toMap().value(QStringLiteral("swipeIndex")).toInt();
-    const int shelfSwipe = pages.at(1).toMap().value(QStringLiteral("swipeIndex")).toInt();
-    QVERIFY(timerSwipe != shelfSwipe);
-    QCOMPARE(client.defaultSwipeIndex(), shelfSwipe);
+    const int todoSwipe = pages.at(1).toMap().value(QStringLiteral("swipeIndex")).toInt();
+    QVERIFY(timerSwipe != todoSwipe);
+    QCOMPARE(client.defaultSwipeIndex(), todoSwipe);
     QCOMPARE(client.nearestOrderedSwipeIndex(timerSwipe), timerSwipe);
     const int snapped = client.nearestOrderedSwipeIndex(0);
-    QVERIFY(snapped == timerSwipe || snapped == shelfSwipe);
+    QVERIFY(snapped == timerSwipe || snapped == todoSwipe);
 
     QSignalSpy toggleSpy(&client, &IslandClient::toggleRequested);
     QCOMPARE(client.uiState(), QStringLiteral("COMPACT"));
@@ -204,6 +207,24 @@ void TestIslandClientFsm::testCarouselOrderAndToggleHelpers() {
     client.toggleExpanded();
     QCOMPARE(client.uiState(), QStringLiteral("COMPACT"));
     QCOMPARE(toggleSpy.count(), 1);
+}
+
+void TestIslandClientFsm::testPortalColorSchemeAndTheme() {
+    QCOMPARE(PortalColorSchemeObserver::parseScheme(QVariant(1u), false), true);
+    QCOMPARE(PortalColorSchemeObserver::parseScheme(QVariant(2u), true), false);
+    QCOMPARE(PortalColorSchemeObserver::parseScheme(QVariant(0u), true), true);
+    QCOMPARE(PortalColorSchemeObserver::parseScheme(QVariant(0u), false), false);
+
+    IslandClient client;
+    QVariantMap lightPatch{{QStringLiteral("theme"), QStringLiteral("light")}};
+    QMetaObject::invokeMethod(&client, "onSettingsChanged",
+                              Qt::DirectConnection, Q_ARG(quint64, 3), Q_ARG(QVariantMap, lightPatch));
+    QCOMPARE(client.effectiveDarkTheme(), false);
+
+    QVariantMap darkPatch{{QStringLiteral("theme"), QStringLiteral("dark")}};
+    QMetaObject::invokeMethod(&client, "onSettingsChanged",
+                              Qt::DirectConnection, Q_ARG(quint64, 4), Q_ARG(QVariantMap, darkPatch));
+    QCOMPARE(client.effectiveDarkTheme(), true);
 }
 
 QTEST_MAIN(TestIslandClientFsm)

@@ -77,8 +77,7 @@ function assertEqual(actual, expected, message) {
     assertEqual(getPageIcon({id: 'search'}), 'view-more-symbolic');
     assertEqual(getPageIcon({id: 'time'}), 'alarm-symbolic');
     assertEqual(getPageIcon({id: 'timer'}), 'alarm-symbolic');
-    assertEqual(getPageIcon({id: 'shelf'}), 'folder-open-symbolic');
-    assertEqual(getPageIcon({id: 'files'}), 'folder-open-symbolic');
+    assertEqual(getPageIcon({id: 'todo'}), 'emblem-ok-symbolic');
     assertEqual(getPageIcon(null), 'view-more-symbolic');
     assertEqual(getLocalNavGIcon(null), null);
     assertEqual(getLocalNavGIcon({id: 'unknown'}), null);
@@ -148,14 +147,14 @@ function assertEqual(actual, expected, message) {
         {id: 'system'},
         {id: 'ai'},
         {id: 'timer'},
-        {id: 'shelf'},
+        {id: 'todo'},
     ];
-    const custom = resolveCarouselPages(all, 'shelf, media, unknown, timer', 'timer');
-    assertEqual(custom.pages.map(p => p.id).join(','), 'shelf,media,timer');
+    const custom = resolveCarouselPages(all, 'todo, media, unknown, timer', 'timer');
+    assertEqual(custom.pages.map(p => p.id).join(','), 'todo,media,timer');
     assertEqual(custom.defaultIndex, 2);
 
-    const hiddenDefault = resolveCarouselPages(all, 'system,shelf', 'media');
-    assertEqual(hiddenDefault.pages.map(p => p.id).join(','), 'system,shelf');
+    const hiddenDefault = resolveCarouselPages(all, 'system,todo', 'media');
+    assertEqual(hiddenDefault.pages.map(p => p.id).join(','), 'system,todo');
     assertEqual(hiddenDefault.defaultIndex, 0);
 
     const emptyFallback = resolveCarouselPages(all, 'bogus', 'ai');

@@ -9,6 +9,7 @@ private slots:
     void testBuildSnapshotFromRawJson();
     void testAntigravitySeparatesGeminiAndShared3pLimits();
     void testSingleWindowProviderDoesNotFabricateOtherWindow();
+    void testAntigravityErrorStates();
 };
 
 void TestAiQuota::testFormatResetCountdown() {
@@ -173,6 +174,25 @@ void TestAiQuota::testSingleWindowProviderDoesNotFabricateOtherWindow() {
         QCOMPARE(provider.value(QStringLiteral("has7d")).toBool(), false);
         QCOMPARE(provider.value(QStringLiteral("detailText")).toString(), QStringLiteral("No active session"));
     }
+}
+
+void TestAiQuota::testAntigravityErrorStates() {
+    qint64 now = 1000000000;
+    QVariantMap expired = AiQuotaProvider::buildSnapshotFromRawJson(
+        QByteArrayLiteral(R"({"errors":{"antigravity":"token_expired"}})"), now);
+    QVariantMap agyExpired = expired.value(QStringLiteral("antigravity")).toMap();
+    QCOMPARE(agyExpired.value(QStringLiteral("connected")).toBool(), false);
+    QCOMPARE(agyExpired.value(QStringLiteral("primaryText")).toString(), QStringLiteral("Session expired"));
+    QCOMPARE(agyExpired.value(QStringLiteral("detailText")).toString(),
+             QStringLiteral("Token expired · open CLI or refresh"));
+
+    QVariantMap net = AiQuotaProvider::buildSnapshotFromRawJson(
+        QByteArrayLiteral(R"({"errors":{"antigravity":"network"}})"), now);
+    QVariantMap agyNet = net.value(QStringLiteral("antigravity")).toMap();
+    QCOMPARE(agyNet.value(QStringLiteral("connected")).toBool(), false);
+    QCOMPARE(agyNet.value(QStringLiteral("primaryText")).toString(), QStringLiteral("Unreachable"));
+    QCOMPARE(agyNet.value(QStringLiteral("detailText")).toString(),
+             QStringLiteral("Network error · retrying"));
 }
 
 QTEST_MAIN(TestAiQuota)

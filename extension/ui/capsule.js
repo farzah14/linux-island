@@ -3,13 +3,13 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import Shell from 'gi://Shell';
 import * as GrabHelper from 'resource:///org/gnome/shell/ui/grabHelper.js';
-import {MediaView, CAPSULE_SIZES} from './mediaView.js';
+import {MediaView, CAPSULE_SIZES, getLocalUiGIcon} from './mediaView.js';
 import {BeatBars} from './beatBars.js';
 import {loadLocalArtwork} from '../lib/localArtwork.js';
 import {formatTimerCompact, isTimerActive} from '../lib/timeFormat.js';
-import {formatFileCountLabel, parseUriList} from '../lib/shelfActions.js';
 import {capsuleOrigin, clampToMonitor, isFloating, extensionModeFor} from '../lib/displayMode.js';
 
 export class Capsule {
@@ -23,10 +23,6 @@ export class Capsule {
         onStartTimer,
         onControlTimer,
         onTimerStats,
-        onAddShelfFiles,
-        onRemoveShelfFile,
-        onClearShelf,
-        onRefreshShelf,
         scheduler,
         artworkLoader,
         idleTimeoutMs = 10000,
@@ -40,13 +36,6 @@ export class Capsule {
         this._onStartTimer = onStartTimer ?? (() => {});
         this._onControlTimer = onControlTimer ?? (() => {});
         this._onTimerStats = onTimerStats ?? (() => {});
-        this._onAddShelfFiles = onAddShelfFiles ?? (() => {});
-        this._onRemoveShelfFile = onRemoveShelfFile ?? (() => {});
-        this._onClearShelf = onClearShelf ?? (() => {});
-        this._onRefreshShelf = onRefreshShelf ?? (() => {});
-        this._shelf = null;
-        this._dropTargetActive = false;
-        this._xdndEndId = null;
         this._whatsappEnabled = false;
         this._whatsappActivity = false;
         this._scheduler = scheduler ?? {
@@ -56,6 +45,7 @@ export class Capsule {
         this._loadArtwork = artworkLoader ?? (typeof loadLocalArtwork !== 'undefined' ? loadLocalArtwork : async () => null);
         this._idleTimeoutMs = idleTimeoutMs;
         this._idleTimer = null;
+        this._mediaOpenIdleId = null;
         this._isIdleCircle = false;
         this._isPillExpanded = false;
         this._circleResizing = false;
@@ -107,12 +97,16 @@ export class Capsule {
             reactive: true,
         });
 
-        this._icon = new St.Label({
-            text: '🏝️',
-            style: 'font-size: 13px;',
+        this._iconKind = 'island';
+        this._icon = new St.Icon({
+            icon_name: 'start-here-symbolic',
+            fallback_icon_name: 'applications-other-symbolic',
+            icon_size: 14,
+            style_class: 'linux-island__compact-icon',
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.CENTER,
         });
+        this._setCompactIcon('island');
 
         this._circleArtBox = new St.BoxLayout({
             style: 'width: 32px; height: 32px; border-radius: 999px;',
@@ -161,10 +155,6 @@ export class Capsule {
             onStartTimer: request => this._onStartTimer(request),
             onControlTimer: action => this._onControlTimer(action),
             onTimerStats: () => this._onTimerStats(),
-            onAddShelfFiles: uris => this._onAddShelfFiles(uris),
-            onRemoveShelfFile: id => this._onRemoveShelfFile(id),
-            onClearShelf: () => this._onClearShelf(),
-            onRefreshShelf: () => this._onRefreshShelf(),
         });
         if (this._mediaView.actor) {
             this._mediaView.actor.visible = false;
@@ -332,7 +322,7 @@ export class Capsule {
         const barsWereVisible = this._beatBars.actor.visible;
         this._label.visible = true;
         this._icon.visible = true;
-        this._icon.text = isPlaying ? '🎵' : '🏝️';
+        this._setCompactIcon(isPlaying ? 'media' : 'island');
         this._beatBars.actor.visible = isPlaying;
         this._applySize();
         const [, width] = this._widget.get_preferred_width(-1);
@@ -423,7 +413,7 @@ export class Capsule {
                 if (this._icon) {
                     this._icon.visible = true;
                     this._icon.opacity = 255;
-                    this._icon.text = '🏝️';
+                    this._setCompactIcon('island');
                 }
             }
 
@@ -462,7 +452,7 @@ export class Capsule {
                 if (this._icon) {
                     this._icon.visible = true;
                     this._icon.opacity = 255;
-                    this._icon.text = '🏝️';
+                    this._setCompactIcon('island');
                 }
             }
             this._circleResizing = false;
@@ -495,7 +485,7 @@ export class Capsule {
             this._icon.visible = true;
             this._icon.opacity = 255;
             const isPlaying = Boolean(this._lastMedia?.playbackStatus === 'Playing' && this._connected);
-            this._icon.text = isPlaying ? '🎵' : '🏝️';
+            this._setCompactIcon(isPlaying ? 'media' : 'island');
         }
         if (this._beatBars?.actor) {
             this._beatBars.actor.visible = Boolean(this._lastMedia?.playbackStatus === 'Playing' &&
@@ -653,8 +643,15 @@ export class Capsule {
         const hoverOnly = [previousState, state].every(value =>
             value === 'COMPACT' || value === 'PREVIEW');
 
-        if (state !== 'EXPANDED')
+        if (state !== 'EXPANDED') {
+            if (this._mediaView?.actor)
+                this._mediaView.actor.visible = false;
             this._grabHelper.ungrab();
+            if (this._mediaOpenIdleId && typeof GLib !== 'undefined' && GLib?.source_remove) {
+                GLib.source_remove(this._mediaOpenIdleId);
+                this._mediaOpenIdleId = null;
+            }
+        }
 
         this._widget.remove_all_transitions();
         for (const actor of [this._compactRow, this._mediaView?.actor]) {
@@ -703,9 +700,6 @@ export class Capsule {
             if (this._compactRow) {
                 this._compactRow.visible = false;
             }
-            if (this._mediaView?.actor) {
-                this._mediaView.actor.visible = true;
-            }
             this._widget.remove_style_class_name('linux-island__capsule');
             this._widget.add_style_class_name('linux-island__preview');
         } else if (state === 'PEEK') {
@@ -730,6 +724,9 @@ export class Capsule {
             this._widget.add_style_class_name('linux-island__capsule');
         }
 
+        const animateResize = state !== previousState && !hoverOnly &&
+            !(state === 'COMPACT' && this._capsuleSize === 'circle') &&
+            this._animationEnabled && St.Settings.get().enable_animations;
         if (state === 'COMPACT' && this._capsuleSize === 'circle' && previousState !== 'COMPACT') {
             this._animatePillToCircle();
         } else if ((state === 'PREVIEW' && wasCircle) || (hoverOnly && this._circleResizing)) {
@@ -739,7 +736,6 @@ export class Capsule {
         } else if (!this._circleResizing) {
             this._applySize();
         }
-        this._relayout();
         this._syncWhatsAppVisibility();
         if (state === 'EXPANDED' && !this._grabHelper.grab({
             actor: this._widget,
@@ -752,19 +748,30 @@ export class Capsule {
             this._onInteractionEvent('DISMISS');
             return;
         }
+        // Reveal expanded content after class, inline style, and focus-grab
+        // updates so St avoids walking the entire MediaView subtree per change.
+        if (state === 'EXPANDED' && this._mediaView?.actor) {
+            this._mediaView.actor.visible = true;
+        }
+        if (!animateResize) {
+            this._relayout();
+        }
         // The Shell also scales animation time according to accessibility settings.
         if (state === 'EXPANDED' && previousState !== 'EXPANDED') {
             if (typeof GLib !== 'undefined' && GLib?.idle_add) {
-                GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                    this._onMediaOpen();
-                    return GLib.SOURCE_REMOVE;
-                });
+                if (!this._mediaOpenIdleId) {
+                    this._mediaOpenIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                        this._mediaOpenIdleId = null;
+                        this._onMediaOpen();
+                        return GLib.SOURCE_REMOVE;
+                    });
+                }
             } else {
                 this._onMediaOpen();
             }
         }
         // Replace transitions rather than queueing them during rapid pointer input.
-        if (state !== previousState && !hoverOnly && !(state === 'COMPACT' && this._capsuleSize === 'circle') && this._animationEnabled && St.Settings.get().enable_animations) {
+        if (animateResize) {
             // Measure the destination after swapping content, then animate from
             // the currently displayed allocation, including interrupted tweens.
             const [, width] = this._widget.get_preferred_width(-1);
@@ -843,7 +850,8 @@ export class Capsule {
             }
             if (this._icon) {
                 this._icon.x_expand = true;
-                this._icon.style = 'width: 32px; font-size: 18px; text-align: center; margin: 0; padding: 0;';
+                this._icon.icon_size = 18;
+                this._icon.style = 'width: 32px; margin: 0; padding: 0;';
             }
             return;
         }
@@ -859,7 +867,8 @@ export class Capsule {
         if (this._label) this._label.style = `font-size: ${this._sizePreset.compactFont}px;`;
         if (this._icon) {
             this._icon.x_expand = false;
-            this._icon.style = `font-size: ${this._sizePreset.compactFont}px; text-align: center;`;
+            this._icon.icon_size = this._sizePreset.compactFont + 1;
+            this._icon.style = '';
         }
     }
 
@@ -965,6 +974,24 @@ export class Capsule {
         }
     }
 
+    _setCompactIcon(kind) {
+        this._iconKind = kind;
+        if (!this._icon) return;
+        const spec = {
+            media: {svg: 'media-symbolic.svg', icon: 'audio-x-generic-symbolic'},
+            timer: {svg: 'timer-symbolic.svg', icon: 'alarm-symbolic'},
+            island: {svg: 'island-symbolic.svg', icon: 'start-here-symbolic'},
+        }[kind] ?? {svg: 'island-symbolic.svg', icon: 'start-here-symbolic'};
+        this._icon.icon_name = spec.icon;
+        this._icon.fallback_icon_name = spec.icon;
+        const gicon = typeof getLocalUiGIcon === 'function' ? getLocalUiGIcon(spec.svg) : null;
+        if (gicon && typeof this._icon.set_gicon === 'function') {
+            this._icon.set_gicon(gicon);
+        } else {
+            this._icon.gicon = gicon;
+        }
+    }
+
     _renderCompactContent() {
         if (!this._label || !this._icon || this._isCircleMode()) return;
         if (!this._circleResizing) {
@@ -979,13 +1006,13 @@ export class Capsule {
 
         if (!this._connected) {
             this._label.text = 'Core offline';
-            this._icon.text = '🏝️';
+            this._setCompactIcon('island');
             return;
         }
 
         if (isTimerActive(this._timer)) {
             this._label.text = truncate(formatTimerCompact(this._timer));
-            this._icon.text = '⏱';
+            this._setCompactIcon('timer');
             return;
         }
 
@@ -994,12 +1021,12 @@ export class Capsule {
             const title = media.title.trim();
             const artist = (media.artist && media.artist.trim().length > 0) ? ` • ${media.artist.trim()}` : '';
             this._label.text = truncate(title + artist);
-            this._icon.text = (media.playbackStatus === 'Playing') ? '🎵' : '🏝️';
+            this._setCompactIcon(media.playbackStatus === 'Playing' ? 'media' : 'island');
             return;
         }
 
         this._label.text = 'Island';
-        this._icon.text = '🏝️';
+        this._setCompactIcon('island');
     }
 
     setTimer(timer) {
@@ -1030,78 +1057,12 @@ export class Capsule {
         this._mediaView?.setTimerStats(stats);
     }
 
-    setShelf(shelf) {
-        this._shelf = shelf ?? null;
-        this._mediaView?.setShelf(this._shelf);
-        this._renderCompactContent();
-        this._relayout();
-    }
-
     setCarouselConfig(carouselPages, defaultPage) {
         this._mediaView?.setCarouselConfig(carouselPages, defaultPage);
     }
 
     openDefaultPage() {
         this._mediaView?.openDefaultPage();
-    }
-
-    _setDropTarget(active) {
-        const next = Boolean(active);
-        if (next === this._dropTargetActive || !this._widget)
-            return;
-        this._dropTargetActive = next;
-        if (next)
-            this._widget.add_style_class_name('linux-island__capsule--drop-target');
-        else
-            this._widget.remove_style_class_name('linux-island__capsule--drop-target');
-    }
-
-    _setupDropTarget() {
-        if (!this._widget)
-            return;
-        this._widget._delegate = {
-            handleDragOver: () => {
-                this._setDropTarget(true);
-                return 1; // DND.DragMotionResult.COPY_DROP
-            },
-            acceptDrop: () => {
-                this._setDropTarget(false);
-                this._consumeSelectionDnd();
-                return true;
-            },
-        };
-        this._widget.connect('leave-event', () => {
-            this._setDropTarget(false);
-            return Clutter.EVENT_PROPAGATE;
-        });
-        if (Main?.xdndHandler && typeof Main.xdndHandler.connect === 'function') {
-            this._xdndEndId = Main.xdndHandler.connect('drag-end', () => {
-                this._setDropTarget(false);
-            });
-        }
-    }
-
-    _consumeSelectionDnd() {
-        try {
-            const selection = global?.display?.get_selection?.();
-            if (!selection || !Gio?.MemoryOutputStream)
-                return;
-            const stream = Gio.MemoryOutputStream.new_resizable();
-            // Meta.SelectionType.SELECTION_DND === 2
-            selection.transfer_async(2, 'text/uri-list', 65536, stream, null, (sel, res) => {
-                try {
-                    sel.transfer_finish(res);
-                    stream.close(null);
-                    const bytes = stream.steal_as_bytes();
-                    const text = new TextDecoder('utf-8').decode(bytes.get_data());
-                    const uris = parseUriList(text);
-                    if (uris.length > 0) {
-                        this._onAddShelfFiles(uris);
-                        this._mediaView?.selectShelfPage();
-                    }
-                } catch (_) {}
-            });
-        } catch (_) {}
     }
 
     setConnected(connected) {
@@ -1115,7 +1076,7 @@ export class Capsule {
                 if (this._circleArtBox) this._circleArtBox.visible = false;
                 if (this._icon) {
                     this._icon.visible = true;
-                    this._icon.text = '🏝️';
+                    this._setCompactIcon('island');
                 }
             }
         }
@@ -1139,7 +1100,8 @@ export class Capsule {
                 this._beatBars.actor.opacity = 255;
             }
         }
-        this._renderCompactContent();
+        if (trackChanged || this._currentState !== 'EXPANDED')
+            this._renderCompactContent();
 
         if (this._isCircleMode()) {
             if (media?.playbackStatus === 'Playing') {
@@ -1150,7 +1112,7 @@ export class Capsule {
                 if (this._circleArtBox) this._circleArtBox.visible = false;
                 if (this._icon) {
                     this._icon.visible = true;
-                    this._icon.text = '🏝️';
+                    this._setCompactIcon('island');
                 }
             }
         } else if (this._currentState === 'COMPACT' && trackChanged) {
@@ -1158,13 +1120,17 @@ export class Capsule {
         }
 
         this._mediaView?.setMedia(media);
-        if (trackChanged || this._isCircleMode()) {
+        if (trackChanged) {
             this._relayout();
         }
     }
 
     destroy() {
         this._clearIdleTimer();
+        if (this._mediaOpenIdleId && typeof GLib !== 'undefined' && GLib?.source_remove) {
+            GLib.source_remove(this._mediaOpenIdleId);
+            this._mediaOpenIdleId = null;
+        }
         this._circleArtCancellable?.cancel();
         this._circleArtCancellable = null;
         this._circleArtIcon = null;
@@ -1173,12 +1139,6 @@ export class Capsule {
         global.stage.disconnect(this._outsideEventId);
         this._grabHelper.ungrab();
         this._beatBars.destroy();
-        if (this._xdndEndId && Main?.xdndHandler && typeof Main.xdndHandler.disconnect === 'function') {
-            try {
-                Main.xdndHandler.disconnect(this._xdndEndId);
-            } catch (_) {}
-            this._xdndEndId = null;
-        }
         Main.layoutManager.disconnectObject(this);
         try {
             this._mediaView?.destroy();

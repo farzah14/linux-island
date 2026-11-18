@@ -1,40 +1,40 @@
-# Linux Island — Design System v1.0
+# Linux Island — Design System v2.0
 
-**ID:** LI-DS-001
-**Tanggal:** 2026-10-24
-**Status:** Design baseline for review and implementation (not yet runtime-verified)
-**Brand:** Warm Minimalist
-**Produk:** Linux Island v0.1 MVP; design catalog anticipates later releases
-**Platform pertama:** Ubuntu 24.04 GNOME Wayland; Qt/QML Settings and GNOME Shell/GJS Island UI
+**ID:** LI-DS-002
+**Tanggal:** 2026-11-15
+**Status:** Active theme specification (`tokens/tokens.json` v2.0.0)
+**Brand:** Obsidian Emerald
+**Produk:** Linux Island v0.1 MVP; design catalog anticipates telemetry & widget extensions
+**Platform pertama:** Ubuntu 24.04 GNOME Wayland; Qt/QML Settings & Overlay and GNOME Shell/GJS Island UI
 
-> **Tujuan:** menyediakan bahasa visual, interaction contract, dan single source of truth token yang konsisten antara GNOME Shell Extension dan aplikasi Qt/QML tanpa menjanjikan kemampuan compositor yang belum diuji.
+> **Tujuan:** menyediakan bahasa visual, interaction contract, dan single source of truth token yang konsisten antara GNOME Shell Extension dan aplikasi Qt/QML.
 
 ## 1. Konsep dan karakter visual
 
-**Modern Minimalist, bukan replika macOS.** Desain harus terasa native terhadap Linux, terbaca pada wallpaper terang/gelap, tenang saat idle, dan aktif hanya ketika pengguna membutuhkannya. Identitas Warm Minimalist menggunakan graphite bernuansa hangat, krem sebagai ruang bernapas, serta aksen amber yang lembut dan hemat pemakaian. Warna status positif memakai sage green hanya sebagai kode semantik, bukan aksen brand. Tidak menggunakan gradien spektakuler, glow neon, emoji untuk kontrol, 3D, atau bounce berlebihan.
+**Obsidian Emerald — crisp OLED contrast dengan sinyal hijau hidup.** Desain memakai permukaan obsidian pekat (`#0B0B0B` di atas kanvas `#000000`), kontrol melingkar atau kapsul (`#1C1C1C`), tipografi abu-abu dingin yang tajam (`#F4F6F5`, `#999B9D`, `#88898B`), dan aksen **vivid emerald** (`#59D66C` di dark, `#147A38` di light) khusus untuk aksi utama, grafik telemetri, progress ring, dan indikator status aktif. Mode light memakai permukaan **Cool Mist** (`#F7F9FA` di atas kanvas `#DCE0E2`) agar tetap selaras dengan frame sistem terang sambil memenuhi kontras WCAG AA.
 
 **Prinsip yang tidak boleh dilanggar:**
 
 1. **Calm by default** — COMPACT tidak berganti bentuk karena perubahan media pasif.
 2. **Intent first** — hover preview, klik membuka detail, notifikasi normal tidak merebut EXPANDED.
-3. **One primary action** — maksimal satu aksi dominan per panel, sisanya tonal/ghost.
-4. **Accessible as-designed** — identitas tidak bergantung pada warna; teks dan fokus memiliki kontras yang diuji.
+3. **One primary action** — maksimal satu aksi dominan emerald per panel/pill, sisanya tonal obsidian (`#1C1C1C`) atau ghost.
+4. **Accessible as-designed** — tombol emerald memakai teks obsidian pekat `#08100A` (`10.34:1` AA/AAA), bukan putih di atas hijau terang (`1.87:1`).
 5. **Wallpaper independent** — background teks kritikal harus solid/opaque; jangan memerlukan blur untuk keterbacaan.
-6. **Token parity** — kedua renderer menggunakan nilai semantik yang sama, tetapi menerjemahkannya ke platform masing-masing.
+6. **Token parity** — GNOME GJS dan Qt6/QML memakai nilai semantik yang sama dari `tokens/tokens.json`.
 7. **Degradation gracefully** — jika Core mati, render fallback lokal; jangan menampilkan kontrol semu.
 
 ### 1.1 Arah visual yang disetujui
 
 | Elemen | Keputusan |
 |---|---|
-| Aksen utama | Amber lembut `#D8B77F` (dark); amber pekat `#80551F` (light) demi kontras |
-| Surface utama dark | Graphite `#191816` |
-| Surface utama light | Krem `#FBF8F1` di atas canvas `#F4F0E9` |
+| Aksen utama | Vivid emerald `#59D66C` (dark); deep emerald `#147A38` (light) demi kontras WCAG AA |
+| Surface utama dark | Obsidian `#0B0B0B` dengan raised control `#1C1C1C` di atas kanvas `#000000` |
+| Surface utama light | Cool Mist `#F7F9FA` dengan raised `#E6EAEC` di atas kanvas `#DCE0E2` |
 | Tipografi | System font; preferensi Cantarell/Noto Sans jika fallback diperlukan |
-| Ikon | Monoline 1.75–2px optical stroke, rounded joins, native/symbolic style |
-| Shape | Capsule pill, panel radius 24px, nested card 12–16px |
+| Ikon | Monoline 1.75–2px optical stroke, `fill="currentColor"` untuk symbolic tinting |
+| Shape | Full capsule pill (`999px`) untuk COMPACT/PREVIEW & CTA buttons; panel radius `24px` untuk EXPANDED; nested card `12–16px` |
 | Motion | Subtle ease-out, tidak memakai bouncy spring |
-| Tekstur | Flat; subtle border opsional; hindari shadow berlebihan |
+| Tekstur | Flat obsidian solid; hairline border `1px` (`#262927` dark / `#C4CCD0` light) pada mode floating; subtle `#102B17` tint pada chart area |
 
 ## 2. Arsitektur token
 
@@ -54,41 +54,44 @@ Token utama berada di `tokens/tokens.json`; dua file `tokens/dark.flat.json` dan
 
 | Primitive | HEX | Pemakaian |
 |---|---|---|
-| Graphite 950 | `#12110F` | scrim / deepest background |
-| Graphite 900 | `#191816` | dark Island surface |
-| Graphite 850 | `#23211E` | overlay background |
-| Graphite 800 | `#302D28` | raised card |
-| Graphite 700 | `#403B34` | hover background |
-| Graphite 600 | `#575148` | subtle stroke, decorative separators |
-| Graphite 500 | `#898278` | muted warm graphite reference |
-| Graphite 400 | `#A69C8F` | tertiary dark text |
-| Graphite 300 | `#C8C0B5` | secondary dark text |
-| Graphite 050 | `#F4F0E9` | primary dark text / warm canvas |
-| Cream 050 | `#FBF8F1` | light Island surface |
-| Cream 200 | `#EEE9DF` | light raised surface |
-| Amber 300 | `#D8B77F` | primary dark accent |
-| Amber 200 | `#E9CEA0` | dark accent hover |
-| Amber 800 | `#80551F` | primary light accent |
-| Amber 900 | `#6B471B` | light accent hover |
+| Obsidian 950 | `#000000` | scrim / canvas dark |
+| Obsidian 900 | `#0B0B0B` | dark Island surface |
+| Obsidian 850 | `#141514` | settings elevated card / overlay container |
+| Obsidian 800 | `#1C1C1C` | raised card, circular icon badge, inactive bar |
+| Obsidian 700 | `#262827` | hover background |
+| Obsidian 600 | `#262927` | subtle hairline stroke |
+| Obsidian 500 | `#64686A` | strong control outline, muted separators |
+| Obsidian 400 | `#88898B` | tertiary dark text (timestamps, chart axes) |
+| Obsidian 300 | `#999B9D` | secondary dark text (subtitles, labels) |
+| Obsidian 050 | `#F4F6F5` | primary dark text |
+| Mist 050 | `#F7F9FA` | light Island surface |
+| Mist 200 | `#E6EAEC` | light raised surface |
+| Mist 300 | `#DCE0E2` | light canvas |
+| Emerald 950 | `#08100A` | high-contrast ink on vivid emerald button |
+| Emerald 400 | `#59D66C` | primary dark accent, sparklines, active bars |
+| Emerald 300 | `#7AE28A` | dark accent hover |
+| Emerald 800 | `#147A38` | primary light accent |
+| Emerald 900 | `#0F5D2B` | light accent hover |
 
-**Mengapa aksen dark/light berbeda?** Warna amber yang cerah sulit dipakai sebagai teks/ikon pada surface putih. Light menggunakan amber lebih gelap untuk menjaga kontras teks dan kontrol pada latar krem.
+**Mengapa aksen dark/light dan `text.onAccent` dirancang seperti ini?** Warna vivid emerald `#59D66C` memudar jika diberi teks putih (`1.87:1`), sehingga tombol primer dark memakai teks obsidian pekat `#08100A` (`10.34:1`). Pada surface light `#F7F9FA`, aksen memakai deep emerald `#147A38` (`5.14:1`) dengan teks terang `#F7F9FA`.
 
 ### 2.2 Semantic colors
 
 | Role | Dark | Light | Aturan |
 |---|---|---|---|
-| `surface.island` | `#191816` | `#FBF8F1` | solid; selalu memiliki kontras dengan teks |
-| `surface.raised` | `#302D28` | `#EEE9DF` | nested panels |
-| `text.primary` | `#F4F0E9` | `#292621` | heading/body |
-| `text.secondary` | `#C8C0B5` | `#5D554B` | subtitle/metadata |
-| `text.tertiary` | `#A69C8F` | `#665E53` | noncritical status timestamps |
-| `accent.primary` | `#D8B77F` | `#80551F` | emphasize intent |
-| `text.onAccent` | `#191816` | `#FBF8F1` | primary action text |
-| `border.focus` | `#D8B77F` | `#80551F` | focus ring 2px |
-| `status.warning` | `#F6CF83` | `#875000` | always pair with icon/text |
-| `status.danger` | `#F2A3A0` | `#A42C34` | always pair with icon/text |
+| `surface.island` | `#0B0B0B` | `#F7F9FA` | solid; selalu memiliki kontras dengan teks |
+| `surface.raised` | `#1C1C1C` | `#E6EAEC` | nested panels, circular badges, inactive bars |
+| `text.primary` | `#F4F6F5` | `#111413` | heading/body |
+| `text.secondary` | `#999B9D` | `#454C4E` | subtitle/metadata |
+| `text.tertiary` | `#88898B` | `#575F62` | noncritical status timestamps & chart axes |
+| `accent.primary` | `#59D66C` | `#147A38` | emphasize intent, active telemetry |
+| `accent.subtle` | `#102B17` | `#DCF4E2` | chart area wash, positive delta badge background |
+| `text.onAccent` | `#08100A` | `#F7F9FA` | primary action text (`10.34:1` dark / `5.14:1` light) |
+| `border.focus` | `#59D66C` | `#147A38` | focus ring 2px |
+| `status.warning` | `#EFCF3D` | `#875800` | always pair with icon/text |
+| `status.danger` | `#F25F58` | `#B92020` | always pair with icon/text |
 
-**Status:** success/connected memakai sage green (`#9DD2B1` dark / `#276448` light) disertai check/label; warning memakai amber serta alert glyph/label; error memakai merah dan error glyph/label. Tidak pernah warna saja.
+**Status:** success/connected memakai emerald (`#59D66C` dark / `#147A38` light) disertai check/arrow/label; warning memakai gold (`#EFCF3D` / `#875800`) serta alert glyph/label; error memakai merah (`#F25F58` / `#B92020`) dan error glyph/label. Tidak pernah warna saja.
 
 **Contrast QA:** gunakan `qa/contrast-report.json` untuk hasil penghitungan color-pair. Target desain mengikuti WCAG 2.2 AA: teks normal ≥4.5:1, komponen visual esensial ≥3:1. Ini bukan deklarasi bahwa keseluruhan UI sudah conformant; layering, blur, rendering fonts dan real-world capture harus diuji terpisah.
 
@@ -262,6 +265,6 @@ See [`INTEGRATION_GUIDE.md`](INTEGRATION_GUIDE.md) for translation to GJS and QM
 
 Values and proportions in this document are **project design decisions**, not empirical GNOME or Qt performance measurements. Verify visually and through integration tests before shipping.
 
-## 15. Warm Minimalist revision note
+## 15. Obsidian Emerald revision note
 
-Palet awal yang berbasis aksen hijau diganti oleh Warm Minimalist (graphite, cream, amber) sesuai keputusan produk. Ukuran komponen, state machine, tipografi, timing animasi, kontrak D-Bus, dan pembagian tanggung jawab GJS/QML **tidak berubah**. Ini perubahan design-token sebelum integrasi runtime, bukan bukti theme telah aktif pada GNOME Shell.
+Warm Minimalist v1.0 (`#191816`, `#FBF8F1`, `#D8B77F`) diganti oleh **Obsidian Emerald v2.0** (`#0B0B0B`, `#1C1C1C`, `#59D66C`, dan Cool Mist `#F7F9FA` + `#147A38`) melalui `tokens/tokens.json` dan generator `scripts/dev/generate-island-css.py`. Kontrak state machine, tipografi, timing animasi, dan D-Bus `Core1` tidak berubah.

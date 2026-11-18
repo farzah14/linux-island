@@ -8,7 +8,6 @@ import {GnomeDisplayAdapter} from './lib/gnomeDisplayAdapter.js';
 import {IslandController} from './lib/islandController.js';
 import {CoreProxy} from './lib/coreProxy.js';
 import {TimeProxy} from './lib/timeProxy.js';
-import {ShelfProxy} from './lib/shelfProxy.js';
 import {NotificationAdapter} from './lib/notificationAdapter.js';
 export default class LinuxIslandExtension extends Extension {
     enable() {
@@ -25,15 +24,10 @@ export default class LinuxIslandExtension extends Extension {
             onStartTimer: request => this._timeProxy?.startTimer(request),
             onControlTimer: action => this._timeProxy?.controlTimer(action),
             onTimerStats: () => this._timeProxy?.fetchStats(),
-            onAddShelfFiles: uris => this._shelfProxy?.addFiles(uris),
-            onRemoveShelfFile: id => this._shelfProxy?.removeFile(id),
-            onClearShelf: () => this._shelfProxy?.clearShelf(),
-            onRefreshShelf: () => this._shelfProxy?.refresh(),
         });
         let controller = null;
         let coreProxy = null;
         let timeProxy = null;
-        let shelfProxy = null;
 
         try {
             capsule.mount();
@@ -72,11 +66,6 @@ export default class LinuxIslandExtension extends Extension {
             });
             this._timeProxy = timeProxy;
 
-            shelfProxy = new ShelfProxy({
-                onStateChanged: state => this._capsule?.setShelf(state.shelf),
-            });
-            this._shelfProxy = shelfProxy;
-
             this._notifAdapter = new NotificationAdapter({
                 enabled: false,
                 whatsappEnabled: false,
@@ -92,14 +81,12 @@ export default class LinuxIslandExtension extends Extension {
         } catch (error) {
             this._notifAdapter?.destroy();
             this._notifAdapter = null;
-            shelfProxy?.destroy();
             timeProxy?.destroy();
             coreProxy?.destroy();
             controller?.destroy();
             capsule.destroy();
             this._coreProxy = null;
             this._timeProxy = null;
-            this._shelfProxy = null;
             this._controller = null;
             this._capsule = null;
             throw error;
@@ -203,8 +190,6 @@ export default class LinuxIslandExtension extends Extension {
         this._notifAdapter?.destroy();
         this._notifAdapter = null;
 
-        this._shelfProxy?.destroy();
-        this._shelfProxy = null;
         this._timeProxy?.destroy();
         this._timeProxy = null;
         this._coreProxy?.destroy();

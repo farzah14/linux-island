@@ -20,7 +20,7 @@ QVariantMap defaultSettings() {
     map[QStringLiteral("timerCycles")] = 4;
     map[QStringLiteral("timerAutoAdvance")] = true;
     map[QStringLiteral("timerCompactHintEnabled")] = true;
-    map[QStringLiteral("carouselPages")] = QStringLiteral("media,system,ai,timer,shelf");
+    map[QStringLiteral("carouselPages")] = QStringLiteral("media,system,ai,timer,todo");
     map[QStringLiteral("defaultPage")] = QStringLiteral("media");
     map[QStringLiteral("toggleShortcut")] = QStringLiteral("<Super><Shift>i");
     return map;
@@ -180,7 +180,7 @@ ValidationResult validateSettingsPatch(const QVariantMap &current, const QVarian
         } else if (key == QLatin1String("carouselPages")) {
             static const QSet<QString> allowedPages = {
                 QStringLiteral("media"), QStringLiteral("system"),
-                QStringLiteral("ai"), QStringLiteral("timer"), QStringLiteral("shelf")
+                QStringLiteral("ai"), QStringLiteral("timer"), QStringLiteral("todo")
             };
             if (val.typeId() != QMetaType::QString) {
                 return ValidationResult{false, current, QStringLiteral("carouselPages must be a string")};
@@ -200,7 +200,7 @@ ValidationResult validateSettingsPatch(const QVariantMap &current, const QVarian
         } else if (key == QLatin1String("defaultPage")) {
             static const QSet<QString> allowedPages = {
                 QStringLiteral("media"), QStringLiteral("system"),
-                QStringLiteral("ai"), QStringLiteral("timer"), QStringLiteral("shelf")
+                QStringLiteral("ai"), QStringLiteral("timer"), QStringLiteral("todo")
             };
             if (val.typeId() != QMetaType::QString || !allowedPages.contains(val.toString())) {
                 return ValidationResult{false, current, QStringLiteral("Invalid defaultPage value")};

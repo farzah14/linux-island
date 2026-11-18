@@ -19,13 +19,13 @@
 #include <iostream>
 #include "island_client.h"
 #include "time_client.h"
-#include "shelf_client.h"
 #include "todo_client.h"
 #include "system_metrics_provider.h"
 #include "quick_settings_provider.h"
 #include "ai_quota_provider.h"
 #include "notification_watcher.h"
 #include "display_surface_manager.h"
+#include "tinted_svg_provider.h"
 
 class UiControlAdaptor : public QObject {
     Q_OBJECT
@@ -51,14 +51,11 @@ int main(int argc, char *argv[]) {
     }
 
     bool smokeTest = false;
-    bool shelfPopout = false;
     bool toggleMode = false;
     for (int i = 1; i < argc; ++i) {
         const QString arg = QString::fromUtf8(argv[i]);
         if (arg == QLatin1String("--smoke-test")) {
             smokeTest = true;
-        } else if (arg == QLatin1String("--shelf-popout")) {
-            shelfPopout = true;
         } else if (arg == QLatin1String("--toggle")) {
             toggleMode = true;
         }
@@ -86,7 +83,7 @@ int main(int argc, char *argv[]) {
     // directly (bypassing linux-island-launch, which disables the extension)
     // used to leave two capsules on screen. ISLAND_ALLOW_DOUBLE_RENDER=1
     // overrides this for deliberate side-by-side comparison.
-    if (!smokeTest && !shelfPopout && qEnvironmentVariableIsEmpty("ISLAND_ALLOW_DOUBLE_RENDER")) {
+    if (!smokeTest && qEnvironmentVariableIsEmpty("ISLAND_ALLOW_DOUBLE_RENDER")) {
         QDBusConnection bus = QDBusConnection::sessionBus();
         if (bus.isConnected() && bus.interface()) {
             const QDBusReply<bool> enabled = bus.interface()->isServiceRegistered(
@@ -126,7 +123,6 @@ int main(int argc, char *argv[]) {
 
     IslandClient client;
     TimeClient timeClient;
-    ShelfClient shelfClient;
     TodoClient todoClient;
     UiControlAdaptor uiControl(&client);
     if (!smokeTest && QDBusConnection::sessionBus().isConnected()) {
@@ -170,6 +166,7 @@ int main(int argc, char *argv[]) {
                      &notificationWatcher, syncNotificationPrefs);
 
     QQmlApplicationEngine engine;
+    engine.addImageProvider(QStringLiteral("tinted"), new TintedSvgProvider);
     bool qmlWarnings = false;
     if (smokeTest) {
         QObject::connect(&engine, &QQmlEngine::warnings, &engine,
@@ -178,9 +175,7 @@ int main(int argc, char *argv[]) {
 
     engine.rootContext()->setContextProperty(QStringLiteral("islandClient"), &client);
     engine.rootContext()->setContextProperty(QStringLiteral("timeClient"), &timeClient);
-    engine.rootContext()->setContextProperty(QStringLiteral("shelfClient"), &shelfClient);
     engine.rootContext()->setContextProperty(QStringLiteral("todoClient"), &todoClient);
-    engine.rootContext()->setContextProperty(QStringLiteral("shelfPopout"), shelfPopout);
     engine.rootContext()->setContextProperty(QStringLiteral("systemMetrics"), &metrics);
     engine.rootContext()->setContextProperty(QStringLiteral("quickSettings"), &quickSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("aiQuota"), &aiQuota);
@@ -304,19 +299,15 @@ int main(int argc, char *argv[]) {
             std::cerr << "Smoke test error: timer page missing" << std::endl;
             return 10;
         }
-        if (timePage->property("implicitHeight").toInt() != 116) {
+        if (timePage->property("implicitHeight").toInt() != 132) {
             std::cerr << "Smoke test error: timer page height" << std::endl;
             return 11;
         }
 
-        auto *shelfPage = rootWindow->findChild<QObject *>(QStringLiteral("todoPage"));
-        if (!shelfPage) {
-            std::cerr << "Smoke test error: shelf page missing" << std::endl;
-            return 12;
-        }
-        if (shelfPage->property("implicitHeight").toInt() != 116) {
-            std::cerr << "Smoke test error: shelf page height" << std::endl;
-            return 13;
+        auto *todoPage = rootWindow->findChild<QObject *>(QStringLiteral("todoPage"));
+        if (!todoPage || todoPage->property("implicitHeight").toInt() != 116) {
+            std::cerr << "Smoke test error: todo page missing or wrong height" << std::endl;
+            return 14;
         }
 
         if (qmlWarnings) {

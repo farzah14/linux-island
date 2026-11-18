@@ -1,5 +1,5 @@
 import QtQuick
-import QtQuick.Effects
+import QtQuick.Window
 
 Item {
     id: root
@@ -10,20 +10,23 @@ Item {
     implicitWidth: size
     implicitHeight: size
 
-    Image {
-        id: img
-        anchors.fill: parent
-        source: root.source
-        sourceSize.width: root.size
-        sourceSize.height: root.size
-        fillMode: Image.PreserveAspectFit
-        visible: false
+    readonly property string iconName: {
+        const s = root.source ? root.source.toString() : "";
+        const idx = s.lastIndexOf("/");
+        return idx >= 0 ? s.substring(idx + 1) : s;
     }
 
-    MultiEffect {
+    readonly property real dpr: Screen.devicePixelRatio > 0 ? Screen.devicePixelRatio : 1.0
+
+    Image {
         anchors.fill: parent
-        source: img
-        colorization: 1.0
-        colorizationColor: root.color
+        visible: root.iconName.length > 0
+        source: root.iconName.length > 0
+            ? ("image://tinted/" + root.iconName + "?color=" + encodeURIComponent(root.color.toString()))
+            : ""
+        sourceSize.width: Math.max(1, Math.round(root.size * root.dpr))
+        sourceSize.height: Math.max(1, Math.round(root.size * root.dpr))
+        fillMode: Image.PreserveAspectFit
+        smooth: true
     }
 }

@@ -8,7 +8,10 @@
 
 SettingsProxy::SettingsProxy(const QDBusConnection &bus, QObject *parent)
     : QObject(parent),
-      m_bus(bus) {
+      m_bus(bus),
+      m_portalScheme(bus, this) {
+    connect(&m_portalScheme, &PortalColorSchemeObserver::darkModeChanged,
+            this, &SettingsProxy::systemDarkThemeChanged);
     if (m_bus.isConnected()) {
         m_bus.connect(
             QStringLiteral("org.freedesktop.DBus"),
@@ -373,7 +376,7 @@ constexpr KnownPage kKnownPages[] = {
     {"system", "System & Controls"},
     {"ai", "AI Quota"},
     {"timer", "Timer"},
-    {"shelf", "To-do"},
+    {"todo", "To-do"},
 };
 }  // namespace
 

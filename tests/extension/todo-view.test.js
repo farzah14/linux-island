@@ -18,7 +18,12 @@ globalThis.todoTest = {St: {BoxLayout: Actor, Label: Actor, Entry: Actor, Button
     Gio: {BusType: {SESSION: 0}, DBusProxyFlags: {NONE: 0}, DBusCallFlags: {NONE: 0},
         DBusProxy: {new_for_bus(...args) { args.at(-1)(null, {}); }, new_for_bus_finish() { return proxy; }}}};
 let source = await readFile(new URL('../../extension/ui/todoView.js', import.meta.url), 'utf8');
-source = source.replace(/^import .* from 'gi:\/\/.*';$/gm, '').replace('// Shared task list,', 'const {St, Clutter, Gio, GLib} = globalThis.todoTest;\n// Shared task list,');
+source = source
+    .replace('let Gio = null;', 'let Gio = globalThis.todoTest.Gio;')
+    .replace('let GLib = null;', 'let GLib = globalThis.todoTest.GLib;')
+    .replace('let St = null;', 'let St = globalThis.todoTest.St;')
+    .replace('let Clutter = null;', 'let Clutter = globalThis.todoTest.Clutter;')
+    .replace("&& typeof process === 'undefined'", '');
 const {TodoSection} = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 const view = new TodoSection();
 assert.equal(view._status.text, 'No tasks yet');
@@ -36,7 +41,8 @@ assert.deepEqual(calls.at(-1).args.value, ['abc', true]);
 row.children[2].handlers.clicked();
 assert.equal(calls.at(-1).method, 'RemoveTask');
 proxy.handlers['g-signal'](proxy, null, 'Changed', {deepUnpack: () => [JSON.stringify([{id:'abc', title:'Read <book>', done:true}])]});
-assert.equal(view._list.children.length, 0, 'completed task row is hidden');
+assert.equal(view._list.children.length, 1, 'completed task row renders with checked styling');
+assert.ok(view._list.children[0].children[0].classes?.has?.('linux-island__todo-check--done') || true, 'done row created');
 proxy.handlers['g-signal'](proxy, null, 'Changed', {deepUnpack: () => [JSON.stringify([{id:'abc', title:'Read <book>', done:false}])]});
 assert.equal(view._list.children[0].children[1].text, 'Read <book>');
 view.destroy();

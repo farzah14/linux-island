@@ -37,9 +37,15 @@ QVariantMap variantToMap(const QVariant &value) {
 
 IslandClient::IslandClient(const QDBusConnection &bus, QObject *parent)
     : QObject(parent),
-      m_bus(bus) {
+      m_bus(bus),
+      m_portalScheme(bus, this) {
     m_peekTimer.setSingleShot(true);
     connect(&m_peekTimer, &QTimer::timeout, this, &IslandClient::onPeekTimeout);
+    connect(&m_portalScheme, &PortalColorSchemeObserver::darkModeChanged, this, [this](bool) {
+        if (m_theme == QLatin1String("system") || m_theme.isEmpty()) {
+            emit settingsChanged();
+        }
+    });
 
     if (m_bus.isConnected()) {
         m_bus.connect(
@@ -161,8 +167,8 @@ QString IslandClient::timeTotalText() const {
 
 bool IslandClient::effectiveDarkTheme() const {
     if (m_theme == QLatin1String("light")) return false;
-    // Default or "dark" or "system" defaults to dark Warm Minimalist
-    return true;
+    if (m_theme == QLatin1String("dark")) return true;
+    return m_portalScheme.isDark();
 }
 
 void IslandClient::cycleTheme() {
@@ -353,7 +359,7 @@ constexpr PageMeta kAllPages[] = {
     {"system", 1, "qrc:/linuxisland/ui/icons/ui/system-symbolic.svg"},
     {"ai", 2, "qrc:/linuxisland/ui/icons/ui/ai-symbolic.svg"},
     {"timer", 3, "qrc:/linuxisland/ui/icons/ui/timer-symbolic.svg"},
-    {"shelf", 4, "qrc:/linuxisland/ui/icons/ui/todo-symbolic.svg"},
+    {"todo", 4, "qrc:/linuxisland/ui/icons/ui/todo-symbolic.svg"},
 };
 }  // namespace
 

@@ -25,8 +25,8 @@ def contrast(a, b):
 def verify():
     errors = []
     themes = TOKENS['semantic']
-    if TOKENS.get('designSystemVersion') != '1.0.0':
-        errors.append('Expected designSystemVersion 1.0.0')
+    if TOKENS.get('designSystemVersion') != '2.0.0':
+        errors.append('Expected designSystemVersion 2.0.0')
     if TOKENS.get('format') != 'linux-island-token-collection/v1':
         errors.append('Unknown token format identifier')
     if set(themes['dark']) != set(themes['light']):

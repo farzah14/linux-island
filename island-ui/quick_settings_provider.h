@@ -26,7 +26,11 @@ signals:
     void themeOverrideRequested(const QString &theme);
 
 private:
+    void detectInitialStates();
     void detectInitialTheme();
+    void detectInitialDnd();
+    void detectInitialNightLight();
+    static QString currentDesktopLower();
 
     bool m_darkMode = true;
     bool m_nightLight = false;

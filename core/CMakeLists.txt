@@ -7,7 +7,6 @@ add_executable(linux-island-core
     dbus/variant_codec.h
     dbus/variant_codec.cpp
     dbus/time_adaptor.h
-    dbus/shelf_adaptor.h
     dbus/todo_adaptor.h
     todo/todo_service.h
     todo/todo_service.cpp
@@ -33,9 +32,6 @@ add_executable(linux-island-core
     time/time_types.h
     time/timer_service.h
     time/timer_service.cpp
-    shelf/shelf_types.h
-    shelf/shelf_service.h
-    shelf/shelf_service.cpp
 )
 
 target_include_directories(linux-island-core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

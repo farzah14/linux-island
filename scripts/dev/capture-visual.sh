@@ -12,7 +12,7 @@
 # What it records:
 #   1. Environment facts (shell version, session type, monitor geometry)
 #   2. Extension state and errors
-#   3. Screenshots: compact, expanded (music), expanded (system), expanded (AI)
+#   3. Screenshots: compact, expanded (music), system, AI quota, timer, todo, light theme
 #   4. Capsule geometry measured from the screenshot, not assumed
 #
 # It never modifies settings, never restarts the shell, and never sends media
@@ -189,6 +189,21 @@ echo "" | tee -a "$REPORT"
 read -r -p "Switch to the AI Quota page, then press Enter... " _ || true
 sleep 1
 shot 04-ai-quota || true
+
+echo "" | tee -a "$REPORT"
+read -r -p "Switch to the Timer page (start a timer to check ring), then press Enter... " _ || true
+sleep 1
+shot 05-timer || true
+
+echo "" | tee -a "$REPORT"
+read -r -p "Switch to the To-do page, then press Enter... " _ || true
+sleep 1
+shot 07-todo || true
+
+echo "" | tee -a "$REPORT"
+read -r -p "Switch to Light theme while expanded (check bottom glow/contrast), then press Enter... " _ || true
+sleep 1
+shot 08-light-expanded || true
 
 # --- measurement -----------------------------------------------------------
 

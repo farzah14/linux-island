@@ -39,6 +39,7 @@ export class AiQuotaProviderRow {
         this._label = label;
         this._iconName = iconName;
         this._activeMode = '5h'; // '5h' or 'weekly'
+        this._selected = false;
         this._state = null;
 
         this.actor = null;
@@ -58,22 +59,55 @@ export class AiQuotaProviderRow {
     _build() {
         this.actor = new St.BoxLayout({
             vertical: true,
-            style: 'spacing: 1px; padding: 1px 2px;',
+            style: 'spacing: 3px;',
             style_class: 'linux-island__quota-row',
             x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+            reactive: true,
+        });
+        this.actor.connect('button-release-event', () => {
+            this.onWindowSelected?.(this._id, this._activeMode, this._state);
+            return Clutter.EVENT_PROPAGATE;
         });
 
-        // Horizontal Row: [Icon] [Name] [Spacer] [5h Button] [Weekly Button]
+        // Vertical equalizer pair (5h + 7d bars, bottom-up fill).
+        const barsRow = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 5px; height: 34px;',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._quotaBars = [];
+        for (let i = 0; i < 2; i++) {
+            const track = new St.BoxLayout({
+                vertical: true,
+                style_class: 'linux-island__timer-progress-track',
+                style: 'width: 8px; height: 34px; border-radius: 4px;',
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            const fill = new St.Widget({
+                style_class: 'linux-island__timer-progress-fill',
+                style: 'width: 8px; height: 0px; border-radius: 4px;',
+                y_align: Clutter.ActorAlign.END,
+            });
+            track.add_child(new St.Widget({y_expand: true}));
+            track.add_child(fill);
+            barsRow.add_child(track);
+            this._quotaBars.push(fill);
+        }
+        this.actor.add_child(barsRow);
+
+        // Provider icon + label
         this._headerBox = new St.BoxLayout({
             vertical: false,
-            style: 'spacing: 6px;',
-            x_expand: true,
+            style: 'spacing: 4px;',
+            x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
         });
 
         const realGIcon = getProviderGIcon(this._id);
         const iconProps = {
-            icon_size: 14,
+            icon_size: 12,
             style_class: 'linux-island__metric-icon',
             y_align: Clutter.ActorAlign.CENTER,
         };
@@ -88,67 +122,80 @@ export class AiQuotaProviderRow {
 
         this._nameLabel = new St.Label({
             text: this._label,
-            style: 'font-size: 11px; font-weight: 600;',
+            style: 'font-size: 10px; font-weight: 600;',
             style_class: 'linux-island__metric-label',
             y_align: Clutter.ActorAlign.CENTER,
         });
+        if (this._nameLabel.clutter_text?.set_ellipsize) {
+            this._nameLabel.clutter_text.set_ellipsize(3);
+        }
         this._headerBox.add_child(this._nameLabel);
+        this.actor.add_child(this._headerBox);
 
-        const spacer = new St.Widget({ x_expand: true });
-        this._headerBox.add_child(spacer);
-
-        // 5h Quota Button
+        // Compact 5h / 7d pill toggles
+        const pillsRow = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 3px;',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
         this._btn5h = new St.Button({
-            label: '5h: --%',
-            style_class: 'linux-island__quota-pill-btn linux-island__quota-action linux-island__quota-pill-btn--active',
+            label: '5h',
+            style: 'font-size: 9px; padding: 1px 6px;',
+            style_class: 'linux-island__quota-pill-btn linux-island__quota-action',
             can_focus: true,
         });
         this._btn5h.connect('clicked', () => {
             this.setMode('5h');
+            this.onWindowSelected?.(this._id, '5h', this._state);
         });
-        this._headerBox.add_child(this._btn5h);
+        pillsRow.add_child(this._btn5h);
 
-        // Weekly Quota Button
         this._btnWeekly = new St.Button({
-            label: '7d: --%',
+            label: '7d',
+            style: 'font-size: 9px; padding: 1px 6px;',
             style_class: 'linux-island__quota-pill-btn linux-island__quota-action',
             can_focus: true,
         });
         this._btnWeekly.connect('clicked', () => {
             this.setMode('weekly');
+            this.onWindowSelected?.(this._id, 'weekly', this._state);
         });
-        this._headerBox.add_child(this._btnWeekly);
+        pillsRow.add_child(this._btnWeekly);
+        this.actor.add_child(pillsRow);
 
-        this.actor.add_child(this._headerBox);
-
-        // Reset countdown and status detail label
         this._detailLabel = new St.Label({
             text: '',
-            style: 'font-size: 9px; padding-left: 19px;',
+            visible: false,
             style_class: 'linux-island__progress-time',
-            x_expand: true,
         });
-        if (this._detailLabel.clutter_text) {
-            try {
-                if (Pango?.EllipsizeMode) {
-                    this._detailLabel.clutter_text.set_ellipsize(Pango.EllipsizeMode.END);
-                } else if (typeof this._detailLabel.clutter_text.set_ellipsize === 'function') {
-                    this._detailLabel.clutter_text.set_ellipsize(3);
-                }
-            } catch (_) {}
-        }
         this.actor.add_child(this._detailLabel);
+        this._syncVisuals();
+    }
+
+    _syncVisuals() {
+        if (this._quotaBars) {
+            const hi = this._selected ? 255 : 130;
+            const lo = this._selected ? 160 : 110;
+            this._quotaBars[0].opacity = this._activeMode === '5h' ? hi : lo;
+            this._quotaBars[1].opacity = this._activeMode === 'weekly' ? hi : lo;
+        }
+        const active5h = this._selected && this._activeMode === '5h';
+        const activeWk = this._selected && this._activeMode === 'weekly';
+        if (active5h) this._btn5h?.add_style_class_name?.('linux-island__quota-pill-btn--active');
+        else this._btn5h?.remove_style_class_name?.('linux-island__quota-pill-btn--active');
+        if (activeWk) this._btnWeekly?.add_style_class_name?.('linux-island__quota-pill-btn--active');
+        else this._btnWeekly?.remove_style_class_name?.('linux-island__quota-pill-btn--active');
+    }
+
+    setSelected(selected) {
+        this._selected = Boolean(selected);
+        this._syncVisuals();
     }
 
     setMode(mode) {
         this._activeMode = (mode === 'weekly') ? 'weekly' : '5h';
-        if (this._activeMode === '5h') {
-            this._btn5h?.add_style_class_name?.('linux-island__quota-pill-btn--active');
-            this._btnWeekly?.remove_style_class_name?.('linux-island__quota-pill-btn--active');
-        } else {
-            this._btnWeekly?.add_style_class_name?.('linux-island__quota-pill-btn--active');
-            this._btn5h?.remove_style_class_name?.('linux-island__quota-pill-btn--active');
-        }
+        this._syncVisuals();
         this._syncDetail();
     }
 
@@ -232,22 +279,19 @@ export class AiQuotaProviderRow {
             : Boolean(wWeekly);
 
         if (this._btn5h) {
-            if (has5h && w5h && typeof w5h.remainingPercent === 'number') {
-                this._btn5h.label = `5h: ${w5h.remainingPercent}%`;
-            } else {
-                this._btn5h.label = '5h: --%';
-            }
+            this._btn5h.label = '5h';
         }
 
         if (this._btnWeekly) {
-            const prefix = (wWeekly && wWeekly.window === '30d') ? '30d' : '7d';
-            if (has7d && wWeekly && typeof wWeekly.remainingPercent === 'number') {
-                this._btnWeekly.label = `${prefix}: ${wWeekly.remainingPercent}%`;
-            } else {
-                this._btnWeekly.label = '7d: --%';
-            }
+            this._btnWeekly.label = (wWeekly && wWeekly.window === '30d') ? '30d' : '7d';
         }
 
+        for (const [index, window] of [w5h, wWeekly].entries()) {
+            const value = providerState.connected && window && Number.isFinite(window.remainingPercent)
+                ? Math.max(0, Math.min(100, window.remainingPercent)) : 0;
+            if (this._quotaBars?.[index])
+                this._quotaBars[index].style = `width: 8px; height: ${Math.round(34 * value / 100)}px; border-radius: 4px;`;
+        }
         this._syncDetail();
     }
 
@@ -309,15 +353,17 @@ export class AiQuotaSection {
     _build() {
         this.actor = new St.BoxLayout({
             vertical: true,
-            style: 'width: 300px; spacing: 2px; padding: 0 4px;',
+            style: 'width: 300px; spacing: 5px;',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
+        this._selectedProviderId = 'antigravity';
+        this._userSelected = false;
 
-        // Top Section Bar: [AI Quota Title]
+        // Top Section Bar: [AI Quota Title] + [Selected Window Summary] + [Refresh]
         this._topBar = new St.BoxLayout({
             vertical: false,
-            style: 'spacing: 6px; padding: 0 2px 2px 2px;',
+            style: 'spacing: 6px;',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
@@ -326,38 +372,109 @@ export class AiQuotaSection {
             text: 'AI Quota',
             style: 'font-size: 11px; font-weight: bold;',
             style_class: 'linux-island__metric-label',
+            x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
         this._topBar.add_child(this._titleLabel);
+
+        this._summaryLabel = new St.Label({
+            text: '',
+            style: 'font-size: 10px; font-weight: 600;',
+            style_class: 'linux-island__timer-cycle',
+            x_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._topBar.add_child(this._summaryLabel);
+
+        this._refreshBtn = new St.Button({
+            label: '↻',
+            style: 'font-size: 11px; font-weight: bold; padding: 0 3px;',
+            style_class: 'linux-island__quota-action',
+            reactive: true,
+            can_focus: true,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._refreshBtn.connect('clicked', () => this.update());
+        this._topBar.add_child(this._refreshBtn);
         this.actor.add_child(this._topBar);
 
-        // Provider Rows
+        // Middle Equalizer Chart Card (3 vertical provider bar columns side-by-side)
+        this._chartCard = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 6px; height: 74px;',
+            style_class: 'linux-island__quota-card',
+            x_expand: true,
+        });
+
         this._antigravityRow = new AiQuotaProviderRow({
             id: 'antigravity',
             label: 'Antigravity',
             iconName: 'applications-science-symbolic',
         });
-        if (this._antigravityRow.actor) {
-            this.actor.add_child(this._antigravityRow.actor);
-        }
-
         this._codexRow = new AiQuotaProviderRow({
             id: 'codex',
             label: 'Codex',
             iconName: 'utilities-terminal-symbolic',
         });
-        if (this._codexRow.actor) {
-            this.actor.add_child(this._codexRow.actor);
-        }
-
         this._claudeRow = new AiQuotaProviderRow({
             id: 'claude',
             label: 'Claude',
             iconName: 'dialog-information-symbolic',
         });
-        if (this._claudeRow.actor) {
-            this.actor.add_child(this._claudeRow.actor);
+
+        for (const row of [this._antigravityRow, this._codexRow, this._claudeRow]) {
+            row.onWindowSelected = (id, mode) => {
+                this._userSelected = true;
+                this._selectedProviderId = id;
+                this._activeMode = mode;
+                this._syncSelection();
+            };
+            if (row.actor) this._chartCard.add_child(row.actor);
         }
+        this._syncSelection();
+        this.actor.add_child(this._chartCard);
+
+        // Bottom Rolling Window Card
+        this._windowCard = new St.BoxLayout({
+            vertical: true,
+            style: 'spacing: 3px;',
+            style_class: 'linux-island__quota-window-card',
+            x_expand: true,
+        });
+        const winRow = new St.BoxLayout({vertical: false, style: 'spacing: 6px;', x_expand: true});
+        this._windowDetailLabel = new St.Label({
+            text: 'Checking providers…',
+            style: 'font-size: 9px;',
+            style_class: 'linux-island__progress-time',
+            x_expand: true,
+        });
+        if (this._windowDetailLabel.clutter_text?.set_ellipsize) {
+            this._windowDetailLabel.clutter_text.set_ellipsize(3);
+        }
+        this._windowPctLabel = new St.Label({
+            text: '--%',
+            style: 'font-size: 10px; font-weight: bold;',
+            style_class: 'linux-island__metric-value',
+            x_align: Clutter.ActorAlign.END,
+        });
+        winRow.add_child(this._windowDetailLabel);
+        winRow.add_child(this._windowPctLabel);
+        this._windowCard.add_child(winRow);
+
+        this._windowTrack = new St.BoxLayout({
+            vertical: false,
+            style: 'height: 4px;',
+            style_class: 'linux-island__metric-track',
+            x_expand: true,
+        });
+        this._windowFill = new St.Widget({
+            style: 'height: 4px; width: 0px;',
+            style_class: 'linux-island__metric-fill',
+            x_align: Clutter.ActorAlign.START,
+        });
+        this._windowTrack.add_child(this._windowFill);
+        this._windowCard.add_child(this._windowTrack);
+        this.actor.add_child(this._windowCard);
 
         if (typeof this.actor.connect === 'function') {
             this._mappedSignalId = this.actor.connect('notify::mapped', () => {
@@ -369,17 +486,66 @@ export class AiQuotaSection {
         }
     }
 
+    _syncSelection() {
+        for (const [id, row] of [
+            ['antigravity', this._antigravityRow],
+            ['codex', this._codexRow],
+            ['claude', this._claudeRow],
+        ]) {
+            row?.setSelected?.(id === this._selectedProviderId);
+        }
+        this._syncBottomWindow();
+    }
+
+    _syncBottomWindow() {
+        const rows = {
+            antigravity: this._antigravityRow,
+            codex: this._codexRow,
+            claude: this._claudeRow,
+        };
+        const chosen = rows[this._selectedProviderId] || this._antigravityRow;
+        const pct = (() => {
+            const wins = Array.isArray(chosen?._state?.windows) ? chosen._state.windows : [];
+            const match = chosen?._activeMode === 'weekly'
+                ? wins.find(w => w.window === '7d' || w.window === 'Weekly' || w.window === '30d')
+                : wins.find(w => w.window === '5h');
+            return chosen?._state?.connected && match && Number.isFinite(match.remainingPercent)
+                ? Math.max(0, Math.min(100, match.remainingPercent)) : 0;
+        })();
+        if (this._summaryLabel && chosen?._state?.connected) {
+            this._summaryLabel.text = `${chosen._label} · ${pct}% left`;
+        } else if (this._summaryLabel) {
+            this._summaryLabel.text = '';
+        }
+        if (this._windowDetailLabel) {
+            const detail = chosen?._detailLabel?.text || 'No active quota window';
+            this._windowDetailLabel.text = chosen?._state?.connected
+                ? detail
+                : `${chosen?._label || 'AI'} · ${detail}`;
+        }
+        if (this._windowPctLabel) {
+            this._windowPctLabel.text = chosen?._state?.connected ? `${pct}% left` : '--%';
+        }
+        if (this._windowFill && this._trackW > 0) {
+            this._windowFill.style = `height: 4px; width: ${Math.round(this._trackW * pct / 100)}px;`;
+        }
+    }
+
     setMode(mode) {
         this._activeMode = (mode === 'weekly') ? 'weekly' : '5h';
         this._antigravityRow?.setMode(this._activeMode);
         this._codexRow?.setMode(this._activeMode);
         this._claudeRow?.setMode(this._activeMode);
+        this._syncBottomWindow();
     }
 
     _applySnapshot(snap) {
         if (!snap || this._destroyed) return;
         if (this._titleLabel) {
             this._titleLabel.text = snap.checking ? 'AI Quota · checking…' : 'AI Quota';
+        }
+        if (this._refreshBtn) {
+            this._refreshBtn.label = snap.checking ? '…' : '↻';
         }
         if (this._antigravityRow && snap.antigravity) {
             this._antigravityRow.update(snap.antigravity);
@@ -390,16 +556,25 @@ export class AiQuotaSection {
         if (this._claudeRow && snap.claude) {
             this._claudeRow.update(snap.claude);
         }
+        if (!this._userSelected && !snap[this._selectedProviderId]?.connected && !snap[this._selectedProviderId]?.error) {
+            const firstConnected = ['antigravity', 'codex', 'claude'].find(id => snap[id]?.connected);
+            if (firstConnected) {
+                this._selectedProviderId = firstConnected;
+            }
+        }
+        this._syncSelection();
     }
 
     setWidth(w) {
         if (!this.actor || w <= 0) return;
-        this.actor.style = `width: ${w}px; spacing: 2px; padding: 0 4px;`;
+        this.actor.style = `width: ${w}px; spacing: 5px;`;
         this.actor.width = w;
-        const rowW = Math.max(40, w - 8);
-        this._antigravityRow?.setWidth(rowW);
-        this._codexRow?.setWidth(rowW);
-        this._claudeRow?.setWidth(rowW);
+        this._trackW = Math.max(40, w - 16);
+        const colW = Math.max(40, Math.floor((w - 28) / 3));
+        this._antigravityRow?.setWidth(colW);
+        this._codexRow?.setWidth(colW);
+        this._claudeRow?.setWidth(colW);
+        this._syncBottomWindow();
     }
 
     update() {
