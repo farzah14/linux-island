@@ -6,7 +6,7 @@
       "theme": "dark",
       "foreground": "text.primary",
       "background": "surface.island",
-      "contrastRatio": 15.62,
+      "contrastRatio": 18.13,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -15,7 +15,7 @@
       "theme": "dark",
       "foreground": "text.secondary",
       "background": "surface.island",
-      "contrastRatio": 9.85,
+      "contrastRatio": 7.06,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -24,7 +24,7 @@
       "theme": "dark",
       "foreground": "text.tertiary",
       "background": "surface.island",
-      "contrastRatio": 6.57,
+      "contrastRatio": 5.62,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -33,7 +33,7 @@
       "theme": "dark",
       "foreground": "text.primary",
       "background": "surface.raised",
-      "contrastRatio": 12.07,
+      "contrastRatio": 15.7,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -42,7 +42,7 @@
       "theme": "dark",
       "foreground": "text.secondary",
       "background": "surface.raised",
-      "contrastRatio": 7.61,
+      "contrastRatio": 6.11,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -51,7 +51,7 @@
       "theme": "dark",
       "foreground": "text.tertiary",
       "background": "surface.raised",
-      "contrastRatio": 5.08,
+      "contrastRatio": 4.87,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -60,7 +60,7 @@
       "theme": "dark",
       "foreground": "text.onAccent",
       "background": "control.primary",
-      "contrastRatio": 9.29,
+      "contrastRatio": 10.34,
       "minimum": 4.5,
       "pass": true,
       "role": "button text"
@@ -69,7 +69,7 @@
       "theme": "dark",
       "foreground": "icon.primary",
       "background": "surface.island",
-      "contrastRatio": 15.62,
+      "contrastRatio": 18.13,
       "minimum": 3.0,
       "pass": true,
       "role": "active icon"
@@ -78,7 +78,7 @@
       "theme": "dark",
       "foreground": "border.focus",
       "background": "surface.island",
-      "contrastRatio": 9.29,
+      "contrastRatio": 10.55,
       "minimum": 3.0,
       "pass": true,
       "role": "focus ring"
@@ -87,7 +87,7 @@
       "theme": "dark",
       "foreground": "border.strong",
       "background": "surface.island",
-      "contrastRatio": 6.57,
+      "contrastRatio": 3.5,
       "minimum": 3.0,
       "pass": true,
       "role": "required control outline"
@@ -96,7 +96,7 @@
       "theme": "dark",
       "foreground": "status.danger",
       "background": "surface.island",
-      "contrastRatio": 8.89,
+      "contrastRatio": 6.14,
       "minimum": 3.0,
       "pass": true,
       "role": "status icon"
@@ -105,7 +105,7 @@
       "theme": "dark",
       "foreground": "status.warning",
       "background": "surface.island",
-      "contrastRatio": 11.97,
+      "contrastRatio": 12.81,
       "minimum": 3.0,
       "pass": true,
       "role": "status icon"
@@ -114,7 +114,7 @@
       "theme": "dark",
       "foreground": "progress.fill",
       "background": "surface.island",
-      "contrastRatio": 9.29,
+      "contrastRatio": 10.55,
       "minimum": 3.0,
       "pass": true,
       "role": "progress fill"
@@ -123,7 +123,7 @@
       "theme": "light",
       "foreground": "text.primary",
       "background": "surface.island",
-      "contrastRatio": 14.21,
+      "contrastRatio": 17.55,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -132,7 +132,7 @@
       "theme": "light",
       "foreground": "text.secondary",
       "background": "surface.island",
-      "contrastRatio": 6.91,
+      "contrastRatio": 8.3,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -141,7 +141,7 @@
       "theme": "light",
       "foreground": "text.tertiary",
       "background": "surface.island",
-      "contrastRatio": 6.02,
+      "contrastRatio": 6.18,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -150,7 +150,7 @@
       "theme": "light",
       "foreground": "text.primary",
       "background": "surface.raised",
-      "contrastRatio": 12.46,
+      "contrastRatio": 15.3,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -159,7 +159,7 @@
       "theme": "light",
       "foreground": "text.secondary",
       "background": "surface.raised",
-      "contrastRatio": 6.06,
+      "contrastRatio": 7.24,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -168,7 +168,7 @@
       "theme": "light",
       "foreground": "text.tertiary",
       "background": "surface.raised",
-      "contrastRatio": 5.27,
+      "contrastRatio": 5.39,
       "minimum": 4.5,
       "pass": true,
       "role": "normal text"
@@ -177,7 +177,7 @@
       "theme": "light",
       "foreground": "text.onAccent",
       "background": "control.primary",
-      "contrastRatio": 6.12,
+      "contrastRatio": 5.14,
       "minimum": 4.5,
       "pass": true,
       "role": "button text"
@@ -186,7 +186,7 @@
       "theme": "light",
       "foreground": "icon.primary",
       "background": "surface.island",
-      "contrastRatio": 14.21,
+      "contrastRatio": 17.55,
       "minimum": 3.0,
       "pass": true,
       "role": "active icon"
@@ -195,7 +195,7 @@
       "theme": "light",
       "foreground": "border.focus",
       "background": "surface.island",
-      "contrastRatio": 6.12,
+      "contrastRatio": 5.14,
       "minimum": 3.0,
       "pass": true,
       "role": "focus ring"
@@ -204,7 +204,7 @@
       "theme": "light",
       "foreground": "border.strong",
       "background": "surface.island",
-      "contrastRatio": 5.64,
+      "contrastRatio": 6.18,
       "minimum": 3.0,
       "pass": true,
       "role": "required control outline"
@@ -213,7 +213,7 @@
       "theme": "light",
       "foreground": "status.danger",
       "background": "surface.island",
-      "contrastRatio": 6.63,
+      "contrastRatio": 6.04,
       "minimum": 3.0,
       "pass": true,
       "role": "status icon"
@@ -222,7 +222,7 @@
       "theme": "light",
       "foreground": "status.warning",
       "background": "surface.island",
-      "contrastRatio": 6.23,
+      "contrastRatio": 5.8,
       "minimum": 3.0,
       "pass": true,
       "role": "status icon"
@@ -231,7 +231,7 @@
       "theme": "light",
       "foreground": "progress.fill",
       "background": "surface.island",
-      "contrastRatio": 6.12,
+      "contrastRatio": 5.14,
       "minimum": 3.0,
       "pass": true,
       "role": "progress fill"

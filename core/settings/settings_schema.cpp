@@ -20,6 +20,9 @@ QVariantMap defaultSettings() {
     map[QStringLiteral("timerCycles")] = 4;
     map[QStringLiteral("timerAutoAdvance")] = true;
     map[QStringLiteral("timerCompactHintEnabled")] = true;
+    map[QStringLiteral("carouselPages")] = QStringLiteral("media,system,ai,timer,todo");
+    map[QStringLiteral("defaultPage")] = QStringLiteral("media");
+    map[QStringLiteral("toggleShortcut")] = QStringLiteral("<Super><Shift>i");
     return map;
 }
 
@@ -42,6 +45,9 @@ ValidationResult validateSettingsPatch(const QVariantMap &current, const QVarian
         QStringLiteral("timerCycles"),
         QStringLiteral("timerAutoAdvance"),
         QStringLiteral("timerCompactHintEnabled"),
+        QStringLiteral("carouselPages"),
+        QStringLiteral("defaultPage"),
+        QStringLiteral("toggleShortcut"),
     };
 
     static const QSet<QString> allowedThemes = {
@@ -170,6 +176,47 @@ ValidationResult validateSettingsPatch(const QVariantMap &current, const QVarian
             int h = val.toInt();
             if (h < -500 || h > 500) {
                 return ValidationResult{false, current, QStringLiteral("horizontalOffset must be between -500 and 500")};
+            }
+        } else if (key == QLatin1String("carouselPages")) {
+            static const QSet<QString> allowedPages = {
+                QStringLiteral("media"), QStringLiteral("system"),
+                QStringLiteral("ai"), QStringLiteral("timer"), QStringLiteral("todo")
+            };
+            if (val.typeId() != QMetaType::QString) {
+                return ValidationResult{false, current, QStringLiteral("carouselPages must be a string")};
+            }
+            const QStringList parts = val.toString().split(QLatin1Char(','), Qt::SkipEmptyParts);
+            if (parts.isEmpty() || parts.size() > 5) {
+                return ValidationResult{false, current, QStringLiteral("carouselPages must list 1 to 5 pages")};
+            }
+            QSet<QString> seen;
+            for (const QString &part : parts) {
+                const QString trimmed = part.trimmed();
+                if (!allowedPages.contains(trimmed) || seen.contains(trimmed)) {
+                    return ValidationResult{false, current, QStringLiteral("Invalid carouselPages entry: ") + part};
+                }
+                seen.insert(trimmed);
+            }
+        } else if (key == QLatin1String("defaultPage")) {
+            static const QSet<QString> allowedPages = {
+                QStringLiteral("media"), QStringLiteral("system"),
+                QStringLiteral("ai"), QStringLiteral("timer"), QStringLiteral("todo")
+            };
+            if (val.typeId() != QMetaType::QString || !allowedPages.contains(val.toString())) {
+                return ValidationResult{false, current, QStringLiteral("Invalid defaultPage value")};
+            }
+        } else if (key == QLatin1String("toggleShortcut")) {
+            if (val.typeId() != QMetaType::QString) {
+                return ValidationResult{false, current, QStringLiteral("toggleShortcut must be a string")};
+            }
+            const QString shortcut = val.toString();
+            if (shortcut.toUtf8().size() > 64) {
+                return ValidationResult{false, current, QStringLiteral("toggleShortcut exceeds maximum length of 64 bytes")};
+            }
+            for (const QChar &ch : shortcut) {
+                if (ch.isSpace() || ch.unicode() < 0x20 || ch.unicode() == 0x7f) {
+                    return ValidationResult{false, current, QStringLiteral("toggleShortcut must not contain spaces or control characters")};
+                }
             }
         }
     }

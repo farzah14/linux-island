@@ -61,10 +61,10 @@ if manifest_path.is_file():
 palette_path=require('design-system/tokens/tokens.json')
 if palette_path.is_file():
     palette=json.loads(palette_path.read_text())
-    if palette.get('name')!='Linux Island Warm Minimalist':
+    if palette.get('name')!='Linux Island Obsidian Emerald':
         problems.append('Wrong design system name')
-    if palette.get('palette',{}).get('amber',{}).get('300')!='#D8B77F':
-        problems.append('Warm amber canonical token changed')
+    if palette.get('palette',{}).get('emerald',{}).get('400')!='#59D66C':
+        problems.append('Emerald primary canonical token changed')
 
 schema_path=root/'schemas/io.github.linuxisland.Core1.xml'
 if schema_path.is_file():

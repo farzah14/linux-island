@@ -1,4 +1,4 @@
-# Accessibility & QA — Linux Island DS v1.0
+# Accessibility & QA — Linux Island DS v2.0
 
 ## Standards used as design targets
 

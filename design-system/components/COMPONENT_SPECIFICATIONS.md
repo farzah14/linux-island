@@ -1,6 +1,6 @@
-# Linux Island — Component Specifications v1.0
+# Linux Island — Component Specifications v2.0
 
-Scope label: **MVP** = Linux Island v0.1; **FUTURE** = designed but not implemented in v0.1. All dimensional units are logical px unless stated otherwise. Every component uses semantic colors from `tokens/tokens.json`, never hardcoded palette colors in business logic.
+Scope label: **MVP** = Linux Island v0.1; **FUTURE** = designed but not implemented in v0.1. All dimensional units are logical px unless stated otherwise. Every component uses semantic colors from `tokens/tokens.json`, never hardcoded palette colors in business logic. All compact/preview capsules and action pills use `radiusPx.pill` (`999`), while expanded cards use `radiusPx.panel` (`24`).
 
 ## Component anatomy and contracts
 
@@ -78,9 +78,8 @@ Scope label: **MVP** = Linux Island v0.1; **FUTURE** = designed but not implemen
 
 ### 09. `IconButton` — MVP
 
-- **Visual:** round or rounded square 32px, interactive hitbox 40px, symbol 16–20px.
-- **Variants:** `ghost`, `tonal`, `primary`, `danger` (danger rare); `default`, `hover`, `pressed`, `focus`, `disabled`, `busy`.
-- **Colors:** ghost text/icon primary, tonal on `control.secondary`, primary `control.primary` + `text.onAccent`.
+- **Visual:** circular pill (`radiusPx.pill` = `999`) 32px visual diameter (or wide emerald CTA pill `40×32`+), interactive hitbox 40px, symbol 16–20px.
+- **Variants:** `ghost`, `tonal` (`control.secondary`), `primary` (`control.primary` `#59D66C` + `icon.onAccent` `#08100A`), `danger`; `default`, `hover`, `pressed`, `focus`, `disabled`, `busy`.
 - **Rules:** avoid color-only hover; 2px focus ring with outset2; disabled has no click handling.
 - **A11y:** tooltip/title required for icon-only actions; no ambiguous symbol without accessible name.
 
@@ -156,6 +155,12 @@ Scope label: **MVP** = Linux Island v0.1; **FUTURE** = designed but not implemen
 - **Anatomy:** time, title, optional location, clipped single row; avoid exposing private details in idle.
 - **Empty:** neutral “No upcoming events” label.
 - **Privacy:** calendars opt-in, explicit scopes and permissions.
+
+### 21. `ProgressRingPill` & `TelemetryCard` — Obsidian Emerald Catalog Patterns
+
+- **Action Pill CTA:** leading `36–40px` circular badge on `surface.raised`, two-line title/ticker (`text.primary` / `text.secondary`), trailing emerald pill CTA (`control.primary`, `text.onAccent`, `radiusPx.pill`).
+- **Circular Progress Ring:** `36×36px` outer ring, `3px` stroke (`progress.track` background, `progress.fill` arc), centered tabular numeric percentage (`fontPx.tiny`, `fontWeight.bold`).
+- **Telemetry Bar / Sparkline Card:** `radiusPx.panel` (`24px`), header with title + `text.tertiary` freshness timestamp, body using capsule bars (`radiusPx.pill`, inactive `surface.raised`, active `accent.primary`) or `2px` `accent.primary` sparkline over `accent.subtle` ambient wash.
 
 ## Cross-component consistency matrix
 

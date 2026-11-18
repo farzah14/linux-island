@@ -42,6 +42,7 @@ add_executable(tst_core_dbus
     ${CMAKE_SOURCE_DIR}/core/time/time_types.h
     ${CMAKE_SOURCE_DIR}/core/time/timer_service.h
     ${CMAKE_SOURCE_DIR}/core/time/timer_service.cpp
+    ${CMAKE_SOURCE_DIR}/core/todo/todo_service.cpp
     ${CMAKE_SOURCE_DIR}/core/dbus/time_adaptor.h
 )
 target_include_directories(tst_core_dbus PRIVATE ${CMAKE_SOURCE_DIR}/core)
@@ -80,6 +81,7 @@ add_executable(tst_time_dbus
     ${CMAKE_SOURCE_DIR}/core/time/time_types.h
     ${CMAKE_SOURCE_DIR}/core/time/timer_service.h
     ${CMAKE_SOURCE_DIR}/core/time/timer_service.cpp
+    ${CMAKE_SOURCE_DIR}/core/todo/todo_service.cpp
 )
 target_include_directories(tst_time_dbus PRIVATE ${CMAKE_SOURCE_DIR}/core)
 target_link_libraries(tst_time_dbus PRIVATE Qt6::Core Qt6::DBus Qt6::Network Qt6::Test)

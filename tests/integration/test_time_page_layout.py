@@ -23,24 +23,24 @@ match = re.search(r'readonly property int contentHeight:\s*(?:root\.idle\s*\?\s*
 assert match, 'TimePage.qml must declare contentHeight'
 declared = int(match.group(1))
 running_declared = int(match.group(2)) if match.group(2) else declared
-assert 'implicitHeight: 116' in source or 'implicitHeight: contentHeight' in source, \
+assert 'implicitHeight: 132' in source or 'implicitHeight: contentHeight' in source, \
     'TimePage.qml implicitHeight must be defined'
 # Not every declared row is visible at once: the offline notice replaces the
-# clock, and the custom/mode/stats rows are idle-only. Model the tallest
+# clock, and the presets/modes/stats rows are idle-only. Model the tallest
 # realistic combination instead of naively summing everything.
 #
-#   clock row 26            (or the 26px offline notice)
+#   hero row 40             (clock + 40x40 progress ring, or offline notice)
 #   progress 4
-#   controls 18
-#   custom 18   (idle only)
+#   presets 20  (idle only)
+#   cta 24
 #   modes 18    (idle only)
-#   stats 16    (idle only)
-#   ColumnLayout spacing 4 between each visible child
-clock, progress, controls, custom, modes, stats = 26, 4, 18, 18, 18, 16
-spacing = 4
+#   stats 14    (idle only)
+#   ColumnLayout spacing 2 between each visible child
+hero, progress, presets, cta, modes, stats = 40, 4, 20, 24, 18, 14
+spacing = 2
 
-idle_core = [clock, progress, controls, custom, modes]
-running = [clock, progress, controls]
+idle_core = [hero, progress, presets, cta, modes]
+running = [hero, progress, cta]
 core_needed = sum(idle_core) + spacing * (len(idle_core) - 1)
 running_needed = sum(running) + spacing * (len(running) - 1)
 
@@ -50,7 +50,7 @@ assert declared >= core_needed, (
 assert running_declared >= running_needed, (
     f'TimePage running contentHeight {running_declared}px is smaller than the {running_needed}px '
     f'of rows it needs; QML will clip')
-for value in (clock, progress, controls, custom, modes, stats):
+for value in (hero, progress, presets, cta, modes, stats):
     assert f'Layout.preferredHeight: {value}' in source, \
         f'expected a {value}px row in TimePage.qml'
 

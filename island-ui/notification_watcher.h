@@ -5,12 +5,15 @@
 #include <QSet>
 #include <QDBusConnection>
 
+class QDBusVirtualObject;
+
 class NotificationWatcher : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool whatsappActivity READ whatsappActivity NOTIFY whatsappActivityChanged)
 
 public:
     explicit NotificationWatcher(const QDBusConnection &bus = QDBusConnection::sessionBus(), QObject *parent = nullptr);
+    ~NotificationWatcher() override;
 
     bool whatsappActivity() const { return m_whatsappActivity; }
 
@@ -34,7 +37,11 @@ private slots:
     void onNotificationClosed(uint id, uint reason);
 
 private:
+    void startNotifyMonitor();
+
     QDBusConnection m_bus;
+    QString m_monitorConnName;
+    QDBusVirtualObject *m_monitorObject = nullptr;
     bool m_notificationPeekEnabled = false;
     bool m_whatsappEnabled = false;
     bool m_dnd = false;

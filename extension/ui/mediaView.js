@@ -5,9 +5,10 @@ import {BeatBars} from './beatBars.js';
 import {estimateTimeline, formatTime} from '../lib/mediaTimeline.js';
 import {SystemMetricsRow, NetMonitorView, computeSystemColumns} from './systemMetricTile.js';
 import {QuickTogglesRow} from './quickToggle.js';
-import {FeatureCarousel} from './featureCarousel.js';
+import {FeatureCarousel, resolveCarouselPages} from './featureCarousel.js';
 import {AiQuotaSection} from './aiQuotaView.js';
 import {TimeSection} from './timeView.js';
+import {TodoSection} from './todoView.js';
 
 export const CAPSULE_SIZES = Object.freeze({
     circle: {width: 268, artwork: 40, button: 28, play: 36, icon: 12,
@@ -54,16 +55,22 @@ function formatPlayerName(playerId) {
     return playerId;
 }
 
+const _localUiIconCache = new Map();
+
 export function getLocalUiGIcon(name) {
-    if (!Gio || typeof Gio.File?.new_for_uri !== 'function') return null;
+    if (!name || !Gio || typeof Gio.File?.new_for_uri !== 'function') return null;
+    if (_localUiIconCache.has(name))
+        return _localUiIconCache.get(name);
+    let icon = null;
     try {
         const thisFile = Gio.File.new_for_uri(import.meta.url);
         const iconFile = thisFile.get_parent().get_parent().get_child('icons').get_child('ui').get_child(name);
         if (iconFile.query_exists(null)) {
-            return new Gio.FileIcon({file: iconFile});
+            icon = new Gio.FileIcon({file: iconFile});
         }
     } catch (_) {}
-    return null;
+    _localUiIconCache.set(name, icon);
+    return icon;
 }
 
 
@@ -216,6 +223,15 @@ export class MediaView {
         this._metricsSlot = null;
         this._togglesSlot = null;
         this._mappedSignalId = null;
+        this._progressAllocIdleId = null;
+        this._volumeAllocIdleId = null;
+        this._lastProgressTrackWidth = -1;
+        this._lastVolumeTrackWidth = -1;
+        this._lastProgressTargetWidth = -1;
+        this._lastProgressCanEase = null;
+        this._lastVolumeTargetWidth = -1;
+        this._lastVolumeCanEase = null;
+        this._lastVolumeMuted = null;
 
         if (St && Clutter) {
             this._buildUi();
@@ -226,10 +242,13 @@ export class MediaView {
                 if (!this._actor?.mapped) {
                     this._metricsRow?.stop();
                     this._aiQuotaSection?.stop();
-                } else if (this._carousel?.currentPage === 1) {
-                    this._metricsRow?.start();
-                } else if (this._carousel?.currentPage === 2) {
-                    this._aiQuotaSection?.start();
+                } else {
+                    const activeId = this._carousel?.activePageId;
+                    if (activeId === 'system') {
+                        this._metricsRow?.start();
+                    } else if (activeId === 'ai') {
+                        this._aiQuotaSection?.start();
+                    }
                 }
             });
             this.setMedia(null);
@@ -352,7 +371,7 @@ export class MediaView {
         });
         this._progressFill.set_pivot_point(0, 0.5);
         this._progressTrack.add_child(this._progressFill);
-        this._progressTrack.connect('notify::allocation', () => this._renderProgress());
+        this._progressTrack.connect('notify::allocation', () => this._scheduleFillWidthSync('progress'));
         this._progressTrack.connect('button-press-event', (_actor, event) => {
             if (!this._progressMedia || !this._progressMedia.durationUs || this._progressMedia.durationUs <= 0) {
                 return Clutter.EVENT_PROPAGATE;
@@ -418,7 +437,7 @@ export class MediaView {
         const leftSpacer = new St.Widget({x_expand: true});
 
         this._prevBtn = new St.Button({
-            style: 'width: 32px; height: 32px; padding: 0; border-radius: 12px; font-size: 15px;',
+            style: 'width: 32px; height: 32px; padding: 0; border-radius: 999px; font-size: 15px;',
             style_class: 'linux-island__media-button',
             accessible_name: 'Previous track',
             reactive: true,
@@ -431,7 +450,7 @@ export class MediaView {
         this._prevBtn.connect('clicked', () => this._onControlAction('Previous'));
 
         this._playPauseBtn = new St.Button({
-            style: 'width: 40px; height: 32px; padding: 0; border-radius: 14px;',
+            style: 'width: 40px; height: 32px; padding: 0; border-radius: 999px;',
             style_class: 'linux-island__media-button linux-island__media-button-primary',
             accessible_name: 'Play',
             reactive: true,
@@ -444,7 +463,7 @@ export class MediaView {
         this._playPauseBtn.connect('clicked', () => this._onControlAction('PlayPause'));
 
         this._nextBtn = new St.Button({
-            style: 'width: 32px; height: 32px; padding: 0; border-radius: 12px; font-size: 15px;',
+            style: 'width: 32px; height: 32px; padding: 0; border-radius: 999px; font-size: 15px;',
             style_class: 'linux-island__media-button',
             accessible_name: 'Next track',
             reactive: true,
@@ -492,7 +511,7 @@ export class MediaView {
         });
 
         this._volumeButton = new St.Button({
-            style: 'width: 28px; height: 28px; padding: 0; border-radius: 12px;',
+            style: 'width: 28px; height: 28px; padding: 0; border-radius: 999px;',
             style_class: 'linux-island__media-button',
             accessible_name: 'Mute',
             reactive: true,
@@ -526,7 +545,7 @@ export class MediaView {
         });
         this._volumeFill.set_pivot_point(0, 0.5);
         this._volumeTrack.add_child(this._volumeFill);
-        this._volumeTrack.connect('notify::allocation', () => this._renderVolume());
+        this._volumeTrack.connect('notify::allocation', () => this._scheduleFillWidthSync('volume'));
         this._volumeTrack.connect('button-press-event', (_actor, event) => {
             if (typeof event.get_button === 'function' && event.get_button() !== 1) {
                 return Clutter.EVENT_PROPAGATE;
@@ -569,36 +588,21 @@ export class MediaView {
         this._mediaSection.add_child(volumeRow);
         this._volumeRow = volumeRow;
 
-        // Section 2: Pure System & Controls section (CPU, RAM, Battery on LEFT, and Icon Quick Controls on RIGHT)
+        // Section 2: System 2×2 metric cards + Storage bar + 4 horizontal quick pills
         this._systemSection = new St.BoxLayout({
-            vertical: false,
-            style: 'width: 320px; height: 98px; spacing: 10px; padding: 0 4px;',
+            vertical: true,
+            style: 'width: 320px; height: 132px; spacing: 6px;',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
 
-        // Three fixed-width slots: metrics | NET | right group (disk + icon
-        // column). Equal side widths keep NET exactly on the page centre line.
-        this._metricsSlot = new St.BoxLayout({
-            vertical: false,
-            style: 'spacing: 0;',
-            x_expand: false,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
         this._metricsRow = new SystemMetricsRow({
             scheduler: this._scheduler,
-            onNetwork: network => this._netView?.setNetwork(network),
+            onNetwork: () => {},
             onStorage: storage => this._quickTogglesRow?.setStorage(storage),
         });
         if (this._metricsRow.actor) {
-            this._metricsSlot.add_child(this._metricsRow.actor);
-        }
-        this._systemSection.add_child(this._metricsSlot);
-
-        // Centre slot: NET. No background, border or border-radius.
-        this._netView = new NetMonitorView();
-        if (this._netView.actor) {
-            this._systemSection.add_child(this._netView.actor);
+            this._systemSection.add_child(this._metricsRow.actor);
         }
 
         this._quickTogglesRow = new QuickTogglesRow({
@@ -609,18 +613,9 @@ export class MediaView {
                 this._onDismiss?.();
             },
         });
-        this._togglesSlot = new St.BoxLayout({
-            vertical: false,
-            style: 'spacing: 0;',
-            x_expand: false,
-            x_align: Clutter.ActorAlign.END,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
         if (this._quickTogglesRow.actor) {
-            this._quickTogglesRow.actor.x_align = Clutter.ActorAlign.END;
-            this._togglesSlot.add_child(this._quickTogglesRow.actor);
+            this._systemSection.add_child(this._quickTogglesRow.actor);
         }
-        this._systemSection.add_child(this._togglesSlot);
         // Section 3: AI Quota Section (Antigravity, Codex, Claude Code)
         this._aiQuotaSection = new AiQuotaSection({scheduler: this._scheduler});
         if (this._aiQuotaSection.actor) {
@@ -634,45 +629,58 @@ export class MediaView {
             onStats: () => this._onTimerStats(),
         });
 
+        // Section 5: shared task list.
+        this._todoSection = new TodoSection();
 
         // Slideable Carousel between Music section and System/Controls section
+        this._allPages = [
+            { id: 'media', actor: this._mediaSection, label: 'Music', iconName: 'audio-x-generic-symbolic' },
+            {
+                id: 'system',
+                actor: this._systemSection,
+                label: 'System & Controls',
+                iconName: 'preferences-system-symbolic',
+                onActivate: () => this._metricsRow?.start(),
+            },
+            {
+                id: 'ai',
+                actor: this._aiQuotaSection?.actor,
+                label: 'AI Quota',
+                iconName: 'applications-science-symbolic',
+                onActivate: () => this._aiQuotaSection?.start(),
+            },
+            {
+                id: 'timer',
+                actor: this._timeSection?.actor,
+                label: 'Timer',
+                iconName: 'alarm-symbolic',
+                onActivate: () => this._onTimerStats(),
+            },
+            {
+                id: 'todo', actor: this._todoSection?.actor, label: 'To-do',
+                iconName: 'emblem-ok-symbolic',
+                onActivate: () => this._todoSection?.refresh(),
+            },
+        ];
+        this._carouselConfigKey = null;
+        this._defaultPageId = 'media';
+
         this._carousel = new FeatureCarousel({
-            pages: [
-                { id: 'media', actor: this._mediaSection, label: 'Music', iconName: 'audio-x-generic-symbolic' },
-                {
-                    id: 'system',
-                    actor: this._systemSection,
-                    label: 'System & Controls',
-                    iconName: 'preferences-system-symbolic',
-                    onActivate: () => this._metricsRow?.start(),
-                },
-                {
-                    id: 'ai',
-                    actor: this._aiQuotaSection?.actor,
-                    label: 'AI Quota',
-                    iconName: 'applications-science-symbolic',
-                    onActivate: () => this._aiQuotaSection?.start(),
-                },
-                {
-                    id: 'timer',
-                    actor: this._timeSection?.actor,
-                    label: 'Timer',
-                    iconName: 'alarm-symbolic',
-                    onActivate: () => this._onTimerStats(),
-                },
-            ],
-            onPageChanged: (idx) => {
-                if (idx === 1) {
+            pages: this._allPages,
+            onPageChanged: () => {
+                const activeId = this._carousel?.activePageId;
+                if (activeId === 'system') {
                     this._metricsRow?.start();
                 } else {
                     this._metricsRow?.stop();
                 }
-                if (idx === 2) {
+                if (activeId === 'ai') {
                     this._aiQuotaSection?.start();
                 } else {
                     this._aiQuotaSection?.stop();
                 }
-                if (idx === 3) this._onTimerStats();
+                if (activeId === 'timer') this._onTimerStats();
+                if (activeId === 'todo') this._todoSection?.refresh();
             },
         });
         if (this._carousel.actor) {
@@ -738,6 +746,20 @@ export class MediaView {
         this._timeSection?.setStats(stats);
     }
 
+    setCarouselConfig(carouselPages, defaultPage) {
+        const key = `${carouselPages ?? ''}|${defaultPage ?? ''}`;
+        if (key === this._carouselConfigKey)
+            return;
+        this._carouselConfigKey = key;
+        const resolved = resolveCarouselPages(this._allPages, carouselPages, defaultPage);
+        this._defaultPageId = resolved.pages[resolved.defaultIndex]?.id ?? 'media';
+        this._carousel?.setPages?.(resolved.pages, resolved.defaultIndex);
+    }
+
+    openDefaultPage() {
+        this._carousel?.goToPageId?.(this._defaultPageId);
+    }
+
     setCapsuleSize(size) {
         if (!Object.hasOwn(CAPSULE_SIZES, size) || !this._actor) return;
         const preset = CAPSULE_SIZES[size];
@@ -747,37 +769,19 @@ export class MediaView {
             this._mediaSection.style = `width: ${contentWidth}px; height: ${mediaSectionHeight(preset)}px; spacing: ${MEDIA_ROW_SPACING}px;`;
             this._mediaSection.width = contentWidth;
         }
-        // The section's own 4px horizontal padding sits outside its CSS width,
-        // so request contentWidth - 8 to make the outer box exactly contentWidth.
-        // 8px is the section's horizontal padding (4px each side).
-        const systemWidth = Math.max(0, contentWidth - 8);
-        const columns = computeSystemColumns(systemWidth);
         if (this._systemSection) {
-            // The gap comes from computeSystemColumns: narrow cards tighten it
-            // to 6px so NET keeps its readable width instead of collapsing.
-            this._systemSection.style =
-                `width: ${systemWidth}px; height: 98px; spacing: ${columns.gap}px; padding: 0 4px;`;
-            this._systemSection.width = systemWidth;
+            this._systemSection.style = `width: ${contentWidth}px; height: 132px; spacing: 6px;`;
+            this._systemSection.width = contentWidth;
         }
-        if (this._metricsSlot) {
-            this._metricsSlot.style = `width: ${columns.metricsWidth}px; spacing: 0;`;
-            this._metricsSlot.width = columns.metricsWidth;
-        }
-        if (this._metricsRow) this._metricsRow.setWidth(columns.metricsWidth);
-        if (this._netView) this._netView.setWidth(columns.netWidth);
-        if (this._togglesSlot) {
-            this._togglesSlot.style = `width: ${columns.metricsWidth}px; spacing: 0;`;
-            this._togglesSlot.width = columns.metricsWidth;
-        }
-        if (this._quickTogglesRow) {
-            this._quickTogglesRow.setWidth(columns.metricsWidth);
-        }
+        if (this._metricsRow) this._metricsRow.setWidth(contentWidth);
+        if (this._quickTogglesRow) this._quickTogglesRow.setWidth(contentWidth);
         if (this._aiQuotaSection) {
             // AI quota rows add their own 4px side padding, so subtract it from
             // the requested width to keep the page flush with the card.
             this._aiQuotaSection.setWidth(Math.max(0, contentWidth - 8));
         }
         this._timeSection?.setWidth(contentWidth);
+        this._todoSection?.setWidth(contentWidth);
         if (this._carousel) {
             this._carousel.setPageWidth?.(contentWidth);
         }
@@ -786,10 +790,10 @@ export class MediaView {
         this._titleLabel.style = `font-size: ${preset.title}px; font-weight: bold;`;
         this._artistLabel.style = `font-size: ${preset.artist}px;`;
         for (const button of [this._prevBtn, this._nextBtn]) {
-            button.style = `width: ${preset.button}px; height: ${preset.button}px; padding: 0; border-radius: 12px;`;
+            button.style = `width: ${preset.button}px; height: ${preset.button}px; padding: 0; border-radius: 999px;`;
             button.get_child().icon_size = preset.icon;
         }
-        this._playPauseBtn.style = `width: ${preset.play}px; height: ${preset.button}px; padding: 0; border-radius: 14px;`;
+        this._playPauseBtn.style = `width: ${preset.play}px; height: ${preset.button}px; padding: 0; border-radius: 999px;`;
         this._playIcon.icon_size = preset.icon + 2;
         if (this._controlsBox) {
             this._controlsBox.style = `spacing: 4px; height: ${preset.button}px;`;
@@ -903,27 +907,73 @@ export class MediaView {
         }
     }
 
-    _renderProgress() {
+    _scheduleFillWidthSync(kind) {
+        const isProgress = kind === 'progress';
+        const track = isProgress ? this._progressTrack : this._volumeTrack;
+        if (!track || !this._actor?.mapped) return;
+        const width = Math.max(0, Number(track.width) || 0);
+        if (width <= 0) return;
+        if (isProgress) {
+            if (width === this._lastProgressTrackWidth) return;
+            this._lastProgressTrackWidth = width;
+        } else {
+            if (width === this._lastVolumeTrackWidth) return;
+            this._lastVolumeTrackWidth = width;
+        }
+        const apply = () => {
+            if (isProgress) {
+                this._progressAllocIdleId = null;
+                this._renderProgress(false);
+            } else {
+                this._volumeAllocIdleId = null;
+                this._renderVolume(false);
+            }
+        };
+        if (GLib?.idle_add) {
+            const existing = isProgress ? this._progressAllocIdleId : this._volumeAllocIdleId;
+            if (existing) return;
+            const id = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                apply();
+                return GLib.SOURCE_REMOVE;
+            });
+            if (isProgress) this._progressAllocIdleId = id;
+            else this._volumeAllocIdleId = id;
+        } else {
+            apply();
+        }
+    }
+
+    _renderProgress(animate = true) {
         if (!this._actor || !this._progressTrack || !this._elapsedLabel || !this._durationLabel) return;
         try {
             const timeline = estimateTimeline(this._progressMedia, this._clock());
-            if (this._elapsedLabel)
-                this._elapsedLabel.text = formatTime(timeline.positionUs);
-            if (this._durationLabel)
-                this._durationLabel.text = timeline.durationUs > 0 ? formatTime(timeline.durationUs) : '--:--';
-            this._progressTrack.visible = true;
-            this._progressFill.visible = timeline.durationUs > 0 && timeline.progress > 0;
+            const elapsedText = formatTime(timeline.positionUs);
+            if (this._elapsedLabel.text !== elapsedText)
+                this._elapsedLabel.text = elapsedText;
+            const durationText = timeline.durationUs > 0 ? formatTime(timeline.durationUs) : '--:--';
+            if (this._durationLabel.text !== durationText)
+                this._durationLabel.text = durationText;
+            if (!this._progressTrack.visible)
+                this._progressTrack.visible = true;
+            const fillVisible = timeline.durationUs > 0 && timeline.progress > 0;
+            if (this._progressFill.visible !== fillVisible)
+                this._progressFill.visible = fillVisible;
             const targetWidth = Math.round(Math.max(0, Number(this._progressTrack.width) || 0) * timeline.progress);
-            const enableAnim = St?.Settings?.get()?.enable_animations !== false;
-            if (enableAnim && typeof this._progressFill.ease === 'function' && this._actor?.mapped) {
-                this._progressFill.remove_all_transitions();
-                this._progressFill.ease({
-                    width: targetWidth,
-                    duration: 250,
-                    mode: Clutter?.AnimationMode?.LINEAR ?? 1,
-                });
-            } else {
-                this._progressFill.width = targetWidth;
+            const canEase = animate && St?.Settings?.get()?.enable_animations !== false &&
+                typeof this._progressFill.ease === 'function' && Boolean(this._actor?.mapped);
+            if (targetWidth !== this._lastProgressTargetWidth || canEase !== this._lastProgressCanEase) {
+                this._lastProgressTargetWidth = targetWidth;
+                this._lastProgressCanEase = canEase;
+                this._progressFill.remove_all_transitions?.();
+                if (canEase) {
+                    this._progressFill.ease({
+                        width: targetWidth,
+                        duration: 250,
+                        mode: Clutter?.AnimationMode?.LINEAR ?? 1,
+                    });
+                } else {
+                    this._progressFill.width = targetWidth;
+                }
             }
         } catch (_) {}
     }
@@ -939,7 +989,7 @@ export class MediaView {
         }
     }
 
-    _renderVolume() {
+    _renderVolume(animate = true) {
         if (!this._volumeTrack || !this._volumeFill) return;
         try {
             const fraction = Math.max(0, Math.min(1, Number(this._volumeFraction) || 0));
@@ -947,31 +997,39 @@ export class MediaView {
             // correct even while the card is still off-stage.
             if (this._volumeIcon) {
                 const muted = fraction <= 0;
-                this._volumeIcon.icon_name = muted
-                    ? 'audio-volume-muted-symbolic' : 'audio-volume-high-symbolic';
-                this._volumeIcon.fallback_icon_name = this._volumeIcon.icon_name;
-                const volGIcon = getLocalUiGIcon(muted ? 'volume-muted-symbolic.svg' : 'volume-high-symbolic.svg');
-                if (volGIcon) {
-                    this._volumeIcon.gicon = volGIcon;
+                if (muted !== this._lastVolumeMuted) {
+                    this._lastVolumeMuted = muted;
+                    this._volumeIcon.icon_name = muted
+                        ? 'audio-volume-muted-symbolic' : 'audio-volume-high-symbolic';
+                    this._volumeIcon.fallback_icon_name = this._volumeIcon.icon_name;
+                    const volGIcon = getLocalUiGIcon(muted ? 'volume-muted-symbolic.svg' : 'volume-high-symbolic.svg');
+                    if (volGIcon) {
+                        this._volumeIcon.gicon = volGIcon;
+                    }
+                    if (this._volumeButton)
+                        this._volumeButton.accessible_name = muted ? 'Unmute' : 'Mute';
                 }
-                if (this._volumeButton)
-                    this._volumeButton.accessible_name = muted ? 'Unmute' : 'Mute';
             }
             // Reading .width or easing before the actor is in the stage makes
             // St log st_widget_get_theme_node criticals; the notify::mapped
             // handler re-runs this render once the card appears.
             if (!this._actor?.mapped) return;
             const targetWidth = Math.round(Math.max(0, Number(this._volumeTrack.width) || 0) * fraction);
-            const enableAnim = St?.Settings?.get()?.enable_animations !== false;
-            if (enableAnim && typeof this._volumeFill.ease === 'function') {
-                this._volumeFill.remove_all_transitions();
-                this._volumeFill.ease({
-                    width: targetWidth,
-                    duration: 150,
-                    mode: Clutter?.AnimationMode?.EASE_OUT_CUBIC ?? 1,
-                });
-            } else {
-                this._volumeFill.width = targetWidth;
+            const canEase = animate && St?.Settings?.get()?.enable_animations !== false &&
+                typeof this._volumeFill.ease === 'function';
+            if (targetWidth !== this._lastVolumeTargetWidth || canEase !== this._lastVolumeCanEase) {
+                this._lastVolumeTargetWidth = targetWidth;
+                this._lastVolumeCanEase = canEase;
+                this._volumeFill.remove_all_transitions?.();
+                if (canEase) {
+                    this._volumeFill.ease({
+                        width: targetWidth,
+                        duration: 150,
+                        mode: Clutter?.AnimationMode?.EASE_OUT_CUBIC ?? 1,
+                    });
+                } else {
+                    this._volumeFill.width = targetWidth;
+                }
             }
         } catch (_) {}
     }
@@ -1017,6 +1075,10 @@ export class MediaView {
     destroy() {
         if (this._progressTimer !== null) this._scheduler.cancel(this._progressTimer);
         this._progressTimer = null;
+        if (this._progressAllocIdleId && GLib) GLib.source_remove(this._progressAllocIdleId);
+        this._progressAllocIdleId = null;
+        if (this._volumeAllocIdleId && GLib) GLib.source_remove(this._volumeAllocIdleId);
+        this._volumeAllocIdleId = null;
         this._beatBars?.destroy();
         this._carousel?.destroy();
         this._carousel = null;
@@ -1032,6 +1094,8 @@ export class MediaView {
         this._aiQuotaSection = null;
         this._timeSection?.destroy();
         this._timeSection = null;
+        this._todoSection?.destroy();
+        this._todoSection = null;
         this._playerSwitcherBtn = null;
         this._playerSwitcherLabel = null;
         ++this._artGeneration;
@@ -1044,6 +1108,15 @@ export class MediaView {
                     this._actor.disconnect(this._mappedSignalId);
                 } catch (_) {}
                 this._mappedSignalId = null;
+        this._progressAllocIdleId = null;
+        this._volumeAllocIdleId = null;
+        this._lastProgressTrackWidth = -1;
+        this._lastVolumeTrackWidth = -1;
+        this._lastProgressTargetWidth = -1;
+        this._lastProgressCanEase = null;
+        this._lastVolumeTargetWidth = -1;
+        this._lastVolumeCanEase = null;
+        this._lastVolumeMuted = null;
             }
             try {
                 this._actor.destroy();

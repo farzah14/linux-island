@@ -18,6 +18,7 @@ class Actor {
         this.classes = new Set((props.style_class ?? '').split(' ').filter(Boolean));
     }
     add_child(child) { this.children.push(child); }
+    insert_child_at_index(child, index) { this.children.splice(index, 0, child); }
     set_child(child) { this.child = child; }
     get_child() { return this.child; }
     get_text() { return this.text; }
@@ -30,6 +31,10 @@ class Actor {
     remove_style_class_name(name) { this.classes.delete(name); }
     set_pivot_point(x, y) { this.pivot = [x, y]; }
     set_position(x, y) { this.position = [x, y]; }
+    get_transformed_position() {
+        const [x, y] = this.position ?? [0, 0];
+        return [x + (this.translation_x ?? 0), y + (this.translation_y ?? 0)];
+    }
     get_preferred_width() { return [124, 360]; }
     get_preferred_height() { return [32, 184]; }
     remove_all_transitions() { this.cancelled++; this.transitions = []; }
@@ -86,6 +91,7 @@ globalThis.renderTest = {
         LOGIN_SCREEN: 16, SYSTEM_MODAL: 32, LOOKING_GLASS: 64, POPUP: 128,
         ALL: 4294967295}},
     St: {BoxLayout: Actor, Label: Actor, Widget: Actor, Button: Actor, Icon: Actor, Bin: Actor,
+        ScrollView: Actor, PolicyType: {NEVER: 0, AUTOMATIC: 1},
         Entry: Actor, Settings: {get: () => settings}},
     Gio: {Cancellable: class { cancel() { this.cancelled = true; } },
         AppInfo: {launch_default_for_uri(uri) { globalThis.renderTest.launchedUris.push(uri); return true; }},
@@ -134,8 +140,12 @@ let metricTileSource = (await readFile(new URL('../../extension/ui/systemMetricT
     .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
 const {SystemMetricsRow, SystemMetricTile, NetMonitorView, StorageIndicator, computeSystemColumns} = await load(metricTileSource);
 const metric = new SystemMetricTile({label: 'CPU'});
-assert.equal(metric.actor.children[1], metric._valueLabel, 'percentage immediately follows metric text');
+assert.equal(metric.actor.children[1], metric._valueLabel, 'value follows metric title');
 metric.destroy();
+const compactBattery = new SystemMetricTile({label: 'BAT'});
+compactBattery.setWidth(120);
+assert.equal(compactBattery.actor.children[0].text, 'BAT', 'metric card keeps title header');
+compactBattery.destroy();
 globalThis.renderTest.SystemMetricsRow = SystemMetricsRow;
 globalThis.renderTest.NetMonitorView = NetMonitorView;
 globalThis.renderTest.StorageIndicator = StorageIndicator;
@@ -150,8 +160,9 @@ globalThis.renderTest.QuickTogglesRow = QuickTogglesRow;
 let carouselSource = (await readFile(new URL('../../extension/ui/featureCarousel.js', import.meta.url), 'utf8'))
     .replace('let St = null;', 'let St = globalThis.renderTest.St;')
     .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
-const {FeatureCarousel} = await load(carouselSource);
+const {FeatureCarousel, resolveCarouselPages} = await load(carouselSource);
 globalThis.renderTest.FeatureCarousel = FeatureCarousel;
+globalThis.renderTest.resolveCarouselPages = resolveCarouselPages;
 let aiQuotaSource = (await readFile(new URL('../../extension/ui/aiQuotaView.js', import.meta.url), 'utf8'))
     .replace(/^import .*aiQuota\.js.*;$/gm, 'const {AiQuotaCollector} = globalThis.renderTest;')
     .replace('let St = null;', 'let St = globalThis.renderTest.St;')
@@ -177,18 +188,20 @@ mediaSource = mediaSource.replace('let St = null;', 'let St = globalThis.renderT
     .replace(/^import .*mediaTimeline.*;$/gm, 'const {estimateTimeline, formatTime} = globalThis.renderTest;')
     .replace(/^import .*systemMetricTile.*;$/gm, 'const {SystemMetricsRow, NetMonitorView, computeSystemColumns} = globalThis.renderTest;')
     .replace(/^import .*quickToggle.*;$/gm, 'const {QuickTogglesRow} = globalThis.renderTest;')
-    .replace(/^import .*featureCarousel.*;$/gm, 'const {FeatureCarousel} = globalThis.renderTest;')
+    .replace(/^import .*featureCarousel.*;$/gm, 'const {FeatureCarousel, resolveCarouselPages} = globalThis.renderTest;')
     .replace(/^import .*aiQuotaView.*;$/gm, 'const {AiQuotaSection} = globalThis.renderTest;')
     .replace(/^import .*displayMode\.js.*;$/gm, 'const {capsuleOrigin, clampToMonitor, isFloating, extensionModeFor} = globalThis.renderTest;')
     .replace(/^import .*timeView.*$/gm, 'const {TimeSection} = globalThis.renderTest;')
+    .replace(/^import .*todoView.*$/gm, 'const TodoSection = class { constructor() { this.actor = new globalThis.renderTest.St.BoxLayout(); } refresh() {} setWidth() {} destroy() {} };')
     .replace('let Gio = null;', 'let Gio = globalThis.renderTest.Gio;')
     .replace('let Clutter = null;', 'let Clutter = globalThis.renderTest.Clutter;');
-const {MediaView, CAPSULE_SIZES} = await load(mediaSource);
+const {MediaView, CAPSULE_SIZES, getLocalUiGIcon} = await load(mediaSource);
 globalThis.renderTest.MediaView = MediaView;
 globalThis.renderTest.CAPSULE_SIZES = CAPSULE_SIZES;
+globalThis.renderTest.getLocalUiGIcon = getLocalUiGIcon;
 let capsuleSource = await readFile(new URL('../../extension/ui/capsule.js', import.meta.url), 'utf8');
 capsuleSource = capsuleSource.replace(/^import .*;$/gm, '').replaceAll('global.stage', 'globalThis.renderTest.stage');
-const {Capsule} = await load(`const {St, Clutter, Gio, Shell, Main, MediaView, CAPSULE_SIZES, GrabHelper, BeatBars, loadLocalArtwork, formatTimerCompact, formatEventTime, isTimerActive, capsuleOrigin, clampToMonitor, isFloating, extensionModeFor} = globalThis.renderTest;\n${capsuleSource}`);
+const {Capsule} = await load(`const {St, Clutter, Gio, Shell, Main, MediaView, CAPSULE_SIZES, getLocalUiGIcon, GrabHelper, BeatBars, loadLocalArtwork, formatTimerCompact, formatEventTime, isTimerActive, capsuleOrigin, clampToMonitor, isFloating, extensionModeFor} = globalThis.renderTest;\n${capsuleSource}`);
 
 const capsule = new Capsule();
 assert.equal(typeof capsule.setTheme, 'function', 'renderer needs live theme switching');
@@ -223,6 +236,42 @@ assert.equal(capsule._widget.position[1], monitor.y + 8, 'unknown mode keeps dyn
 capsule.setDisplayMode('dynamic');
 assert.equal(capsule._widget.position[1], monitor.y + 8, 'reset vertical offset restores monitor.y + 8');
 assert.equal(capsule._widget.position[0], expectedCenter, 'reset horizontal offset restores baseline center');
+
+// Allocation callbacks must keep resize frames centred without invalidating
+// layout again. Input must follow the displayed capsule while it is moving.
+{
+    const events = [];
+    const moving = new Capsule({idleTimeoutMs: 0, onInteractionEvent: event => events.push(event)});
+    moving.applyState('EXPANDED');
+    const actor = moving._widget;
+    actor.width = 180;
+    actor.height = 80;
+    moving._relayout();
+    let allocating = false;
+    const setPosition = actor.set_position;
+    actor.set_position = function (...args) {
+        assert.equal(allocating, false, 'resize allocation must not change layout position');
+        setPosition.apply(this, args);
+    };
+    for (const width of [200, 328, 388, 180]) {
+        actor.width = width;
+        allocating = true;
+        actor.handlers['notify::allocation']();
+        allocating = false;
+        const [x, y] = actor.get_transformed_position();
+        assert.equal(x + width / 2, monitor.x + monitor.width / 2,
+            'growing and shrinking frames retain their visual centre');
+        assert.equal(y, monitor.y + 8);
+        stage.emit({type: () => 1, get_coords: () => [x + 1, y + 1]});
+        assert.deepEqual(events, [], 'inside clicks follow the transformed capsule');
+    }
+    moving.setHorizontalOffset(40);
+    assert.equal(actor.get_transformed_position()[0] + actor.width / 2,
+        monitor.x + monitor.width / 2 + 40, 'offset changes preserve the visual position');
+    assert.equal(actor.translation_x, 0, 'normal relayout absorbs the temporary translation');
+    moving.destroy();
+}
+
 capsule.setTheme('light');
 assert.equal(capsule._widget.classes.has('linux-island--light'), true);
 capsule.applyState('EXPANDED');
@@ -269,15 +318,16 @@ capsule.applyState('COMPACT');
 assert.ok(capsule._beatBars, 'compact title needs beat bars');
 assert.match(capsule._mediaView.actor.style, /width: 294px/, 'wide card content width');
 assert.ok(capsule._mediaView._carousel, 'media card has slideable features carousel');
-assert.equal(capsule._mediaView._carousel.pageCount, 4, 'music, system & controls, AI quota, and the timer page');
+assert.equal(capsule._mediaView._carousel.pageCount, 5, 'music, system & controls, AI quota, timer, and todo pages');
 const carousel = capsule._mediaView._carousel;
 assert.ok(carousel._navBox, 'section nav box exists');
 assert.equal(carousel.actor.children[0], carousel._navBox, 'section nav is first child of carousel actor');
-assert.equal(carousel._navButtons.length, 4, 'four section buttons');
-assert.equal(carousel._navButtons[0].child.icon_name, 'audio-x-generic-symbolic', 'music section icon');
-assert.equal(carousel._navButtons[1].child.icon_name, 'preferences-system-symbolic', 'system section icon');
-assert.equal(carousel._navButtons[2].child.icon_name, 'applications-science-symbolic', 'AI quota section icon');
-assert.equal(carousel._navButtons[3].child.icon_name, 'alarm-symbolic', 'timer section icon');
+assert.equal(carousel._navButtons.length, 5, 'five section buttons');
+assert.equal(carousel._navButtons[0].label, 'Music', 'music pill label');
+assert.equal(carousel._navButtons[1].label, 'Sys', 'system pill label');
+assert.equal(carousel._navButtons[2].label, 'AI', 'AI quota pill label');
+assert.equal(carousel._navButtons[3].label, 'Time', 'timer pill label');
+assert.equal(carousel._navButtons[4].label, 'Todo', 'todo pill label');
 assert.ok(carousel._navButtons[0].classes.has('linux-island__section-btn--active'), 'page 0 active initially');
 assert.ok(!carousel._navButtons[1].classes.has('linux-island__section-btn--active'), 'page 1 inactive initially');
 assert.ok(!carousel._navButtons[2].classes.has('linux-island__section-btn--active'), 'page 2 inactive initially');
@@ -292,8 +342,9 @@ assert.ok(carousel._navButtons[2].classes.has('linux-island__section-btn--active
 assert.ok(!carousel._navButtons[0].classes.has('linux-island__section-btn--active'), 'button 0 inactive');
 assert.ok(!carousel._navButtons[1].classes.has('linux-island__section-btn--active'), 'button 1 inactive');
 assert.ok(capsule._mediaView._aiQuotaSection, 'AI quota section exists');
-assert.equal(capsule._mediaView._aiQuotaSection.actor.children.length, 4, 'AI quota section has top bar + 3 provider rows');
-assert.equal(capsule._mediaView._aiQuotaSection._topBar.children.length, 1, 'top bar has only AI Quota title');
+assert.equal(capsule._mediaView._aiQuotaSection.actor.children.length, 3, 'AI quota section has top bar, equalizer chart card, and bottom window card');
+assert.equal(capsule._mediaView._aiQuotaSection._chartCard.children.length, 3, 'equalizer chart card holds 3 provider columns');
+assert.equal(capsule._mediaView._aiQuotaSection._topBar.children.length, 3, 'top bar has title, summary label, and refresh button');
 assert.ok(capsule._mediaView._aiQuotaSection._antigravityRow._btn5h, 'row 5h button exists');
 assert.ok(capsule._mediaView._aiQuotaSection._antigravityRow._btnWeekly, 'row weekly button exists');
 assert.equal(capsule._mediaView._aiQuotaSection._antigravityRow._nameLabel.text, 'Antigravity');
@@ -315,182 +366,46 @@ assert.ok(capsule._mediaView._mediaSection.children.includes(capsule._mediaView.
 assert.ok(capsule._mediaView._mediaSection.children.includes(capsule._mediaView._volumeRow), 'volume row is present in media section');
 assert.ok(capsule._mediaView._volumeRow.children.includes(capsule._mediaView._volumeTrack), 'volume track lives in the volume row');
 assert.ok(capsule._mediaView._volumeTrack.children.includes(capsule._mediaView._volumeFill), 'volume fill lives in the volume track');
-assert.equal(capsule._mediaView._systemSection.children.length, 3,
-    'metrics, centred NET, and quick toggles in system section');
-assert.equal(capsule._mediaView._systemSection.vertical, false, 'system section is horizontal');
-assert.equal(capsule._mediaView._systemSection.children[0], capsule._mediaView._metricsSlot, 'metrics slot on the left');
-assert.equal(capsule._mediaView._systemSection.children[1], capsule._mediaView._netView.actor, 'NET sits in the centre');
-assert.equal(capsule._mediaView._systemSection.children[2], capsule._mediaView._togglesSlot, 'quick toggles slot on the right');
-assert.equal(capsule._mediaView._metricsSlot.children[0], capsule._mediaView._metricsRow.actor, 'metrics row lives in the left slot');
-assert.equal(capsule._mediaView._togglesSlot.children[0], capsule._mediaView._quickTogglesRow.actor, 'toggles live in the right slot');
-
-// NET must be centred: equal side-slot widths, and no rounded container.
-const netStyle = capsule._mediaView._netView.actor.style;
-assert.doesNotMatch(netStyle, /border-radius/, 'NET has no rounded rectangle');
-assert.doesNotMatch(netStyle, /background-color/, 'NET has no filled box');
-assert.equal(capsule._mediaView._metricsSlot.width, capsule._mediaView._togglesSlot.width,
-    'side slots share a width so NET lands on the centre line');
-assert.equal(capsule._mediaView._netView._rxLabel.text, '↓ 0 B/s', 'NET has initial rx label');
-assert.equal(capsule._mediaView._netView._txLabel.text, '↑ 0 B/s', 'NET has initial tx label');
-assert.equal(capsule._mediaView._netView._label.text, 'NET', 'NET has label text');
-capsule._mediaView._netView.setNetwork({rxText: '↓ 1.2 MB/s', txText: '↑ 300 KB/s'});
-assert.equal(capsule._mediaView._netView._rxLabel.text, '↓ 1.2 MB/s', 'NET updates rx text');
-assert.equal(capsule._mediaView._netView._txLabel.text, '↑ 300 KB/s', 'NET updates tx text');
+assert.equal(capsule._mediaView._systemSection.children.length, 2,
+    '2x2 metric grid and storage + pill stack in system section');
+assert.equal(capsule._mediaView._systemSection.vertical, true, 'system section stacks grid, disk bar, and bottom pills vertically');
+assert.equal(capsule._mediaView._systemSection.children[0], capsule._mediaView._metricsRow.actor, '2x2 metric grid sits on top');
+assert.equal(capsule._mediaView._systemSection.children[1], capsule._mediaView._quickTogglesRow.actor, 'disk bar + pills live below grid');
+assert.equal(capsule._mediaView._metricsRow._row1.children.length, 2, 'CPU + MEMORY top row');
+assert.equal(capsule._mediaView._metricsRow._row2.children.length, 2, 'BATTERY + NETWORK bottom row');
+assert.equal(capsule._mediaView._metricsRow._netTile._label, 'NETWORK', 'NET card has FigCraft header label');
+assert.equal(capsule._mediaView._metricsRow._netTile._valueLabel.text, '↓ 0 B/s', 'NET has initial rate');
 // Expanded width includes MediaView padding (28px), shell padding (4px)
 // and shell borders (2px). Both renderers must be 328px overall.
 assert.equal(Number(capsule._mediaView.actor.style.match(/width: (\d+)px/)[1]) + 34,
     CAPSULE_SIZES.medium.width, 'expanded preset is total width, not content width');
-assert.equal(capsule._mediaView._systemSection.width, 286,
-    'system section content box spans the page minus its own 4px side padding');
 assert.equal(capsule._mediaView._mediaSection.width, 294,
     'media section fills the same content box');
-assert.equal(capsule._mediaView._metricsSlot.width + capsule._mediaView._netView.actor.width +
-    capsule._mediaView._togglesSlot.width + 20, 286,
-    'slots plus the two 10px gaps consume the full section content width');
-assert.equal(capsule._mediaView._quickTogglesRow._storageIndicator.actor.width,
-    capsule._mediaView._togglesSlot.width - 22 - 4,
-    'storage block absorbs the extra width so icons reach the right edge');
-// St.BoxLayout ignores x_align on its own main axis, so the right group must
-// fill the slot; otherwise the icon column and disk readout drift toward the
-// middle of the capsule instead of hugging its right side.
-const togglesColumn = capsule._mediaView._quickTogglesRow.actor;
-assert.equal(togglesColumn.x_expand, true, 'right group fills the right slot');
-assert.match(togglesColumn.style,
-    new RegExp(`width: ${capsule._mediaView._togglesSlot.width}px`),
-    'right group is as wide as the right slot');
-assert.equal(capsule._mediaView._quickTogglesRow._iconsBox.x_align, 2,
-    'icon column hugs the right edge');
-// The block gets an explicit width so disk + gap + icons fill the slot exactly;
-// expansion is avoided because St.BoxLayout ignores x_align on its main axis.
-assert.match(capsule._mediaView._quickTogglesRow._storageIndicator.actor.style,
-    /width: \d+px/,
-    'disk block has an explicit width so the slot divides exactly');
-// The block centres each line as an actor. Pinning label widths made the text
-// fill the block and render flush left, which is the reported "miring" bug.
-assert.equal(capsule._mediaView._quickTogglesRow._storageIndicator._icon.x_align, 1,
-    'disk glyph is centred');
-assert.equal(capsule._mediaView._quickTogglesRow._storageIndicator._valueLabel.x_align, 1,
-    'percentage label is centred as an actor');
-assert.equal(capsule._mediaView._quickTogglesRow._storageIndicator._detailLabel.x_align, 1,
-    'used/total label is centred as an actor');
-assert.equal(capsule._mediaView._quickTogglesRow._storageIndicator.actor.vertical, true,
-    'disk block stacks glyph, percentage and detail vertically');
-assert.doesNotMatch(capsule._mediaView._quickTogglesRow._storageIndicator._valueLabel.style ?? '',
-    /width:\s*\d+px/,
-    'percentage label keeps its natural width so centring is meaningful');
+assert.equal(capsule._mediaView._quickTogglesRow._iconsBox.vertical, false,
+    'quick pills lay out horizontally across the bottom row');
 assert.equal(capsule._mediaView._quickTogglesRow._iconsBox.children.length, 4,
-    'quick settings form a single vertical column');
+    'quick settings form four bottom pills');
 assert.deepEqual(capsule._mediaView._quickTogglesRow._iconsBox.children, [
     capsule._mediaView._quickTogglesRow._themeToggle.actor,
     capsule._mediaView._quickTogglesRow._dndToggle.actor,
     capsule._mediaView._quickTogglesRow._nightToggle.actor,
     capsule._mediaView._quickTogglesRow._settingsToggle.actor,
-], 'Theme, DND, Night Light, Settings stacked in order');
-const rightGroup = capsule._mediaView._quickTogglesRow.actor;
-assert.equal(rightGroup.vertical, false, 'right group lays disk and icons out horizontally');
-assert.equal(rightGroup.children[0],
+], 'Theme, DND, Night, Settings arranged left-to-right');
+const togglesStack = capsule._mediaView._quickTogglesRow.actor;
+assert.equal(togglesStack.vertical, true, 'disk progress bar stacks above quick pills');
+assert.equal(togglesStack.children[0],
     capsule._mediaView._quickTogglesRow._storageIndicator.actor,
-    'disk readout sits first, directly right of NET');
-assert.equal(rightGroup.children[1], capsule._mediaView._quickTogglesRow._iconsBox,
-    'icon column sits second, against the capsule right edge');
-assert.equal(rightGroup.children.length, 2,
-    'no spacer widget: the disk block absorbs the leftover width');
-assert.equal(rightGroup.children[0].x_expand, false,
-    'disk block keeps an explicit width; the slot is divided exactly instead');
-assert.equal(rightGroup.children[1].x_expand, false,
-    'icon column keeps a fixed width so it stays on the right edge');
-// The slot must divide exactly: disk + gap + icon column == slot width, so the
-// icon column's right edge lands on the slot's right edge. If the disk block
-// were narrower the icons would float left, which is the reported bug.
-{
-    const slot = capsule._mediaView._togglesSlot.width;
-    const iconsW = capsule._mediaView._quickTogglesRow._iconsBox.width;
-    const gap = 4;
-    const diskW = slot - iconsW - gap;
-    assert(diskW > 0, `disk block must keep positive width, got ${diskW}`);
-    assert.equal(diskW + gap + iconsW, slot,
-        'disk + gap + icons fills the right slot exactly');
-    assert.match(capsule._mediaView._quickTogglesRow._storageIndicator.actor.style,
-        new RegExp(`width: ${diskW}px`),
-        'disk block owns exactly the leftover width');
-}
-// A 1px border used to add 2px per row (4*22 + 3*4 = 100px), so the fourth
-// icon was clipped by the 98px section. Rows must be exactly 20px.
-for (const toggle of [capsule._mediaView._quickTogglesRow._themeToggle,
-    capsule._mediaView._quickTogglesRow._dndToggle,
-    capsule._mediaView._quickTogglesRow._nightToggle,
-    capsule._mediaView._quickTogglesRow._settingsToggle]) {
-    assert.doesNotMatch(toggle.actor.style, /border:\s*[1-9]/,
-        `${toggle._label} must have no border: 4 bordered rows overflow 98px`);
-}
-assert.match(capsule._mediaView._quickTogglesRow._iconsBox.style,
-    /spacing: 4px/, 'icon column keeps the metric 4px gap');
-
-const storageStyle = capsule._mediaView._quickTogglesRow._storageIndicator.actor.style;
-assert.doesNotMatch(storageStyle, /border-radius/, 'storage tracker has no rounded rectangle');
-assert.doesNotMatch(storageStyle, /background-color/, 'storage tracker has no filled box');
-// Vertical rhythm of the disk block: 2px between glyph/percentage/detail and
-// 3px padding above and below. setCapsuleSize() rewrites the style string, so
-// this also guards against the padding being flattened on a resize.
-assert.match(storageStyle, /spacing: 2px/, 'disk lines keep a 2px gap');
-assert.match(storageStyle, /padding: 3px 0/, 'disk block keeps 3px top/bottom padding');
+    'disk bar sits above pills');
+assert.equal(togglesStack.children[1], capsule._mediaView._quickTogglesRow._iconsBox,
+    'pill row sits at bottom');
+assert.equal(togglesStack.children.length, 2);
 for (const size of ['small', 'medium', 'large']) {
     capsule.setCapsuleSize(size);
-    const style = capsule._mediaView._quickTogglesRow._storageIndicator.actor.style;
-    assert.match(style, /padding: 3px 0/, `disk padding survives ${size} resize`);
-    assert.match(style, /spacing: 2px/, `disk line spacing survives ${size} resize`);
-}
-
-// NET text must stay visible at every preset. It was reported missing at the
-// small preset because the side columns held a 92px floor, leaving NET 22px
-// while "↓ 1.2 MB/s" needs ~56px at 11px bold.
-for (const size of ['small', 'medium', 'large']) {
-    capsule.setCapsuleSize(size);
-    const net = capsule._mediaView._netView;
-    const section = capsule._mediaView._systemSection.width;
-    const slots = capsule._mediaView._metricsSlot.width * 2 + net.actor.width;
-    const gap = Number(capsule._mediaView._systemSection.style.match(/spacing: (\d+)px/)[1]);
-    assert.equal(slots + gap * 2, section,
-        `${size}: metrics + NET + toggles + gaps must fill the section exactly`);
-    assert(net.actor.width >= 60,
-        `${size}: NET must keep readable width, got ${net.actor.width}px`);
-    assert.equal(net._label.visible, true, `${size}: NET header stays visible`);
-    assert.equal(net._rxLabel.text.length > 0, true, `${size}: NET rx text is populated`);
-    assert.equal(net._txLabel.text.length > 0, true, `${size}: NET tx text is populated`);
-}
-// The compact side columns drop decorative detail rather than clipping text.
-capsule.setCapsuleSize('small');
-for (const tile of [capsule._mediaView._metricsRow._cpuTile, capsule._mediaView._metricsRow._ramTile]) {
-    assert.equal(tile._icon.visible, false, 'small: metric glyph hides to make room for the value');
-    assert.match(tile.actor.style, /spacing: 4px/, 'small: metric tile tightens its gap');
-}
-assert.equal(capsule._mediaView._quickTogglesRow._storageIndicator._detailLabel.visible, false,
-    'small: disk detail line hides instead of clipping');
-// The detail line must only be shown when the block can hold it: Pango
-// measures "147/249 GB" at 58px in Sans 9px.
-{
-    const disk = capsule._mediaView._quickTogglesRow._storageIndicator;
-    disk.setWidth(57);
-    assert.equal(disk._detailLabel.visible, false, 'disk detail hidden below its measured width');
-    disk.setWidth(58);
-    assert.equal(disk._detailLabel.visible, true, 'disk detail shown once it fits');
+    const netTile = capsule._mediaView._metricsRow._netTile;
+    assert.equal(netTile.actor.children[0].visible, true, `${size}: NETWORK header stays visible`);
+    assert.equal(netTile._valueLabel.text.length > 0, true, `${size}: NET readout is populated`);
 }
 capsule.setCapsuleSize('medium');
-for (const tile of [capsule._mediaView._metricsRow._cpuTile, capsule._mediaView._metricsRow._ramTile]) {
-    assert.equal(tile._icon.visible, true, 'medium: metric glyph returns');
-    assert.match(tile.actor.style, /spacing: 8px/, 'medium: metric tile keeps its rhythm');
-}
-assert.equal(capsule._mediaView._quickTogglesRow._storageIndicator._detailLabel.visible, true,
-    'medium: disk detail line returns');
-capsule.setCapsuleSize('medium');
-for (const toggle of [capsule._mediaView._quickTogglesRow._themeToggle,
-    capsule._mediaView._quickTogglesRow._dndToggle, capsule._mediaView._quickTogglesRow._nightToggle,
-    capsule._mediaView._quickTogglesRow._settingsToggle]) {
-    assert.equal(toggle._icon.icon_size, capsule._mediaView._metricsRow._cpuTile._icon.icon_size,
-        'quick setting glyph matches metric icon size');
-    assert.match(toggle.actor.style, /background-color: transparent/, 'no oversized circle behind quick setting icon');
-    assert.match(toggle.actor.style, /border: 0/, 'no circle border around quick setting icon');
-}
 capsule._mediaView._carousel.setPage(1);
 assert.ok(capsule._mediaView._systemSection.transitions.length > 0, 'page animates with horizontal slide transition');
 assert.equal(capsule._mediaView._carousel._container.clip_to_allocation, true,
@@ -501,7 +416,7 @@ capsule._mediaView._carousel.setPage(0);
 assert.ok(systemPage.cancelled > cancellations, 'switching back cancels the outgoing page tween');
 assert.equal(systemPage.translation_x, 0, 'detached page has no lingering slide offset');
 assert.equal(capsule._mediaView._quickTogglesRow._iconsBox.children.length, 4,
-    'Quick controls stay a single vertical column');
+    'Quick controls stay a horizontal row of four pills');
 assert.equal(capsule._mediaView._quickTogglesRow._iconsBox.children[3],
     capsule._mediaView._quickTogglesRow._settingsToggle.actor);
 assert.equal(systemPage.opacity, 255, 'detached page has no lingering fade');
@@ -621,7 +536,7 @@ capsule.setMedia({playerId: 'x', title: 'Song', playbackStatus: 'Playing'});
 capsule.setTimer({state: 'running', mode: 'countdown', phase: '', label: '',
     durationSec: 1500, remainingSec: 1499, cycle: 0});
 assert.equal(capsule._label.text, '24:59', 'timer outranks media in the compact pill');
-assert.equal(capsule._icon.text, '⏱', 'timer icon in the compact pill');
+assert.equal(capsule._iconKind, 'timer', 'timer icon in the compact pill');
 assert.equal(capsule._beatBars.actor.visible, false, 'beat bars yield to the timer');
 assert.equal(capsule._mediaView._timeSection._clockLabel.text, '24:59',
     'timer snapshot reaches the merged carousel page');
@@ -629,7 +544,7 @@ assert.equal(capsule._mediaView._timeSection._clockLabel.text, '24:59',
 capsule.setTimer({state: 'idle', mode: 'countdown', phase: '', label: '',
     durationSec: 0, remainingSec: 0, cycle: 0});
 assert.equal(capsule._label.text, 'Song', 'media returns when the timer goes idle');
-assert.equal(capsule._icon.text, '🎵');
+assert.equal(capsule._iconKind, 'media');
 assert.equal(capsule._beatBars.actor.visible, true, 'beat bars return with the media branch');
 
 // Stats reach the timer page through the capsule.
@@ -1047,7 +962,7 @@ assert.equal(circleCapsule._isIdleCircle, false, 'initially pill is rectangle');
 assert.equal(circleCapsule._widget.classes.has('linux-island__capsule--circle'), false);
 assert.equal(circleCapsule._label.visible, true);
 assert.equal(circleCapsule._icon.visible, true);
-assert.equal(circleCapsule._icon.text, '🏝️');
+assert.equal(circleCapsule._iconKind, 'island');
 assert.equal(circleCapsule._circleArtBox.visible, false);
 assert.equal(idleScheduler.count, 1, 'initial 10s idle timer scheduled');
 
@@ -1061,7 +976,7 @@ assert.match(circleCapsule._widget.style, /height: 36px/, 'circle widget height 
 assert.equal(circleCapsule._label.visible, false, 'label hidden in circle mode');
 assert.equal(circleCapsule._beatBars.actor.visible, false, 'beat bars hidden in circle mode');
 assert.equal(circleCapsule._icon.visible, true, 'island icon visible');
-assert.equal(circleCapsule._icon.text, '🏝️', 'island icon text is palm island');
+assert.equal(circleCapsule._iconKind, 'island', 'island icon uses monochrome island emblem');
 assert.equal(circleCapsule._icon.x_expand, true, 'idle icon fills circle width for centered text');
 assert.match(circleCapsule._icon.style, /width: 32px/, 'idle icon has bounded width inside circle');
 assert.equal(circleCapsule._circleArtBox.visible, false, 'circle artwork box hidden when not playing');
@@ -1234,7 +1149,7 @@ circleCapsule.setMedia({
     albumArtUri: 'file:///home/user/art.png',
 });
 assert.equal(circleCapsule._isIdleCircle, false);
-assert.equal(circleCapsule._icon.text, '🎵');
+assert.equal(circleCapsule._iconKind, 'media');
 idleScheduler.advance(10000);
 assert.equal(circleCapsule._isIdleCircle, true, 'entered circle mode with active music');
 assert.equal(circleCapsule._icon.visible, false, 'island icon hidden when playing');
@@ -1287,7 +1202,7 @@ circleCapsule.setMedia({
 assert.equal(circleCapsule._isIdleCircle, true, 'pausing music keeps capsule in circle mode');
 assert.equal(circleCapsule._circleArtBox.visible, false, 'thumbnail hidden when paused');
 assert.equal(circleCapsule._icon.visible, true, 'island icon visible when paused');
-assert.equal(circleCapsule._icon.text, '🏝️', 'island icon displays palm tree');
+assert.equal(circleCapsule._iconKind, 'island', 'island icon displays monochrome island emblem');
 
 // Resuming music restores thumbnail
 circleCapsule.setMedia({
@@ -1374,4 +1289,81 @@ assert.equal(idleScheduler.count, 0, 'destroy clears pending idle timer');
 assert.equal(pendingCancellable.cancelled, true, 'destroy cancels pending artwork loader');
 assert.equal(circleCapsule._circleArtIcon, null);
 assert.equal(circleCapsule._circleArtBox, null);
+
+// 11. Carousel reconfiguration and single-page nav bar hiding
+{
+    const cfgCapsule = new Capsule({idleTimeoutMs: 0});
+    cfgCapsule.setConnected(true);
+    cfgCapsule.setMedia(null);
+    assert.equal(cfgCapsule._iconKind, 'island');
+    assert.equal(cfgCapsule._label.text, 'Island');
+
+    cfgCapsule.setMedia({playerId: 'spotify', title: 'Track', playbackStatus: 'Playing'});
+    assert.equal(cfgCapsule._iconKind, 'media', 'playing media updates compact icon');
+
+    cfgCapsule.setCarouselConfig('todo,timer,media', 'timer');
+    assert.equal(cfgCapsule._mediaView._carousel.pageCount, 3, 'reconfigured carousel hides unselected pages');
+    assert.equal(cfgCapsule._mediaView._carousel.activePageId, 'timer', 'lands on custom defaultPage');
+    assert.equal(cfgCapsule._mediaView._carousel._navButtons.length, 3, 'nav bar updates to 3 buttons');
+    assert.equal(cfgCapsule._widget.classes !== undefined, true);
+    cfgCapsule.setCarouselConfig('todo', 'todo');
+    assert.equal(cfgCapsule._mediaView._carousel._navBox.visible, false, 'single-page carousel hides nav bar');
+    cfgCapsule.destroy();
+}
+
+// 12. Circle click expansion avoids double relayout/position jump and redundant media tween restarts
+{
+    const clickCapsule = new Capsule({idleTimeoutMs: 0});
+    clickCapsule.setAnimationEnabled(false);
+    clickCapsule.setCapsuleSize('circle');
+    clickCapsule.setAnimationEnabled(true);
+    clickCapsule._widget.width = 36;
+    clickCapsule._widget.height = 36;
+    clickCapsule._relayout();
+    const positions = [];
+    const origSetPos = clickCapsule._widget.set_position;
+    clickCapsule._widget.set_position = function (x, y) {
+        positions.push([x, y]);
+        return origSetPos.call(this, x, y);
+    };
+    let prefMeasures = 0;
+    const origPrefW = clickCapsule._widget.get_preferred_width;
+    clickCapsule._widget.get_preferred_width = function (...args) {
+        prefMeasures++;
+        return origPrefW.apply(this, args);
+    };
+    clickCapsule._widget.ease = function (params) {
+        this.transitions.push(params);
+    };
+    clickCapsule.applyState('EXPANDED');
+    assert.equal(prefMeasures, 1, 'animated expand measures preferred width once');
+    assert.equal(positions.length, 0, 'animated expand starts at circle position without jumping to expanded x and back');
+    assert.equal(clickCapsule._widget.width, 36, 'animated expand starts from circle width');
+
+    // Repeated audioLevels packets do not trigger relayout in circle mode or restart progress/volume tweens
+    clickCapsule.applyState('COMPACT');
+    clickCapsule._widget.width = 36;
+    clickCapsule._widget.height = 36;
+    let relayoutCalls = 0;
+    const origRelayout = clickCapsule._relayout;
+    clickCapsule._relayout = function (...args) {
+        relayoutCalls++;
+        return origRelayout.apply(this, args);
+    };
+    const track = {playerId: 'spotify', title: 'Beat', playbackStatus: 'Playing',
+        positionUs: 1000000, durationUs: 10000000, positionSampleUs: 0, volume: 0.5};
+    clickCapsule._mediaView._progressTrack.width = 200;
+    clickCapsule._mediaView._volumeTrack.width = 200;
+    clickCapsule.setMedia({...track, audioLevels: [0.1, 0.2, 0.3]});
+    const initialRelayouts = relayoutCalls;
+    const initialProgTransitions = clickCapsule._mediaView._progressFill.transitions.length;
+    const initialVolTransitions = clickCapsule._mediaView._volumeFill.transitions.length;
+    clickCapsule.setMedia({...track, audioLevels: [0.8, 0.4, 0.6]});
+    assert.equal(relayoutCalls, initialRelayouts, 'audioLevels updates do not relayout circle capsule');
+    assert.equal(clickCapsule._mediaView._progressFill.transitions.length, initialProgTransitions,
+        'unchanged timeline width does not restart progress fill tween');
+    assert.equal(clickCapsule._mediaView._volumeFill.transitions.length, initialVolTransitions,
+        'unchanged volume width does not restart volume fill tween');
+    clickCapsule.destroy();
+}
 console.log('PASS: media rendering, offline recovery, interrupted transitions, reduced motion, fullscreen and cleanup');

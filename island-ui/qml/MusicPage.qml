@@ -55,7 +55,7 @@ Item {
 
                 NavIcon {
                     anchors.centerIn: parent
-                    size: root.artworkSize
+                    size: Math.round(root.artworkSize * 0.5)
                     source: "qrc:/linuxisland/ui/icons/ui/media-symbolic.svg"
                     color: IslandTheme.textSecondary
                     visible: !islandClient.albumArtUri || albumArtImage.status !== Image.Ready
@@ -204,7 +204,7 @@ Item {
             Text {
                 text: islandClient.timeElapsedText
                 font.pixelSize: 10
-                color: IslandTheme.textTertiary
+                color: IslandTheme.textSecondary
                 Layout.preferredWidth: 36
             }
 
@@ -218,7 +218,7 @@ Item {
                 Rectangle {
                     implicitWidth: root.buttonSize
                     implicitHeight: root.buttonSize
-                    radius: 12
+                    radius: IslandTheme.radiusPill
                     color: prevMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
                     opacity: islandClient.canPrevious ? 1.0 : 0.4
 
@@ -238,11 +238,11 @@ Item {
                     }
                 }
 
-                // Play / Pause (Accent Amber Button)
+                // Play / Pause (Accent Emerald Pill)
                 Rectangle {
                     implicitWidth: root.playWidth
                     implicitHeight: root.buttonSize
-                    radius: 14
+                    radius: IslandTheme.radiusPill
                     color: playMouse.containsMouse ? IslandTheme.accentHover : IslandTheme.accentPrimary
                     opacity: islandClient.canPlay || islandClient.canPause ? 1.0 : 0.4
 
@@ -250,7 +250,7 @@ Item {
                         anchors.centerIn: parent
                         size: root.controlIconSize + 2
                         source: islandClient.isPlaying ? "qrc:/linuxisland/ui/icons/ui/pause-symbolic.svg" : "qrc:/linuxisland/ui/icons/ui/play-symbolic.svg"
-                        color: IslandTheme.surfaceIsland
+                        color: IslandTheme.iconOnAccent
                     }
 
                     MouseArea {
@@ -266,7 +266,7 @@ Item {
                 Rectangle {
                     implicitWidth: root.buttonSize
                     implicitHeight: root.buttonSize
-                    radius: 12
+                    radius: IslandTheme.radiusPill
                     color: nextMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
                     opacity: islandClient.canNext ? 1.0 : 0.4
 
@@ -291,7 +291,7 @@ Item {
             Text {
                 text: islandClient.timeTotalText
                 font.pixelSize: 10
-                color: IslandTheme.textTertiary
+                color: IslandTheme.textSecondary
                 horizontalAlignment: Text.AlignRight
                 Layout.preferredWidth: 36
             }
@@ -302,11 +302,11 @@ Item {
             Layout.fillWidth: true
             spacing: 8
 
-            // Mute button (28x28, radius 12 matching GNOME mediaView.js:455)
+            // Mute button (28x28, pill radius matching GNOME mediaView.js)
             Rectangle {
                 implicitWidth: 28
                 implicitHeight: 28
-                radius: 12
+                radius: IslandTheme.radiusPill
                 color: muteMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
 
                 NavIcon {

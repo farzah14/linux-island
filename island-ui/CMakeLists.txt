@@ -7,6 +7,8 @@ qt_add_executable(linux-island-ui
     island_client.cpp
     time_client.h
     time_client.cpp
+    todo_client.h
+    todo_client.cpp
     time_format.h
     time_format.cpp
     system_metrics_provider.h
@@ -19,6 +21,10 @@ qt_add_executable(linux-island-ui
     notification_watcher.cpp
     display_surface_manager.h
     display_surface_manager.cpp
+    tinted_svg_provider.h
+    tinted_svg_provider.cpp
+    ${CMAKE_SOURCE_DIR}/core/events/portal_color_scheme.h
+    ${CMAKE_SOURCE_DIR}/core/events/portal_color_scheme.cpp
 )
 set_source_files_properties(
     ${CMAKE_SOURCE_DIR}/extension/icons/antigravity.png
@@ -53,6 +59,10 @@ set_source_files_properties(
 set_source_files_properties(
     ${CMAKE_SOURCE_DIR}/extension/icons/ui/timer-symbolic.svg
     PROPERTIES QT_RESOURCE_ALIAS "icons/ui/timer-symbolic.svg"
+)
+set_source_files_properties(
+    ${CMAKE_SOURCE_DIR}/extension/icons/ui/todo-symbolic.svg
+    PROPERTIES QT_RESOURCE_ALIAS "icons/ui/todo-symbolic.svg"
 )
 set_source_files_properties(
     ${CMAKE_SOURCE_DIR}/extension/icons/ui/prev-symbolic.svg
@@ -110,6 +120,10 @@ set_source_files_properties(
     ${CMAKE_SOURCE_DIR}/extension/icons/ui/disk-symbolic.svg
     PROPERTIES QT_RESOURCE_ALIAS "icons/ui/disk-symbolic.svg"
 )
+set_source_files_properties(
+    ${CMAKE_SOURCE_DIR}/extension/icons/ui/island-symbolic.svg
+    PROPERTIES QT_RESOURCE_ALIAS "icons/ui/island-symbolic.svg"
+)
 
 qt_add_qml_module(linux-island-ui
     URI linuxisland.ui
@@ -122,6 +136,7 @@ qt_add_qml_module(linux-island-ui
         qml/SystemPage.qml
         qml/AiQuotaPage.qml
         qml/TimePage.qml
+        qml/TodoPage.qml
         qml/IslandWindow.qml
     RESOURCES
         ${CMAKE_SOURCE_DIR}/extension/icons/antigravity.png
@@ -132,6 +147,7 @@ qt_add_qml_module(linux-island-ui
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/ai-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/calendar-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/timer-symbolic.svg
+        ${CMAKE_SOURCE_DIR}/extension/icons/ui/todo-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/prev-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/next-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/play-symbolic.svg
@@ -146,9 +162,13 @@ qt_add_qml_module(linux-island-ui
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/battery-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/network-symbolic.svg
         ${CMAKE_SOURCE_DIR}/extension/icons/ui/disk-symbolic.svg
+        ${CMAKE_SOURCE_DIR}/extension/icons/ui/island-symbolic.svg
 )
 
-target_include_directories(linux-island-ui PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(linux-island-ui PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/core
+)
 target_link_libraries(linux-island-ui PRIVATE
     Qt6::Core
     Qt6::Gui

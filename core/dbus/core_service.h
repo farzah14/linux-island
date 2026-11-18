@@ -11,6 +11,8 @@
 #include <QDBusConnection>
 #include <QDBusArgument>
 #include <QDateTime>
+#include <QDir>
+#include <QFileInfo>
 #include <memory>
 #include "events/revision_clock.h"
 #include "settings/settings_store.h"
@@ -22,6 +24,9 @@
 #include "media/artwork_cache.h"
 #include "time/timer_service.h"
 #include "time/time_types.h"
+#include "todo/todo_service.h"
+#include <QJsonDocument>
+#include <QJsonArray>
 
 class CoreService : public QObject, public QDBusContext {
     Q_OBJECT
@@ -40,6 +45,7 @@ public:
           m_bus(bus),
           m_status(QStringLiteral("ready")),
           m_settingsStore(configPath, this),
+          m_todo(configPath.isEmpty() ? QString() : QFileInfo(configPath).dir().filePath(QStringLiteral("todo.json"))),
           m_playerRegistry(bus, this),
           m_controller(bus, sink, this) {
         connect(&m_playerRegistry, &PlayerRegistry::mediaStateChanged, this, [this](const MediaState &state) {
@@ -414,7 +420,13 @@ public:
         applyTimerSettings(m_settingsStore.settings());
     }
 
+    QString todoJson() const { return QString::fromUtf8(QJsonDocument(QJsonArray::fromVariantList(m_todo.items())).toJson(QJsonDocument::Compact)); }
+    bool addTodo(const QString &title) { if (!m_todo.add(title)) return false; emit todoChanged(todoJson()); return true; }
+    bool setTodoDone(const QString &id, bool done) { if (!m_todo.setDone(id, done)) return false; emit todoChanged(todoJson()); return true; }
+    bool removeTodo(const QString &id) { if (!m_todo.remove(id)) return false; emit todoChanged(todoJson()); return true; }
+
 signals:
+    void todoChanged(const QString &json);
     void mediaChanged(quint64 revision, const QVariantMap &media);
     void timerChanged(quint64 revision, const QVariantMap &timer);
     void settingsChanged(quint64 revision, const QVariantMap &settings);
@@ -435,6 +447,7 @@ private:
     QString m_status;
     MediaState m_mediaState;
     SettingsStore m_settingsStore;
+    TodoService m_todo;
     PlayerRegistry m_playerRegistry;
     MprisController m_controller;
     QVariantMap m_capabilities;

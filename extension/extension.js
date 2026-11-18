@@ -1,5 +1,7 @@
 // GNOME Shell 46 (ES module); must be tested in a disposable GNOME session.
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import Meta from 'gi://Meta';
+import Shell from 'gi://Shell';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {Capsule} from './ui/capsule.js';
 import {GnomeDisplayAdapter} from './lib/gnomeDisplayAdapter.js';
@@ -74,6 +76,8 @@ export default class LinuxIslandExtension extends Extension {
                     this._capsule?.setWhatsAppActivity(hasActivity);
                 },
             });
+
+            this._setupKeybinding();
         } catch (error) {
             this._notifAdapter?.destroy();
             this._notifAdapter = null;
@@ -113,6 +117,58 @@ export default class LinuxIslandExtension extends Extension {
             const waEnabled = Boolean(coreState.settings.whatsappIntegrationEnabled);
             this._notifAdapter?.setWhatsAppEnabled(waEnabled);
             this._capsule?.setWhatsAppEnabled(waEnabled);
+            if (coreState.settings.carouselPages !== undefined || coreState.settings.defaultPage !== undefined) {
+                this._capsule?.setCarouselConfig(
+                    coreState.settings.carouselPages,
+                    coreState.settings.defaultPage
+                );
+            }
+            if (coreState.settings.toggleShortcut !== undefined) {
+                this._syncShortcutSetting(coreState.settings.toggleShortcut);
+            }
+        }
+    }
+
+    _setupKeybinding() {
+        this._keybindingRegistered = false;
+        this._lastShortcut = null;
+        try {
+            this._gsettings = this.getSettings();
+        } catch (_) {
+            this._gsettings = null;
+        }
+        if (this._gsettings && Main?.wm?.addKeybinding) {
+            try {
+                Main.wm.addKeybinding(
+                    'toggle-island',
+                    this._gsettings,
+                    Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
+                    Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW | Shell.ActionMode.POPUP,
+                    () => this._toggleIsland()
+                );
+                this._keybindingRegistered = true;
+            } catch (_) {}
+        }
+    }
+
+    _syncShortcutSetting(shortcut) {
+        const clean = String(shortcut ?? '').trim();
+        if (!this._gsettings || clean === this._lastShortcut)
+            return;
+        this._lastShortcut = clean;
+        try {
+            this._gsettings.set_strv('toggle-island', clean ? [clean] : []);
+        } catch (_) {}
+    }
+
+    _toggleIsland() {
+        if (!this._controller)
+            return;
+        if (this._controller.state === 'EXPANDED') {
+            this._controller.dispatch('DISMISS');
+        } else {
+            this._capsule?.openDefaultPage?.();
+            this._controller.dispatch('CLICK');
         }
     }
     _onTimeStateChanged(state) {
@@ -122,6 +178,15 @@ export default class LinuxIslandExtension extends Extension {
     }
 
     disable() {
+        if (this._keybindingRegistered && Main?.wm?.removeKeybinding) {
+            try {
+                Main.wm.removeKeybinding('toggle-island');
+            } catch (_) {}
+        }
+        this._keybindingRegistered = false;
+        this._gsettings = null;
+        this._lastShortcut = null;
+
         this._notifAdapter?.destroy();
         this._notifAdapter = null;
 

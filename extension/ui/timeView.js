@@ -35,6 +35,7 @@ export class TimeSection {
         this._stats = null;
         this._lastPreset = 25;
         this._customMin = 25;
+        this._selectedMode = 'countdown';
         this._lastState = null;
         this._lastMode = null;
         this._trackWidth = 0;
@@ -59,17 +60,16 @@ export class TimeSection {
     _build() {
         this.actor = new St.BoxLayout({
             vertical: true,
-            style: 'spacing: 4px;',
+            style: 'spacing: 5px;',
             style_class: 'linux-island__time-section',
             x_expand: true,
         });
 
-        // Header: clock, phase badge, cycle position.
+        // Hero Row: left clock + phase/cycle badge, right 40x40 circular ring with percentage inside.
         this._clockRow = new St.BoxLayout({
             vertical: false,
-            style: 'height: 26px; spacing: 6px;',
+            style: 'height: 40px; spacing: 8px;',
             x_expand: true,
-            x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
         });
         this._clockLabel = new St.Label({
@@ -92,6 +92,51 @@ export class TimeSection {
             y_align: Clutter.ActorAlign.CENTER,
         });
         this._clockRow.add_child(this._cycleLabel);
+        this._clockRow.add_child(new St.Widget({x_expand: true}));
+
+        this._ringPctLabel = new St.Label({
+            text: '0%',
+            style_class: 'linux-island__timer-ring-pct',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        if (typeof St.DrawingArea === 'function') {
+            this._ringArea = new St.DrawingArea({
+                style_class: 'linux-island__timer-ring',
+                style: 'width: 40px; height: 40px;',
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            this._ringArea.connect('repaint', area => {
+                const cr = area.get_context();
+                const node = area.get_theme_node();
+                const fill = node.get_foreground_color();
+                const track = node.get_border_color(St.Side.TOP);
+                const color = c => cr.setSourceRGBA(c.red / 255, c.green / 255, c.blue / 255, c.alpha / 255);
+                cr.setLineWidth(3.5);
+                color(track); cr.arc(20, 20, 17, 0, 2 * Math.PI); cr.stroke();
+                if (this._ringProgress > 0) {
+                    color(fill); cr.arc(20, 20, 17, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * this._ringProgress); cr.stroke();
+                }
+                cr.$dispose();
+            });
+            this._ringArea.connect('style-changed', () => this._ringArea?.queue_repaint());
+            if (typeof Clutter.BinLayout === 'function') {
+                const ringWrap = new St.Widget({
+                    layout_manager: new Clutter.BinLayout(),
+                    style: 'width: 40px; height: 40px;',
+                    y_align: Clutter.ActorAlign.CENTER,
+                });
+                ringWrap.add_child(this._ringArea);
+                ringWrap.add_child(this._ringPctLabel);
+                this._clockRow.add_child(ringWrap);
+            } else {
+                this._clockRow.add_child(this._ringArea);
+                this._clockRow.add_child(this._ringPctLabel);
+            }
+        } else {
+            this._clockRow.add_child(this._ringPctLabel);
+        }
         this.actor.add_child(this._clockRow);
 
         // Progress track.
@@ -119,19 +164,18 @@ export class TimeSection {
         // State-dependent controls.
         this._buttonsRow = new St.BoxLayout({
             vertical: false,
-            style: 'height: 18px; spacing: 4px;',
+            style: 'height: 22px; spacing: 6px;',
             x_expand: true,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
         });
         this.actor.add_child(this._buttonsRow);
 
-        // Custom duration, idle countdown only.
+        // Custom duration & primary emerald CTA row, idle only.
         this._customRow = new St.BoxLayout({
             vertical: false,
-            style: 'height: 18px; spacing: 4px;',
+            style: 'height: 24px; spacing: 6px;',
             x_expand: true,
-            x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
             visible: false,
         });
@@ -146,26 +190,34 @@ export class TimeSection {
         this._customRow.add_child(this._customLabel);
         this._customPlus = this._makeChip('+5', () => this._adjustCustom(5));
         this._customRow.add_child(this._customPlus);
-        this._customStart = this._makeChip('Start', () => {
+        this._customStart = new St.Button({
+            label: 'Start Timer',
+            style_class: 'linux-island__timer-cta',
+            can_focus: true,
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._customStart.connect('clicked', () => {
             this._lastPreset = this._customMin;
-            this._onStart({mode: 'countdown', durationMin: this._customMin});
-        }, true);
+            this._onStart(this._selectedMode === 'pomodoro'
+                ? {mode: 'pomodoro'} : {mode: 'countdown', durationMin: this._customMin});
+        });
         this._customRow.add_child(this._customStart);
         this.actor.add_child(this._customRow);
 
         // Mode chips, idle only.
         this._modeRow = new St.BoxLayout({
             vertical: false,
-            style: 'height: 18px; spacing: 4px;',
+            style: 'height: 22px; spacing: 6px;',
             x_expand: true,
-            x_align: Clutter.ActorAlign.CENTER,
+            x_align: Clutter.ActorAlign.START,
             y_align: Clutter.ActorAlign.CENTER,
         });
-        this._timerModeChip = this._makeChip('Timer', () => {}, true);
+        this._timerModeChip = this._makeChip('Timer', () => this._selectMode('countdown'), true);
         this._modeRow.add_child(this._timerModeChip);
-        this._pomodoroModeChip = this._makeChip('Pomodoro', () => this._onStart({mode: 'pomodoro'}), false);
+        this._pomodoroModeChip = this._makeChip('Pomodoro', () => this._selectMode('pomodoro'), false);
         this._modeRow.add_child(this._pomodoroModeChip);
-        this.actor.add_child(this._modeRow);
+        this.actor.insert_child_at_index(this._modeRow, 0);
 
         // Session statistics, idle only.
         this._statsLabel = new St.Label({
@@ -181,6 +233,7 @@ export class TimeSection {
         this.actor.add_child(this._statsLabel);
 
         this._renderButtons({state: 'idle', mode: 'countdown'});
+        this._syncIdle();
     }
 
     _makeChip(label, onClick, active = false) {
@@ -195,10 +248,29 @@ export class TimeSection {
         return chip;
     }
 
+    _selectMode(mode) {
+        this._selectedMode = mode;
+        this._syncIdle();
+    }
+
+    _syncIdle() {
+        const countdown = this._selectedMode === 'countdown';
+        this._clockLabel.text = countdown ? formatClock(this._customMin * 60) : 'Ready';
+        this._buttonsRow.visible = countdown;
+        this._customMinus.visible = countdown;
+        this._customLabel.visible = countdown;
+        this._customPlus.visible = countdown;
+        this._customStart.label = countdown ? 'Start Timer' : 'Start Pomodoro';
+        this._setChipActive(this._timerModeChip, countdown);
+        this._setChipActive(this._pomodoroModeChip, !countdown);
+    }
+
     _adjustCustom(delta) {
         this._customMin = Math.max(CUSTOM_MIN, Math.min(CUSTOM_MAX, this._customMin + delta));
         if (this._customLabel) this._customLabel.text = `${this._customMin} min`;
         this._lastPreset = this._customMin;
+        this._renderButtons({state: 'idle'});
+        this._syncIdle();
     }
 
     _clearButtons() {
@@ -219,7 +291,8 @@ export class TimeSection {
                     this._lastPreset = minutes;
                     this._customMin = minutes;
                     if (this._customLabel) this._customLabel.text = `${minutes} min`;
-                    this._onStart({mode: 'countdown', durationMin: minutes});
+                    this._renderButtons({state: 'idle'});
+                    this._syncIdle();
                 }, this._lastPreset === minutes);
                 this._buttonsRow.add_child(chip);
                 this._buttons.push(chip);
@@ -240,9 +313,13 @@ export class TimeSection {
             return;
         }
 
-        const primary = this._makeChip(
-            timer.state === 'paused' ? 'Resume' : 'Pause',
-            () => this._onControl(timer.state === 'paused' ? 'resume' : 'pause'), true);
+        const primary = new St.Button({
+            label: timer.state === 'paused' ? 'Resume' : 'Pause',
+            style_class: 'linux-island__timer-cta',
+            can_focus: true,
+            x_expand: true,
+        });
+        primary.connect('clicked', () => this._onControl(timer.state === 'paused' ? 'resume' : 'pause'));
         this._buttonsRow.add_child(primary);
         this._buttons.push(primary);
 
@@ -275,6 +352,11 @@ export class TimeSection {
         const ratio = duration > 0
             ? Math.max(0, Math.min(1, 1 - remaining / duration))
             : 0;
+        this._ringProgress = ratio;
+        if (this._ringPctLabel) {
+            this._ringPctLabel.text = `${Math.round(ratio * 100)}%`;
+        }
+        this._ringArea?.queue_repaint();
         const width = Math.round(this._trackWidth * ratio);
         this._fill.style = `height: 4px; width: ${width}px;`;
     }
@@ -312,11 +394,8 @@ export class TimeSection {
         if (this._customRow) this._customRow.visible = idle;
         if (this._statsLabel) this._statsLabel.visible = idle && this._statsText() !== '';
 
-        if (this._modeRow) {
-            const isPomodoro = mode === 'pomodoro' && !idle;
-            this._setChipActive(this._timerModeChip, !isPomodoro);
-            this._setChipActive(this._pomodoroModeChip, isPomodoro);
-        }
+        if (idle) this._syncIdle();
+        else this._buttonsRow.visible = true;
 
         this._renderProgress();
     }
@@ -351,7 +430,7 @@ export class TimeSection {
         if (!this.actor) return;
         const width = Math.max(0, w);
         this.actor.width = width;
-        this.actor.style = `width: ${width}px; spacing: 4px;`;
+        this.actor.style = `width: ${width}px; spacing: 5px;`;
         this._trackWidth = width;
         this._renderProgress();
     }

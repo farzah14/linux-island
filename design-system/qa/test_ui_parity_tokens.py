@@ -17,8 +17,11 @@ ROLE_MAPPING = {
     'textPrimary': 'text.primary',
     'textSecondary': 'text.secondary',
     'textTertiary': 'text.tertiary',
+    'textOnAccent': 'text.onAccent',
     'accentPrimary': 'accent.primary',
     'accentHover': 'accent.hover',
+    'accentSubtle': 'accent.subtle',
+    'iconOnAccent': 'icon.onAccent',
     'borderSubtle': 'border.subtle',
     'borderFocus': 'border.focus',
     'statusSuccess': 'status.success',
@@ -115,7 +118,7 @@ def main():
         return 1
 
     print(
-        f"PASS: ThemeData.qml matches canonical Warm Minimalist tokens ("
+        f"PASS: ThemeData.qml matches canonical Obsidian Emerald tokens ("
         f"{len(ROLE_MAPPING)} colors across dark/light, {len(RADIUS_MAPPING)} radii, {len(MOTION_MAPPING)} motion durations)"
     )
     return 0

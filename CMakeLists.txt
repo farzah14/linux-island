@@ -39,6 +39,7 @@ install(FILES packaging/icons/io.github.linuxisland.svg
 
 install(FILES schemas/io.github.linuxisland.Core1.xml
         schemas/io.github.linuxisland.Time1.xml
+        schemas/io.github.linuxisland.Todo1.xml
         DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/interfaces)
 
 install(FILES LICENSE
@@ -53,6 +54,13 @@ install(DIRECTORY packaging/window-rules/
 
 install(DIRECTORY extension/
         DESTINATION ${CMAKE_INSTALL_DATADIR}/gnome-shell/extensions/linux-island@local)
+
+install(CODE "
+    find_program(GLIB_COMPILE_SCHEMAS glib-compile-schemas)
+    if(GLIB_COMPILE_SCHEMAS)
+        execute_process(COMMAND \${GLIB_COMPILE_SCHEMAS} \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/gnome-shell/extensions/linux-island@local/schemas\")
+    endif()
+")
 
 # The systemd unit needs the install prefix at install time, not configure time:
 # `cmake --install --prefix` and DESTDIR staging must both produce a unit whose
@@ -89,8 +97,8 @@ set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "farzahwalker46@gmail.com")
 set(CPACK_DEBIAN_PACKAGE_SECTION utils)
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "qml6-module-qtquick, qml6-module-qtquick-window, qml6-module-qtquick-layouts, qml6-module-qtquick-controls, qml6-module-qtquick-templates, qml6-module-qtquick-effects, libqt6svg6, qml6-module-qtqml-workerscript")
-set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "gnome-shell (>= 45), pipewire, wireplumber, libxcb-cursor0, x11-utils")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "qml6-module-qtquick, qml6-module-qtquick-window, qml6-module-qtquick-layouts, qml6-module-qtquick-controls, qml6-module-qtquick-templates, libqt6svg6, qml6-module-qtqml-workerscript")
+set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "gnome-shell (>= 45), pipewire | pulseaudio-utils, wireplumber, libxcb-cursor0, x11-utils")
 set(CPACK_RPM_PACKAGE_LICENSE MIT)
 set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtbase, qt6-qtbase-gui, qt6-qtdeclarative, qt6-qtsvg, xorg-x11-utils")
 

@@ -19,11 +19,28 @@
 #include <iostream>
 #include "island_client.h"
 #include "time_client.h"
+#include "todo_client.h"
 #include "system_metrics_provider.h"
 #include "quick_settings_provider.h"
 #include "ai_quota_provider.h"
 #include "notification_watcher.h"
 #include "display_surface_manager.h"
+#include "tinted_svg_provider.h"
+
+class UiControlAdaptor : public QObject {
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "io.github.linuxisland.Ui1")
+public:
+    explicit UiControlAdaptor(IslandClient *client, QObject *parent = nullptr)
+        : QObject(parent), m_client(client) {}
+public slots:
+    void Toggle() {
+        if (m_client)
+            m_client->toggleExpanded();
+    }
+private:
+    IslandClient *m_client = nullptr;
+};
 
 int main(int argc, char *argv[]) {
     for (int i = 1; i < argc; ++i) {
@@ -34,11 +51,27 @@ int main(int argc, char *argv[]) {
     }
 
     bool smokeTest = false;
+    bool toggleMode = false;
     for (int i = 1; i < argc; ++i) {
         const QString arg = QString::fromUtf8(argv[i]);
         if (arg == QLatin1String("--smoke-test")) {
             smokeTest = true;
+        } else if (arg == QLatin1String("--toggle")) {
+            toggleMode = true;
         }
+    }
+
+    if (toggleMode) {
+        QDBusConnection bus = QDBusConnection::sessionBus();
+        if (!bus.isConnected())
+            return 1;
+        QDBusMessage msg = QDBusMessage::createMethodCall(
+            QStringLiteral("io.github.linuxisland.Ui"),
+            QStringLiteral("/io/github/linuxisland/Ui"),
+            QStringLiteral("io.github.linuxisland.Ui1"),
+            QStringLiteral("Toggle"));
+        const QDBusMessage reply = bus.call(msg, QDBus::Block, 1000);
+        return reply.type() == QDBusMessage::ErrorMessage ? 1 : 0;
     }
 
     if (smokeTest && !qEnvironmentVariableIsSet("QT_QPA_PLATFORM")) {
@@ -90,6 +123,15 @@ int main(int argc, char *argv[]) {
 
     IslandClient client;
     TimeClient timeClient;
+    TodoClient todoClient;
+    UiControlAdaptor uiControl(&client);
+    if (!smokeTest && QDBusConnection::sessionBus().isConnected()) {
+        QDBusConnection::sessionBus().registerService(QStringLiteral("io.github.linuxisland.Ui"));
+        QDBusConnection::sessionBus().registerObject(
+            QStringLiteral("/io/github/linuxisland/Ui"),
+            &uiControl,
+            QDBusConnection::ExportAllSlots);
+    }
     SystemMetricsProvider metrics;
     QuickSettingsProvider quickSettings;
     AiQuotaProvider aiQuota;
@@ -124,6 +166,7 @@ int main(int argc, char *argv[]) {
                      &notificationWatcher, syncNotificationPrefs);
 
     QQmlApplicationEngine engine;
+    engine.addImageProvider(QStringLiteral("tinted"), new TintedSvgProvider);
     bool qmlWarnings = false;
     if (smokeTest) {
         QObject::connect(&engine, &QQmlEngine::warnings, &engine,
@@ -132,6 +175,7 @@ int main(int argc, char *argv[]) {
 
     engine.rootContext()->setContextProperty(QStringLiteral("islandClient"), &client);
     engine.rootContext()->setContextProperty(QStringLiteral("timeClient"), &timeClient);
+    engine.rootContext()->setContextProperty(QStringLiteral("todoClient"), &todoClient);
     engine.rootContext()->setContextProperty(QStringLiteral("systemMetrics"), &metrics);
     engine.rootContext()->setContextProperty(QStringLiteral("quickSettings"), &quickSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("aiQuota"), &aiQuota);
@@ -255,9 +299,15 @@ int main(int argc, char *argv[]) {
             std::cerr << "Smoke test error: timer page missing" << std::endl;
             return 10;
         }
-        if (timePage->property("implicitHeight").toInt() != 116) {
+        if (timePage->property("implicitHeight").toInt() != 132) {
             std::cerr << "Smoke test error: timer page height" << std::endl;
             return 11;
+        }
+
+        auto *todoPage = rootWindow->findChild<QObject *>(QStringLiteral("todoPage"));
+        if (!todoPage || todoPage->property("implicitHeight").toInt() != 116) {
+            std::cerr << "Smoke test error: todo page missing or wrong height" << std::endl;
+            return 14;
         }
 
         if (qmlWarnings) {
@@ -270,3 +320,5 @@ int main(int argc, char *argv[]) {
 
     return app.exec();
 }
+
+#include "main.moc"

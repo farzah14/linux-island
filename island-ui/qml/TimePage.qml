@@ -2,31 +2,30 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// Timer / Pomodoro page. Mirrors extension/ui/timeView.js.
-// The Core daemon owns the countdown, so this page is a pure view.
+// Timer / Pomodoro page matching FigCraft layout & GNOME timeView.js.
 Item {
     id: root
     objectName: "timePage"
 
     implicitWidth: parent ? parent.width : 320
-
-    // Row budget: clock 26 (a 20px bold label needs its full line box),
-    // progress 4, controls 18, custom 18, modes 18, stats 16, plus 4px
-    // spacing between six children.
-    readonly property int contentHeight: root.idle ? 116 : 56
-    implicitHeight: 116
+    readonly property int contentHeight: root.idle ? 132 : 84
+    implicitHeight: 132
 
     readonly property bool idle: timeClient.timerState === "idle"
     readonly property bool running: timeClient.timerState === "running"
     readonly property bool paused: timeClient.timerState === "paused"
     readonly property bool finished: timeClient.timerState === "finished"
+    readonly property real progress: timeClient.timerDurationSec > 0
+        ? Math.max(0, Math.min(1, 1 - timeClient.timerRemainingSec / timeClient.timerDurationSec))
+        : 0
     readonly property string phaseText: timeClient.timerPhase === "long-break"
-        ? "Long break"
+        ? "Long Break"
         : (timeClient.timerPhase === "break" ? "Break"
             : (timeClient.timerPhase === "focus" ? "Focus" : ""))
     readonly property bool showCycle: timeClient.timerMode === "pomodoro" && !idle
 
     property int customMin: 25
+    property bool pomodoroSelected: false
 
     readonly property var stats: timeClient.timerStats
     readonly property string statsText: {
@@ -36,26 +35,31 @@ Item {
         return `${focus} focus · ${minutes} min`;
     }
 
-    component Chip: Rectangle {
+    component PillChip: Rectangle {
         id: chip
         property string label: ""
         property bool active: false
+        property bool primaryCta: false
         signal clicked()
 
         implicitWidth: chipLabel.implicitWidth + 16
-        implicitHeight: 18
-        radius: 6
-        color: chipMouse.containsMouse || active ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
-        border.width: 1
-        border.color: chip.active ? IslandTheme.accentPrimary : "transparent"
+        implicitHeight: primaryCta ? 24 : 20
+        radius: 999
+        color: primaryCta
+            ? (chipMouse.containsMouse ? IslandTheme.accentHover : IslandTheme.accentPrimary)
+            : ((active || chipMouse.containsMouse) ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised)
+        border.width: primaryCta ? 0 : 1
+        border.color: active ? IslandTheme.accentPrimary : IslandTheme.borderSubtle
 
         Text {
             id: chipLabel
             anchors.centerIn: parent
             text: chip.label
-            font.pixelSize: 10
-            font.bold: true
-            color: chip.active ? IslandTheme.accentPrimary : (chipMouse.containsMouse ? IslandTheme.textPrimary : IslandTheme.textSecondary)
+            font.pixelSize: primaryCta ? 11 : 10
+            font.weight: (primaryCta || active) ? Font.Bold : Font.Medium
+            color: primaryCta
+                ? IslandTheme.textOnAccent
+                : (active ? IslandTheme.accentPrimary : (chipMouse.containsMouse ? IslandTheme.textPrimary : IslandTheme.textSecondary))
         }
 
         MouseArea {
@@ -69,49 +73,120 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        spacing: 4
+        spacing: 2
 
-        // Row 1: clock, phase, cycle position.
+        // Mode switcher pills (idle only, left-aligned matching GNOME timeView.js)
         RowLayout {
             Layout.fillWidth: true
-            Layout.preferredHeight: 26
+            Layout.preferredHeight: 18
             spacing: 6
-            visible: timeClient.timerServiceAvailable
-            Layout.alignment: Qt.AlignHCenter
+            Layout.alignment: Qt.AlignLeft
+            visible: root.idle && timeClient.timerServiceAvailable
 
-            Text {
-                text: timeClient.formatClock(timeClient.timerRemainingSec)
-                font.pixelSize: 20
-                font.bold: true
-                color: IslandTheme.textPrimary
-                Layout.alignment: Qt.AlignVCenter
+            PillChip {
+                implicitHeight: 18
+                label: "Timer"
+                active: !root.pomodoroSelected
+                onClicked: root.pomodoroSelected = false
             }
-
-            Text {
-                text: root.phaseText
-                visible: text !== ""
-                font.pixelSize: 10
-                font.bold: true
-                color: IslandTheme.textSecondary
-                Layout.alignment: Qt.AlignVCenter
-            }
-
-            Text {
-                text: root.showCycle
-                    ? `${Math.min(timeClient.timerCycle, timeClient.timerTotalCycles)}/${timeClient.timerTotalCycles}`
-                    : ""
-                visible: root.showCycle
-                font.pixelSize: 10
-                font.bold: true
-                color: IslandTheme.accentPrimary
-                Layout.alignment: Qt.AlignVCenter
+            PillChip {
+                implicitHeight: 18
+                label: "Pomodoro"
+                active: root.pomodoroSelected
+                onClicked: root.pomodoroSelected = true
             }
         }
 
-        // Offline notice replaces the clock when the timer service is missing.
+        // Hero Row: 22px clock + phase/cycle left, 40x40 ring + centered % right
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 40
+            spacing: 8
+            visible: timeClient.timerServiceAvailable
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 2
+
+                Text {
+                    text: root.idle
+                        ? (root.pomodoroSelected ? "Ready" : timeClient.formatClock(root.customMin * 60))
+                        : timeClient.formatClock(timeClient.timerRemainingSec)
+                    font.pixelSize: 22
+                    font.weight: Font.Bold
+                    color: IslandTheme.textPrimary
+                }
+
+                RowLayout {
+                    spacing: 6
+                    visible: root.phaseText !== "" || root.showCycle || root.idle
+
+                    Text {
+                        text: root.idle
+                            ? (root.pomodoroSelected ? "Pomodoro session" : "Countdown timer")
+                            : root.phaseText
+                        font.pixelSize: 10
+                        font.weight: Font.Bold
+                        color: IslandTheme.textSecondary
+                    }
+
+                    Text {
+                        text: root.showCycle
+                            ? `${Math.min(timeClient.timerCycle, timeClient.timerTotalCycles)}/${timeClient.timerTotalCycles}`
+                            : ""
+                        visible: root.showCycle
+                        font.pixelSize: 10
+                        font.weight: Font.Bold
+                        color: IslandTheme.accentPrimary
+                    }
+                }
+            }
+
+            Item {
+                Layout.preferredWidth: 40
+                Layout.preferredHeight: 40
+                Layout.alignment: Qt.AlignVCenter
+
+                Canvas {
+                    id: ring
+                    anchors.fill: parent
+                    readonly property real ringProgress: root.progress
+                    onRingProgressChanged: requestPaint()
+                    onVisibleChanged: requestPaint()
+                    Connections { target: IslandTheme; function onIsDarkChanged() { ring.requestPaint(); } }
+                    onPaint: {
+                        const ctx = getContext("2d");
+                        ctx.clearRect(0, 0, width, height);
+                        ctx.lineWidth = 3.5;
+                        ctx.lineCap = "round";
+                        ctx.strokeStyle = IslandTheme.progressTrack;
+                        ctx.beginPath();
+                        ctx.arc(width / 2, height / 2, 17, 0, 2 * Math.PI);
+                        ctx.stroke();
+                        if (ringProgress > 0) {
+                            ctx.strokeStyle = IslandTheme.progressFill;
+                            ctx.beginPath();
+                            ctx.arc(width / 2, height / 2, 17, -Math.PI / 2, -Math.PI / 2 + ringProgress * 2 * Math.PI);
+                            ctx.stroke();
+                        }
+                    }
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: Math.round(root.progress * 100) + "%"
+                    font.pixelSize: 10
+                    font.weight: Font.Bold
+                    color: root.progress > 0 ? IslandTheme.accentPrimary : IslandTheme.textSecondary
+                }
+            }
+        }
+
+        // Offline notice
         Text {
             Layout.fillWidth: true
-            Layout.preferredHeight: 26
+            Layout.preferredHeight: 40
             visible: !timeClient.timerServiceAvailable
             text: "Timer service offline"
             font.pixelSize: 11
@@ -121,7 +196,7 @@ Item {
             verticalAlignment: Text.AlignVCenter
         }
 
-        // Row 2: progress.
+        // Progress bar
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 4
@@ -132,143 +207,123 @@ Item {
                 height: parent.height
                 radius: 2
                 color: IslandTheme.progressFill
-                // Idle has no duration; guard so it does not paint a full bar.
-                width: timeClient.timerDurationSec > 0
-                    ? parent.width * Math.max(0, Math.min(1,
-                        1 - timeClient.timerRemainingSec / timeClient.timerDurationSec))
-                    : 0
+                width: parent.width * root.progress
             }
         }
 
-        // Row 3: state-dependent controls.
+        // Idle Presets Row
         RowLayout {
             Layout.fillWidth: true
-            Layout.preferredHeight: 18
+            Layout.preferredHeight: 20
             spacing: 4
-            Layout.alignment: Qt.AlignHCenter
-            visible: timeClient.timerServiceAvailable
+            visible: root.idle && !root.pomodoroSelected && timeClient.timerServiceAvailable
 
-            Chip {
-                visible: root.idle
+            PillChip {
+                Layout.fillWidth: true
                 label: "5"
                 active: root.customMin === 5
-                onClicked: { root.customMin = 5; timeClient.startTimer(5); }
+                onClicked: root.customMin = 5
             }
-            Chip {
-                visible: root.idle
+            PillChip {
+                Layout.fillWidth: true
                 label: "15"
                 active: root.customMin === 15
-                onClicked: { root.customMin = 15; timeClient.startTimer(15); }
+                onClicked: root.customMin = 15
             }
-            Chip {
-                visible: root.idle
+            PillChip {
+                Layout.fillWidth: true
                 label: "25"
                 active: root.customMin === 25
-                onClicked: { root.customMin = 25; timeClient.startTimer(25); }
+                onClicked: root.customMin = 25
             }
-            Chip {
-                visible: root.idle
+            PillChip {
+                Layout.fillWidth: true
                 label: "45"
                 active: root.customMin === 45
-                onClicked: { root.customMin = 45; timeClient.startTimer(45); }
+                onClicked: root.customMin = 45
+            }
+        }
+
+        // Action CTA Row (Idle or Running/Paused/Finished)
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 24
+            spacing: 4
+            visible: timeClient.timerServiceAvailable
+
+            PillChip {
+                visible: root.idle && !root.pomodoroSelected
+                label: "−5"
+                onClicked: root.customMin = Math.max(1, root.customMin - 5)
+            }
+            Text {
+                visible: root.idle && !root.pomodoroSelected
+                text: root.customMin + " min"
+                font.pixelSize: 10
+                font.weight: Font.DemiBold
+                color: IslandTheme.textSecondary
+                Layout.minimumWidth: 40
+                horizontalAlignment: Text.AlignHCenter
+            }
+            PillChip {
+                visible: root.idle && !root.pomodoroSelected
+                label: "+5"
+                onClicked: root.customMin = Math.min(180, root.customMin + 5)
+            }
+            PillChip {
+                Layout.fillWidth: true
+                visible: root.idle
+                primaryCta: true
+                label: root.pomodoroSelected ? "Start Pomodoro" : "Start Timer"
+                onClicked: { if (root.pomodoroSelected) timeClient.startPomodoro(); else timeClient.startTimer(root.customMin); }
             }
 
-            Chip {
+            PillChip {
+                Layout.fillWidth: true
                 visible: root.running
+                primaryCta: true
                 label: "Pause"
-                active: true
                 onClicked: timeClient.pauseTimer()
             }
-            Chip {
+            PillChip {
+                Layout.fillWidth: true
                 visible: root.paused
+                primaryCta: true
                 label: "Resume"
-                active: true
                 onClicked: timeClient.resumeTimer()
             }
-            Chip {
+            PillChip {
                 visible: root.running || root.paused
                 label: "Stop"
                 onClicked: timeClient.stopTimer()
             }
-            Chip {
+            PillChip {
                 visible: root.running && timeClient.timerMode === "pomodoro"
                 label: "Skip"
                 onClicked: timeClient.skipPhase()
             }
-            // Pomodoro with auto-advance off holds at zero: offer the next phase.
-            Chip {
+            PillChip {
+                Layout.fillWidth: true
                 visible: root.finished && timeClient.timerMode === "pomodoro"
+                primaryCta: true
                 label: "Next"
-                active: true
                 onClicked: timeClient.nextPhase()
             }
-            Chip {
+            PillChip {
                 visible: root.finished
                 label: "Dismiss"
                 onClicked: timeClient.stopTimer()
             }
         }
 
-        // Row 4: custom countdown duration, idle only.
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 18
-            spacing: 4
-            Layout.alignment: Qt.AlignHCenter
-            visible: root.idle && timeClient.timerServiceAvailable
-
-            Chip {
-                label: "−5"
-                onClicked: root.customMin = Math.max(1, root.customMin - 5)
-            }
-            Text {
-                text: root.customMin + " min"
-                font.pixelSize: 10
-                font.bold: true
-                color: IslandTheme.textSecondary
-                Layout.alignment: Qt.AlignVCenter
-                horizontalAlignment: Text.AlignHCenter
-                Layout.preferredWidth: 44
-            }
-            Chip {
-                label: "+5"
-                onClicked: root.customMin = Math.min(180, root.customMin + 5)
-            }
-            Chip {
-                label: "Start"
-                active: true
-                onClicked: timeClient.startTimer(root.customMin)
-            }
-        }
-
-        // Row 5: mode chips, idle only.
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 18
-            spacing: 4
-            Layout.alignment: Qt.AlignHCenter
-            visible: root.idle && timeClient.timerServiceAvailable
-
-            Chip {
-                label: "Timer"
-                active: !(timeClient.timerMode === "pomodoro" && !root.idle)
-                onClicked: {}
-            }
-            Chip {
-                label: "Pomodoro"
-                active: timeClient.timerMode === "pomodoro" && !root.idle
-                onClicked: timeClient.startPomodoro()
-            }
-        }
-
-        // Row 6: session statistics, idle only.
+        // Session statistics (idle only)
         Text {
             Layout.fillWidth: true
-            Layout.preferredHeight: 16
+            Layout.preferredHeight: 14
             visible: root.idle && root.statsText !== ""
             text: root.statsText
             font.pixelSize: 9
-            font.bold: true
+            font.weight: Font.Bold
             color: IslandTheme.textTertiary
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter

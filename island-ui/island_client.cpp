@@ -37,9 +37,15 @@ QVariantMap variantToMap(const QVariant &value) {
 
 IslandClient::IslandClient(const QDBusConnection &bus, QObject *parent)
     : QObject(parent),
-      m_bus(bus) {
+      m_bus(bus),
+      m_portalScheme(bus, this) {
     m_peekTimer.setSingleShot(true);
     connect(&m_peekTimer, &QTimer::timeout, this, &IslandClient::onPeekTimeout);
+    connect(&m_portalScheme, &PortalColorSchemeObserver::darkModeChanged, this, [this](bool) {
+        if (m_theme == QLatin1String("system") || m_theme.isEmpty()) {
+            emit settingsChanged();
+        }
+    });
 
     if (m_bus.isConnected()) {
         m_bus.connect(
@@ -161,8 +167,8 @@ QString IslandClient::timeTotalText() const {
 
 bool IslandClient::effectiveDarkTheme() const {
     if (m_theme == QLatin1String("light")) return false;
-    // Default or "dark" or "system" defaults to dark Warm Minimalist
-    return true;
+    if (m_theme == QLatin1String("dark")) return true;
+    return m_portalScheme.isDark();
 }
 
 void IslandClient::cycleTheme() {
@@ -335,8 +341,97 @@ void IslandClient::applySettingsMap(const QVariantMap &settings) {
     if (settings.contains(QStringLiteral("displayMode"))) m_displayMode = settings.value(QStringLiteral("displayMode")).toString();
     if (settings.contains(QStringLiteral("verticalOffset"))) m_verticalOffset = settings.value(QStringLiteral("verticalOffset")).toInt();
     if (settings.contains(QStringLiteral("horizontalOffset"))) m_horizontalOffset = settings.value(QStringLiteral("horizontalOffset")).toInt();
+    if (settings.contains(QStringLiteral("carouselPages"))) m_carouselPages = settings.value(QStringLiteral("carouselPages")).toString();
+    if (settings.contains(QStringLiteral("defaultPage"))) m_defaultPage = settings.value(QStringLiteral("defaultPage")).toString();
+    if (settings.contains(QStringLiteral("toggleShortcut"))) m_toggleShortcut = settings.value(QStringLiteral("toggleShortcut")).toString();
 
     emit settingsChanged();
+}
+
+namespace {
+struct PageMeta {
+    const char *id;
+    int swipeIndex;
+    const char *icon;
+};
+constexpr PageMeta kAllPages[] = {
+    {"media", 0, "qrc:/linuxisland/ui/icons/ui/media-symbolic.svg"},
+    {"system", 1, "qrc:/linuxisland/ui/icons/ui/system-symbolic.svg"},
+    {"ai", 2, "qrc:/linuxisland/ui/icons/ui/ai-symbolic.svg"},
+    {"timer", 3, "qrc:/linuxisland/ui/icons/ui/timer-symbolic.svg"},
+    {"todo", 4, "qrc:/linuxisland/ui/icons/ui/todo-symbolic.svg"},
+};
+}  // namespace
+
+QVariantList IslandClient::orderedPages() const {
+    QVariantList result;
+    QStringList seen;
+    for (const QString &raw : m_carouselPages.split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+        const QString id = raw.trimmed();
+        if (seen.contains(id))
+            continue;
+        for (const PageMeta &meta : kAllPages) {
+            if (id == QLatin1String(meta.id)) {
+                seen.append(id);
+                result.append(QVariantMap{
+                    {QStringLiteral("id"), id},
+                    {QStringLiteral("swipeIndex"), meta.swipeIndex},
+                    {QStringLiteral("icon"), QString::fromLatin1(meta.icon)},
+                });
+                break;
+            }
+        }
+    }
+    if (result.isEmpty()) {
+        for (const PageMeta &meta : kAllPages) {
+            result.append(QVariantMap{
+                {QStringLiteral("id"), QString::fromLatin1(meta.id)},
+                {QStringLiteral("swipeIndex"), meta.swipeIndex},
+                {QStringLiteral("icon"), QString::fromLatin1(meta.icon)},
+            });
+        }
+    }
+    return result;
+}
+
+int IslandClient::defaultSwipeIndex() const {
+    const QVariantList pages = orderedPages();
+    for (const QVariant &entry : pages) {
+        const QVariantMap m = entry.toMap();
+        if (m.value(QStringLiteral("id")).toString() == m_defaultPage)
+            return m.value(QStringLiteral("swipeIndex")).toInt();
+    }
+    return pages.isEmpty() ? 0 : pages.first().toMap().value(QStringLiteral("swipeIndex")).toInt();
+}
+
+int IslandClient::nearestOrderedSwipeIndex(int swipeIndex) const {
+    const QVariantList pages = orderedPages();
+    if (pages.isEmpty())
+        return 0;
+    for (const QVariant &entry : pages) {
+        if (entry.toMap().value(QStringLiteral("swipeIndex")).toInt() == swipeIndex)
+            return swipeIndex;
+    }
+    int best = pages.first().toMap().value(QStringLiteral("swipeIndex")).toInt();
+    int bestDist = std::abs(best - swipeIndex);
+    for (const QVariant &entry : pages) {
+        const int idx = entry.toMap().value(QStringLiteral("swipeIndex")).toInt();
+        const int dist = std::abs(idx - swipeIndex);
+        if (dist < bestDist) {
+            bestDist = dist;
+            best = idx;
+        }
+    }
+    return best;
+}
+
+void IslandClient::toggleExpanded() {
+    if (m_uiState == QLatin1String("EXPANDED")) {
+        dispatchEvent(QStringLiteral("DISMISS"));
+    } else {
+        emit toggleRequested();
+        dispatchEvent(QStringLiteral("CLICK"));
+    }
 }
 
 void IslandClient::fetchSnapshot() {

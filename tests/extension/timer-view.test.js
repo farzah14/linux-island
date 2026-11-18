@@ -9,6 +9,7 @@ class Actor {
         this.style_class = props.style_class ?? '';
     }
     add_child(child) { this.children.push(child); }
+    insert_child_at_index(child, index) { this.children.splice(index, 0, child); }
     remove_child(child) { this.children = this.children.filter(c => c !== child); }
     connect(name, fn) { this.handlers[name] = fn; return name; }
     destroy() { this.destroyed = true; }
@@ -47,9 +48,30 @@ const idle = () => ({state: 'idle', mode: 'countdown', phase: '', label: '',
     assert.equal(section._cycleLabel.visible, false, 'no cycle badge for a countdown');
 
     section._buttons[2].handlers.clicked();
+    assert.equal(starts.length, 0, 'preset selects without starting');
+    assert.equal(section._clockLabel.text, '25:00');
+    section._customStart.handlers.clicked();
     assert.deepEqual(starts[0], {mode: 'countdown', durationMin: 25});
     assert.equal(section._customLabel.text, '25 min', 'preset updates the custom value');
 
+    section.destroy();
+}
+
+// Mode selection never starts a session; the explicit action starts it.
+{
+    const starts = [];
+    const section = new TimeSection({onStart: r => starts.push(r)});
+    section.setTimer(idle());
+    section._pomodoroModeChip.handlers.clicked();
+    assert.equal(starts.length, 0);
+    assert.equal(section._clockLabel.text, 'Ready');
+    assert.equal(section._buttonsRow.visible, false);
+    assert.equal(section._customStart.label, 'Start Pomodoro');
+    section._customStart.handlers.clicked();
+    assert.deepEqual(starts[0], {mode: 'pomodoro'});
+    section._timerModeChip.handlers.clicked();
+    assert.equal(section._clockLabel.text, '25:00');
+    assert.equal(section._buttonsRow.visible, true);
     section.destroy();
 }
 

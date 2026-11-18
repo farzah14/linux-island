@@ -8,7 +8,7 @@ This file is automatically discoverable by many coding agents. Follow it before 
 - Long-term: multiple Linux desktop environments and Dynamic/Floating/Integrated modes; **v0.1** requires Dynamic Mode only.
 - Approved architecture: GNOME Shell Extension GJS for live Island UI; C++20 + Qt6 Core for data/settings and D-Bus Session Bus; Qt Quick/QML for Settings.
 - UI states are `HIDDEN`, `COMPACT`, `PREVIEW`, `EXPANDED`, `PEEK`; fullscreen visibility wins; GNOME native notifications remain authoritative.
-- Approved visual system: **Warm Minimalist**. Canonical tokens: `design-system/tokens/tokens.json`; never invent a different palette.
+- Approved visual system: **Obsidian Emerald**. Canonical tokens: `design-system/tokens/tokens.json`; never invent a different palette.
 - Approved D-Bus contract: `schemas/io.github.linuxisland.Core1.xml`; six methods and three signals; no unapproved signature changes.
 
 ## Mandatory agent sequence

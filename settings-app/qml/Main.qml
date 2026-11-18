@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import linuxisland.settings
 
 ApplicationWindow {
     id: root
@@ -10,7 +11,29 @@ ApplicationWindow {
     minimumWidth: 520
     minimumHeight: 560
     title: "Linux Island Settings"
-    color: "#191816"
+    color: Theme.surfaceCanvas
+
+    Binding {
+        target: Theme
+        property: "isDark"
+        value: settingsProxy.theme === "light"
+            ? false
+            : (settingsProxy.theme === "dark"
+                ? true
+                : settingsProxy.systemDarkTheme)
+    }
+
+    palette {
+        window: Theme.surfaceCanvas
+        windowText: Theme.textPrimary
+        base: Theme.surfaceIsland
+        text: Theme.textPrimary
+        button: Theme.surfaceRaised
+        buttonText: Theme.textPrimary
+        highlight: Theme.accentPrimary
+        highlightedText: Theme.textOnAccent
+        accent: Theme.accentPrimary
+    }
 
     function getPlayerItems() {
         let items = [{ text: "Automatic (Follows active playback)", value: "" }];
@@ -50,8 +73,8 @@ ApplicationWindow {
 
         Rectangle {
             Layout.alignment: Qt.AlignTop
-            color: "#191816"
-            border.color: "#575148"
+            color: Theme.surfaceIsland
+            border.color: Theme.borderSubtle
             border.width: 1
             radius: 4
             implicitHeight: 22
@@ -60,7 +83,7 @@ ApplicationWindow {
             Text {
                 id: badgeLabel
                 anchors.centerIn: parent
-                color: "#D8B77F"
+                color: Theme.accentPrimary
                 font.bold: true
                 font.pixelSize: 11
             }
@@ -68,7 +91,7 @@ ApplicationWindow {
 
         Text {
             id: descLabel
-            color: "#C8C0B5"
+            color: Theme.textSecondary
             font.pixelSize: 12
             wrapMode: Text.WordWrap
             Layout.fillWidth: true
@@ -117,7 +140,7 @@ ApplicationWindow {
                 text: "Linux Island"
                 font.pixelSize: 22
                 font.bold: true
-                color: "#F4F0E9"
+                color: Theme.textPrimary
             }
 
             Item { Layout.fillWidth: true }
@@ -126,20 +149,20 @@ ApplicationWindow {
                 width: 12
                 height: 12
                 radius: 6
-                color: settingsProxy.connected ? "#9DD2B1" : "#F2A3A0"
+                color: settingsProxy.connected ? Theme.statusSuccess : Theme.statusDanger
             }
 
             Text {
                 text: settingsProxy.connected ? "Core Connected" : "Core Offline"
                 font.pixelSize: 12
-                color: "#C8C0B5"
+                color: Theme.textSecondary
             }
         }
 
         Rectangle {
             Layout.fillWidth: true
             height: 1
-            color: "#575148"
+            color: Theme.borderSubtle
         }
 
         // Segmented Tab Bar
@@ -147,8 +170,8 @@ ApplicationWindow {
             Layout.fillWidth: true
             implicitHeight: 40
             radius: 8
-            color: "#23211E"
-            border.color: "#575148"
+            color: Theme.surfaceElevated
+            border.color: Theme.borderSubtle
 
             RowLayout {
                 anchors.fill: parent
@@ -160,12 +183,12 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     radius: 6
-                    color: root.currentTab === 0 ? "#D8B77F" : (tab0Mouse.containsMouse ? "#302D28" : "transparent")
+                    color: root.currentTab === 0 ? Theme.accentPrimary : (tab0Mouse.containsMouse ? Theme.surfaceRaised : "transparent")
 
                     Text {
                         anchors.centerIn: parent
                         text: "⚙ Preferences"
-                        color: root.currentTab === 0 ? "#191816" : "#C8C0B5"
+                        color: root.currentTab === 0 ? Theme.textOnAccent : Theme.textSecondary
                         font.bold: root.currentTab === 0
                         font.pixelSize: 13
                     }
@@ -184,12 +207,12 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     radius: 6
-                    color: root.currentTab === 1 ? "#D8B77F" : (tab1Mouse.containsMouse ? "#302D28" : "transparent")
+                    color: root.currentTab === 1 ? Theme.accentPrimary : (tab1Mouse.containsMouse ? Theme.surfaceRaised : "transparent")
 
                     Text {
                         anchors.centerIn: parent
                         text: "⌨ Shortcuts & Guide"
-                        color: root.currentTab === 1 ? "#191816" : "#C8C0B5"
+                        color: root.currentTab === 1 ? Theme.textOnAccent : Theme.textSecondary
                         font.bold: root.currentTab === 1
                         font.pixelSize: 13
                     }
@@ -220,8 +243,8 @@ ApplicationWindow {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: guideBannerRow.implicitHeight + 24
-                    color: "#23211E"
-                    border.color: "#575148"
+                    color: Theme.surfaceElevated
+                    border.color: Theme.borderSubtle
                     radius: 8
 
                     RowLayout {
@@ -234,7 +257,7 @@ ApplicationWindow {
 
                         Text {
                             text: "💡 New to Linux Island? Learn all shortcuts and gestures"
-                            color: "#F4F0E9"
+                            color: Theme.textPrimary
                             font.pixelSize: 12
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
@@ -244,13 +267,13 @@ ApplicationWindow {
                             implicitWidth: guideBtnText.implicitWidth + 24
                             implicitHeight: 28
                             radius: 6
-                            color: guideBtnMouse.containsMouse ? "#E9CEA0" : "#D8B77F"
+                            color: guideBtnMouse.containsMouse ? Theme.accentHover : Theme.accentPrimary
 
                             Text {
                                 id: guideBtnText
                                  anchors.centerIn: parent
                                 text: "View Guide →"
-                                color: "#191816"
+                                color: Theme.textOnAccent
                                 font.bold: true
                                 font.pixelSize: 11
                             }
@@ -275,7 +298,7 @@ ApplicationWindow {
                 text: "Appearance Theme"
                 font.bold: true
                 font.pixelSize: 14
-                color: "#F4F0E9"
+                color: Theme.textPrimary
             }
 
             RowLayout {
@@ -325,7 +348,7 @@ ApplicationWindow {
                 text: "Capsule Size"
                 font.bold: true
                 font.pixelSize: 14
-                color: "#F4F0E9"
+                color: Theme.textPrimary
             }
 
             RowLayout {
@@ -386,7 +409,7 @@ ApplicationWindow {
                 text: "Display Mode"
                 font.bold: true
                 font.pixelSize: 14
-                color: "#F4F0E9"
+                color: Theme.textPrimary
             }
 
             RowLayout {
@@ -431,7 +454,7 @@ ApplicationWindow {
                     ? "Panel Integrated has no top-panel button yet; this falls back to the Qt overlay."
                     : "Dynamic sits in the top bar. Floating renders the same capsule below the panel with a shadow."
                 font.pixelSize: 12
-                color: "#A69C8F"
+                color: Theme.textTertiary
                 wrapMode: Text.WordWrap
                 Layout.fillWidth: true
             }
@@ -446,13 +469,13 @@ ApplicationWindow {
                     text: "Screen & Notch Alignment"
                     font.bold: true
                     font.pixelSize: 14
-                    color: "#F4F0E9"
+                    color: Theme.textPrimary
                 }
 
                 Text {
                     text: "Fine-tune capsule position to avoid overlapping camera notches, punch-holes, or top panel items."
                     font.pixelSize: 12
-                    color: "#A69C8F"
+                    color: Theme.textTertiary
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true
                 }
@@ -463,7 +486,7 @@ ApplicationWindow {
                     Text {
                         text: "Top Offset: " + Math.round(vOffsetSlider.value) + " px"
                         font.pixelSize: 13
-                        color: "#F4F0E9"
+                        color: Theme.textPrimary
                     }
                     Item { Layout.fillWidth: true }
                 }
@@ -491,12 +514,12 @@ ApplicationWindow {
                         width: vOffsetSlider.availableWidth
                         height: implicitHeight
                         radius: 3
-                        color: "#302D28"
+                        color: Theme.surfaceRaised
 
                         Rectangle {
                             width: vOffsetSlider.visualPosition * parent.width
                             height: parent.height
-                            color: "#D8B77F"
+                            color: Theme.accentPrimary
                             radius: 3
                         }
                     }
@@ -507,8 +530,8 @@ ApplicationWindow {
                         implicitWidth: 18
                         implicitHeight: 18
                         radius: 9
-                        color: vOffsetSlider.pressed ? "#F4F0E9" : "#D8B77F"
-                        border.color: "#191816"
+                        color: vOffsetSlider.pressed ? Theme.textPrimary : Theme.accentPrimary
+                        border.color: Theme.surfaceCanvas
                         border.width: 1
                     }
 
@@ -531,7 +554,7 @@ ApplicationWindow {
                         property int hVal: Math.round(hOffsetSlider.value)
                         text: "Horizontal Offset: " + (hVal === 0 ? "Center" : (hVal > 0 ? "+" + hVal + " px Right" : hVal + " px Left"))
                         font.pixelSize: 13
-                        color: "#F4F0E9"
+                        color: Theme.textPrimary
                     }
                     Item { Layout.fillWidth: true }
                 }
@@ -559,12 +582,12 @@ ApplicationWindow {
                         width: hOffsetSlider.availableWidth
                         height: implicitHeight
                         radius: 3
-                        color: "#302D28"
+                        color: Theme.surfaceRaised
 
                         Rectangle {
                             width: hOffsetSlider.visualPosition * parent.width
                             height: parent.height
-                            color: "#D8B77F"
+                            color: Theme.accentPrimary
                             radius: 3
                         }
                     }
@@ -575,8 +598,8 @@ ApplicationWindow {
                         implicitWidth: 18
                         implicitHeight: 18
                         radius: 9
-                        color: hOffsetSlider.pressed ? "#F4F0E9" : "#D8B77F"
-                        border.color: "#191816"
+                        color: hOffsetSlider.pressed ? Theme.textPrimary : Theme.accentPrimary
+                        border.color: Theme.surfaceCanvas
                         border.width: 1
                     }
 
@@ -601,7 +624,7 @@ ApplicationWindow {
                         text: "Flush Top (0 px)"
                         contentItem: Text {
                             text: parent.text
-                            color: "#F4F0E9"
+                            color: Theme.textPrimary
                             font.pixelSize: 12
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
@@ -610,8 +633,8 @@ ApplicationWindow {
                             implicitWidth: 110
                             implicitHeight: 32
                             radius: 6
-                            color: parent.down ? "#403B34" : "#302D28"
-                            border.color: "#575148"
+                            color: parent.down ? Theme.surfaceHover : Theme.surfaceRaised
+                            border.color: Theme.borderSubtle
                             border.width: 1
                         }
                         onClicked: settingsProxy.setVerticalOffset(0)
@@ -621,7 +644,7 @@ ApplicationWindow {
                         text: "Default (8 px)"
                         contentItem: Text {
                             text: parent.text
-                            color: "#F4F0E9"
+                            color: Theme.textPrimary
                             font.pixelSize: 12
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
@@ -630,8 +653,8 @@ ApplicationWindow {
                             implicitWidth: 100
                             implicitHeight: 32
                             radius: 6
-                            color: parent.down ? "#403B34" : "#302D28"
-                            border.color: "#575148"
+                            color: parent.down ? Theme.surfaceHover : Theme.surfaceRaised
+                            border.color: Theme.borderSubtle
                             border.width: 1
                         }
                         onClicked: {
@@ -644,7 +667,7 @@ ApplicationWindow {
                         text: "Notch / Bar (32 px)"
                         contentItem: Text {
                             text: parent.text
-                            color: "#F4F0E9"
+                            color: Theme.textPrimary
                             font.pixelSize: 12
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
@@ -653,8 +676,8 @@ ApplicationWindow {
                             implicitWidth: 125
                             implicitHeight: 32
                             radius: 6
-                            color: parent.down ? "#403B34" : "#302D28"
-                            border.color: "#575148"
+                            color: parent.down ? Theme.surfaceHover : Theme.surfaceRaised
+                            border.color: Theme.borderSubtle
                             border.width: 1
                         }
                         onClicked: settingsProxy.setVerticalOffset(32)
@@ -671,13 +694,13 @@ ApplicationWindow {
                 text: "Preferred Media Player"
                 font.bold: true
                 font.pixelSize: 14
-                color: "#F4F0E9"
+                color: Theme.textPrimary
             }
 
             Text {
                 text: "Prioritize controls for this player when multiple media apps are active."
                 font.pixelSize: 12
-                color: "#A69C8F"
+                color: Theme.textTertiary
                 wrapMode: Text.WordWrap
                 Layout.fillWidth: true
             }
@@ -693,15 +716,15 @@ ApplicationWindow {
                     rightPadding: 24
                     text: playerCombo.displayText
                     font.pixelSize: 13
-                    color: "#F4F0E9"
+                    color: Theme.textPrimary
                     verticalAlignment: Text.AlignVCenter
                     elide: Text.ElideRight
                 }
                 background: Rectangle {
                     implicitHeight: 38
                     radius: 8
-                    color: "#302D28"
-                    border.color: playerCombo.activeFocus ? "#D8B77F" : "#575148"
+                    color: Theme.surfaceRaised
+                    border.color: playerCombo.activeFocus ? Theme.borderFocus : Theme.borderSubtle
                     border.width: 1
                 }
                 popup: Popup {
@@ -718,8 +741,8 @@ ApplicationWindow {
                     }
                     background: Rectangle {
                         radius: 8
-                        color: "#302D28"
-                        border.color: "#575148"
+                        color: Theme.surfaceRaised
+                        border.color: Theme.borderSubtle
                         border.width: 1
                     }
                 }
@@ -727,14 +750,14 @@ ApplicationWindow {
                     width: playerCombo.width - 16
                     contentItem: Text {
                         text: modelData.text
-                        color: highlighted ? "#D8B77F" : "#F4F0E9"
+                        color: highlighted ? Theme.accentPrimary : Theme.textPrimary
                         font.pixelSize: 13
                         elide: Text.ElideRight
                         verticalAlignment: Text.AlignVCenter
                     }
                     background: Rectangle {
                         radius: 6
-                        color: highlighted ? "#403B34" : "transparent"
+                        color: highlighted ? Theme.surfaceHover : "transparent"
                     }
                     highlighted: playerCombo.highlightedIndex === index
                 }
@@ -760,15 +783,15 @@ ApplicationWindow {
                     id: customPlayerField
                     Layout.fillWidth: true
                     placeholderText: "e.g. org.mpris.MediaPlayer2.spotify"
-                    placeholderTextColor: "#736B5E"
+                    placeholderTextColor: Theme.textTertiary
                     text: settingsProxy.preferredPlayerId
-                    color: "#F4F0E9"
+                    color: Theme.textPrimary
                     font.pixelSize: 13
                     background: Rectangle {
                         implicitHeight: 38
                         radius: 8
-                        color: "#191816"
-                        border.color: customPlayerField.activeFocus ? "#D8B77F" : "#575148"
+                        color: Theme.surfaceIsland
+                        border.color: customPlayerField.activeFocus ? Theme.borderFocus : Theme.borderSubtle
                         border.width: 1
                     }
                     onAccepted: {
@@ -780,7 +803,7 @@ ApplicationWindow {
                     text: "Apply"
                     contentItem: Text {
                         text: "Apply"
-                        color: "#191816"
+                        color: Theme.textOnAccent
                         font.bold: true
                         font.pixelSize: 12
                         horizontalAlignment: Text.AlignHCenter
@@ -790,7 +813,7 @@ ApplicationWindow {
                         implicitWidth: 64
                         implicitHeight: 38
                         radius: 8
-                        color: "#D8B77F"
+                        color: Theme.accentPrimary
                     }
                     onClicked: {
                         settingsProxy.setPreferredPlayerId(customPlayerField.text.trim());
@@ -808,7 +831,7 @@ ApplicationWindow {
                 text: "Interactions & Feeds"
                 font.bold: true
                 font.pixelSize: 14
-                color: "#F4F0E9"
+                color: Theme.textPrimary
             }
 
             CheckBox {
@@ -851,7 +874,7 @@ ApplicationWindow {
                 text: "Timer"
                 font.bold: true
                 font.pixelSize: 14
-                color: "#F4F0E9"
+                color: Theme.textPrimary
             }
 
             CheckBox {
@@ -871,7 +894,7 @@ ApplicationWindow {
                 Text {
                     text: "Focus Length: " + Math.round(timerPresetSlider.value) + " min"
                     font.pixelSize: 13
-                    color: "#F4F0E9"
+                    color: Theme.textPrimary
                 }
                 Item { Layout.fillWidth: true }
             }
@@ -899,12 +922,12 @@ ApplicationWindow {
                     width: timerPresetSlider.availableWidth
                     height: implicitHeight
                     radius: 3
-                    color: "#302D28"
+                    color: Theme.surfaceRaised
 
                     Rectangle {
                         width: timerPresetSlider.visualPosition * parent.width
                         height: parent.height
-                        color: "#D8B77F"
+                        color: Theme.accentPrimary
                         radius: 3
                     }
                 }
@@ -915,8 +938,8 @@ ApplicationWindow {
                     implicitWidth: 18
                     implicitHeight: 18
                     radius: 9
-                    color: timerPresetSlider.pressed ? "#F4F0E9" : "#D8B77F"
-                    border.color: "#191816"
+                    color: timerPresetSlider.pressed ? Theme.textPrimary : Theme.accentPrimary
+                    border.color: Theme.surfaceCanvas
                     border.width: 1
                 }
 
@@ -933,7 +956,7 @@ ApplicationWindow {
                 Text {
                     text: "Short Break: " + Math.round(timerBreakSlider.value) + " min"
                     font.pixelSize: 13
-                    color: "#F4F0E9"
+                    color: Theme.textPrimary
                 }
                 Item { Layout.fillWidth: true }
             }
@@ -961,12 +984,12 @@ ApplicationWindow {
                     width: timerBreakSlider.availableWidth
                     height: implicitHeight
                     radius: 3
-                    color: "#302D28"
+                    color: Theme.surfaceRaised
 
                     Rectangle {
                         width: timerBreakSlider.visualPosition * parent.width
                         height: parent.height
-                        color: "#D8B77F"
+                        color: Theme.accentPrimary
                         radius: 3
                     }
                 }
@@ -977,8 +1000,8 @@ ApplicationWindow {
                     implicitWidth: 18
                     implicitHeight: 18
                     radius: 9
-                    color: timerBreakSlider.pressed ? "#F4F0E9" : "#D8B77F"
-                    border.color: "#191816"
+                    color: timerBreakSlider.pressed ? Theme.textPrimary : Theme.accentPrimary
+                    border.color: Theme.surfaceCanvas
                     border.width: 1
                 }
 
@@ -995,7 +1018,7 @@ ApplicationWindow {
                 Text {
                     text: "Long Break: " + Math.round(timerLongBreakSlider.value) + " min"
                     font.pixelSize: 13
-                    color: "#F4F0E9"
+                    color: Theme.textPrimary
                 }
                 Item { Layout.fillWidth: true }
             }
@@ -1023,12 +1046,12 @@ ApplicationWindow {
                     width: timerLongBreakSlider.availableWidth
                     height: implicitHeight
                     radius: 3
-                    color: "#302D28"
+                    color: Theme.surfaceRaised
 
                     Rectangle {
                         width: timerLongBreakSlider.visualPosition * parent.width
                         height: parent.height
-                        color: "#D8B77F"
+                        color: Theme.accentPrimary
                         radius: 3
                     }
                 }
@@ -1039,8 +1062,8 @@ ApplicationWindow {
                     implicitWidth: 18
                     implicitHeight: 18
                     radius: 9
-                    color: timerLongBreakSlider.pressed ? "#F4F0E9" : "#D8B77F"
-                    border.color: "#191816"
+                    color: timerLongBreakSlider.pressed ? Theme.textPrimary : Theme.accentPrimary
+                    border.color: Theme.surfaceCanvas
                     border.width: 1
                 }
 
@@ -1057,7 +1080,7 @@ ApplicationWindow {
                 Text {
                     text: "Pomodoro Cycles: " + Math.round(timerCyclesSlider.value)
                     font.pixelSize: 13
-                    color: "#F4F0E9"
+                    color: Theme.textPrimary
                 }
                 Item { Layout.fillWidth: true }
             }
@@ -1085,12 +1108,12 @@ ApplicationWindow {
                     width: timerCyclesSlider.availableWidth
                     height: implicitHeight
                     radius: 3
-                    color: "#302D28"
+                    color: Theme.surfaceRaised
 
                     Rectangle {
                         width: timerCyclesSlider.visualPosition * parent.width
                         height: parent.height
-                        color: "#D8B77F"
+                        color: Theme.accentPrimary
                         radius: 3
                     }
                 }
@@ -1101,8 +1124,8 @@ ApplicationWindow {
                     implicitWidth: 18
                     implicitHeight: 18
                     radius: 9
-                    color: timerCyclesSlider.pressed ? "#F4F0E9" : "#D8B77F"
-                    border.color: "#191816"
+                    color: timerCyclesSlider.pressed ? Theme.textPrimary : Theme.accentPrimary
+                    border.color: Theme.surfaceCanvas
                     border.width: 1
                 }
 
@@ -1112,6 +1135,207 @@ ApplicationWindow {
                 onPressedChanged: {
                     if (!pressed) settingsProxy.setTimerCycles(Math.round(value))
                 }
+            }
+        }
+
+        // Carousel & Keyboard Shortcut
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            Text {
+                text: "Carousel & Keyboard Shortcut"
+                font.bold: true
+                font.pixelSize: 14
+                color: Theme.textPrimary
+            }
+
+            Text {
+                text: "Toggle which pages appear in the expanded island, reorder tabs, or pick the landing page."
+                font.pixelSize: 11
+                color: Theme.textTertiary
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+
+            Repeater {
+                model: settingsProxy.carouselModel
+                delegate: Rectangle {
+                    required property var modelData
+                    required property int index
+                    Layout.fillWidth: true
+                    height: 36
+                    radius: 8
+                    color: Theme.surfaceElevated
+                    border.color: Theme.borderSubtle
+                    border.width: 1
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        spacing: 8
+
+                        CheckBox {
+                            checked: modelData.enabled
+                            onClicked: settingsProxy.togglePageEnabled(modelData.id)
+                        }
+
+                        Text {
+                            text: modelData.label
+                            color: modelData.enabled ? Theme.textPrimary : Theme.textTertiary
+                            font.pixelSize: 13
+                            Layout.fillWidth: true
+                        }
+
+                        Rectangle {
+                            implicitWidth: defLabel.implicitWidth + 14
+                            implicitHeight: 22
+                            radius: 6
+                            color: modelData.isDefault ? Theme.accentPrimary : Theme.surfaceRaised
+                            border.color: modelData.isDefault ? Theme.accentPrimary : Theme.borderSubtle
+
+                            Text {
+                                id: defLabel
+                                anchors.centerIn: parent
+                                text: modelData.isDefault ? "Default" : "Set Default"
+                                font.pixelSize: 11
+                                font.bold: modelData.isDefault
+                                color: modelData.isDefault ? Theme.textOnAccent : Theme.textSecondary
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: settingsProxy.setDefaultPage(modelData.id)
+                            }
+                        }
+
+                        Button {
+                            text: "↑"
+                            enabled: modelData.enabled && index > 0
+                            implicitWidth: 28
+                            implicitHeight: 24
+                            onClicked: settingsProxy.movePage(modelData.id, -1)
+                        }
+
+                        Button {
+                            text: "↓"
+                            enabled: modelData.enabled
+                            implicitWidth: 28
+                            implicitHeight: 24
+                            onClicked: settingsProxy.movePage(modelData.id, 1)
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                id: shortcutCaptureBox
+                Layout.fillWidth: true
+                height: 44
+                radius: 8
+                color: Theme.surfaceElevated
+                border.color: capturingShortcut ? Theme.borderFocus : Theme.borderSubtle
+                border.width: 1
+                property bool capturingShortcut: false
+                focus: capturingShortcut
+
+                function qtKeyToAccel(event) {
+                    if (event.key === Qt.Key_Escape) {
+                        capturingShortcut = false;
+                        return;
+                    }
+                    var mods = "";
+                    if (event.modifiers & Qt.MetaModifier) mods += "<Super>";
+                    if (event.modifiers & Qt.ControlModifier) mods += "<Control>";
+                    if (event.modifiers & Qt.AltModifier) mods += "<Alt>";
+                    if (event.modifiers & Qt.ShiftModifier) mods += "<Shift>";
+                    var keyName = "";
+                    if (event.key >= Qt.Key_A && event.key <= Qt.Key_Z) {
+                        keyName = String.fromCharCode(event.key).toLowerCase();
+                    } else if (event.key >= Qt.Key_0 && event.key <= Qt.Key_9) {
+                        keyName = String.fromCharCode(event.key);
+                    } else if (event.key === Qt.Key_Space) {
+                        keyName = "space";
+                    } else if (event.key === Qt.Key_Tab) {
+                        keyName = "Tab";
+                    } else if (event.key === Qt.Key_Grave) {
+                        keyName = "grave";
+                    } else if (event.key >= Qt.Key_F1 && event.key <= Qt.Key_F12) {
+                        keyName = "F" + (event.key - Qt.Key_F1 + 1);
+                    }
+                    if (!keyName || !mods)
+                        return;
+                    capturingShortcut = false;
+                    settingsProxy.setToggleShortcut(mods + keyName);
+                }
+
+                Keys.onPressed: (event) => {
+                    if (capturingShortcut) {
+                        qtKeyToAccel(event);
+                        event.accepted = true;
+                    }
+                }
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
+                    spacing: 8
+
+                    Text {
+                        text: "Toggle Island Shortcut"
+                        font.pixelSize: 13
+                        color: Theme.textPrimary
+                        Layout.fillWidth: true
+                    }
+
+                    Text {
+                        text: shortcutCaptureBox.capturingShortcut
+                            ? "Press keys (Esc cancels)…"
+                            : (settingsProxy.toggleShortcut || "Disabled")
+                        font.pixelSize: 12
+                        font.bold: true
+                        color: shortcutCaptureBox.capturingShortcut ? Theme.accentPrimary : Theme.textSecondary
+                    }
+
+                    Button {
+                        text: shortcutCaptureBox.capturingShortcut ? "Cancel" : "Change"
+                        implicitHeight: 26
+                        onClicked: {
+                            shortcutCaptureBox.capturingShortcut = !shortcutCaptureBox.capturingShortcut;
+                            if (shortcutCaptureBox.capturingShortcut)
+                                shortcutCaptureBox.forceActiveFocus();
+                        }
+                    }
+
+                    Button {
+                        text: "Reset"
+                        implicitHeight: 26
+                        onClicked: {
+                            shortcutCaptureBox.capturingShortcut = false;
+                            settingsProxy.setToggleShortcut("<Super><Shift>i");
+                        }
+                    }
+
+                    Button {
+                        text: "Clear"
+                        implicitHeight: 26
+                        onClicked: {
+                            shortcutCaptureBox.capturingShortcut = false;
+                            settingsProxy.setToggleShortcut("");
+                        }
+                    }
+                }
+            }
+
+            Text {
+                text: "GNOME Shell binds this automatically. On KDE/Sway/Hyprland, bind your DE shortcut to: linux-island-ui --toggle"
+                font.pixelSize: 11
+                color: Theme.textTertiary
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
             }
         }
 
@@ -1139,13 +1363,13 @@ ApplicationWindow {
                         text: "Cheatsheet & Gestures"
                         font.bold: true
                         font.pixelSize: 14
-                        color: "#F4F0E9"
+                        color: Theme.textPrimary
                     }
 
                     Text {
                         text: "Quick reference guide for interacting with the Linux Island capsule, carousel, and controls."
                         font.pixelSize: 12
-                        color: "#A69C8F"
+                        color: Theme.textTertiary
                         wrapMode: Text.WordWrap
                         Layout.fillWidth: true
                     }
@@ -1155,8 +1379,8 @@ ApplicationWindow {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: secALayout.implicitHeight + 28
-                    color: "#302D28"
-                    border.color: "#575148"
+                    color: Theme.surfaceRaised
+                    border.color: Theme.borderSubtle
                     radius: 8
 
                     ColumnLayout {
@@ -1171,7 +1395,7 @@ ApplicationWindow {
                             text: "Island State & Basic Controls"
                             font.bold: true
                             font.pixelSize: 13
-                            color: "#F4F0E9"
+                            color: Theme.textPrimary
                         }
 
                         GuideItem {
@@ -1200,8 +1424,8 @@ ApplicationWindow {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: secBLayout.implicitHeight + 28
-                    color: "#302D28"
-                    border.color: "#575148"
+                    color: Theme.surfaceRaised
+                    border.color: Theme.borderSubtle
                     radius: 8
 
                     ColumnLayout {
@@ -1216,7 +1440,7 @@ ApplicationWindow {
                             text: "Carousel & Navigation Gestures"
                             font.bold: true
                             font.pixelSize: 13
-                            color: "#F4F0E9"
+                            color: Theme.textPrimary
                         }
 
                         GuideItem {
@@ -1240,8 +1464,8 @@ ApplicationWindow {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: secCLayout.implicitHeight + 28
-                    color: "#302D28"
-                    border.color: "#575148"
+                    color: Theme.surfaceRaised
+                    border.color: Theme.borderSubtle
                     radius: 8
 
                     ColumnLayout {
@@ -1256,7 +1480,7 @@ ApplicationWindow {
                             text: "Media Player Controls & Seeking"
                             font.bold: true
                             font.pixelSize: 13
-                            color: "#F4F0E9"
+                            color: Theme.textPrimary
                         }
 
                         GuideItem {
@@ -1280,8 +1504,8 @@ ApplicationWindow {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: secDLayout.implicitHeight + 28
-                    color: "#302D28"
-                    border.color: "#575148"
+                    color: Theme.surfaceRaised
+                    border.color: Theme.borderSubtle
                     radius: 8
 
                     ColumnLayout {
@@ -1296,7 +1520,7 @@ ApplicationWindow {
                             text: "System Metrics & Quick Toggles"
                             font.bold: true
                             font.pixelSize: 13
-                            color: "#F4F0E9"
+                            color: Theme.textPrimary
                         }
 
                         GuideItem {
@@ -1315,8 +1539,8 @@ ApplicationWindow {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: secELayout.implicitHeight + 28
-                    color: "#302D28"
-                    border.color: "#575148"
+                    color: Theme.surfaceRaised
+                    border.color: Theme.borderSubtle
                     radius: 8
 
                     ColumnLayout {
@@ -1331,7 +1555,7 @@ ApplicationWindow {
                             text: "Notch & Display Setup"
                             font.bold: true
                             font.pixelSize: 13
-                            color: "#F4F0E9"
+                            color: Theme.textPrimary
                         }
 
                         GuideItem {
@@ -1357,8 +1581,8 @@ ApplicationWindow {
             Layout.fillWidth: true
             height: 36
             radius: 8
-            color: "#302D28"
-            border.color: settingsProxy.errorMessage.length > 0 ? "#F2A3A0" : "#575148"
+            color: Theme.surfaceRaised
+            border.color: settingsProxy.errorMessage.length > 0 ? Theme.statusDanger : Theme.borderSubtle
 
             RowLayout {
                 anchors.fill: parent
@@ -1367,7 +1591,7 @@ ApplicationWindow {
 
                 Text {
                     text: settingsProxy.errorMessage.length > 0 ? settingsProxy.errorMessage : (settingsProxy.busy ? "Synchronizing..." : "Settings Synchronized")
-                    color: settingsProxy.errorMessage.length > 0 ? "#F2A3A0" : "#A69C8F"
+                    color: settingsProxy.errorMessage.length > 0 ? Theme.statusDanger : Theme.textTertiary
                     font.pixelSize: 12
                     elide: Text.ElideRight
                     Layout.fillWidth: true

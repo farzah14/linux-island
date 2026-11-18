@@ -476,13 +476,21 @@ export function buildAiQuotaSnapshot(rawSources = {}, nowMs = Date.now()) {
             windows: agWindows,
         };
     } else {
+        const agErr = rawSources.errors?.antigravity;
+        const isExpired = agErr === 'token_expired';
+        const isNetwork = agErr === 'network';
+        const errPrimary = isExpired ? 'Session expired' : (isNetwork ? 'Unreachable' : 'Offline');
+        const errDetail = isExpired
+            ? 'Token expired · open CLI or refresh'
+            : (isNetwork ? 'Network error · retrying' : 'No active session');
         antigravityState = {
             connected: false,
             remainingPercent: 0,
             usedPercent: 0,
-            primaryText: 'Offline',
-            detailText: 'No active session',
-            altDetailText: 'No active session',
+            primaryText: errPrimary,
+            detailText: errDetail,
+            altDetailText: errDetail,
+            error: agErr || null,
             has5h: false,
             has7d: false,
             windows: [],
@@ -658,9 +666,9 @@ export function buildAiQuotaSnapshot(rawSources = {}, nowMs = Date.now()) {
 }
 
 const PROBE_PYTHON_SNIPPET = `
-import sqlite3, os, glob, json, urllib.request, urllib.parse, datetime
+import sqlite3, os, glob, json, urllib.request, urllib.parse, urllib.error, datetime
 
-raw = {'ompCache': [], 'deviceCodex': None, 'claudeLocal': {'installed': False}}
+raw = {'ompCache': [], 'deviceCodex': None, 'claudeLocal': {'installed': False}, 'errors': {}}
 
 # On dual-stack hosts getaddrinfo returns AAAA first and every Google/OpenAI
 # connect then stalls ~11s waiting for the broken IPv6 route before falling
@@ -732,6 +740,7 @@ if os.path.exists(db_path):
         pass
 
 ua = 'antigravity/hub/2.26.0 (aidev_client; os_type=linux; arch=amd64; cl=1005016104)'
+agy_err = None
 for cred in agy_creds:
     acc_tok = cred['access']
     for attempt in range(2):
@@ -746,7 +755,7 @@ for cred in agy_creds:
                 },
                 method='POST'
             )
-            with urllib.request.urlopen(req, timeout=1.8) as resp:
+            with urllib.request.urlopen(req, timeout=4.0) as resp:
                 if resp.status == 200:
                     qsum = json.loads(resp.read().decode())
                     limits = []
@@ -822,21 +831,27 @@ for cred in agy_creds:
                             'grant_type': 'refresh_token'
                         }).encode('utf-8')
                         rreq = urllib.request.Request('https://oauth2.googleapis.com/token', data=rbody, method='POST')
-                        with urllib.request.urlopen(rreq, timeout=1.8) as rresp:
+                        with urllib.request.urlopen(rreq, timeout=4.0) as rresp:
                             rdata = json.loads(rresp.read().decode())
                             if rdata.get('access_token'):
                                 acc_tok = rdata['access_token']
                                 continue
                 except Exception:
                     pass
+            if he.code == 401:
+                agy_err = 'token_expired'
             break
         except Exception:
+            if not agy_err:
+                agy_err = 'network'
             break
     if agy_live_entry:
         break
 
 if agy_live_entry:
     raw['ompCache'].append(agy_live_entry)
+elif agy_err:
+    raw['errors']['antigravity'] = agy_err
 
 if os.path.exists(db_path):
     try:
@@ -879,7 +894,7 @@ if os.path.exists(codex_auth_path):
                     }
                 )
                 try:
-                    with urllib.request.urlopen(req, timeout=1.8) as resp:
+                    with urllib.request.urlopen(req, timeout=4.0) as resp:
                         if resp.status == 200:
                             wham = json.loads(resp.read().decode())
                             rl = wham.get('rate_limit', {})
@@ -977,12 +992,16 @@ export class AiQuotaCollector {
         this._callbacks = [];
         this._hasLiveData = false;
         this._fromCache = false;
+        this._lastRaw = null;
+        this._lastAgyAt = 0;
 
         const cached = this._readProbeCache();
         const fresh = cached && this._cacheTtlMs > 0
             && this._now() - (Number(cached.savedAt) || 0) <= this._cacheTtlMs;
         if (cached && fresh) {
             this._fromCache = true;
+            this._lastRaw = cached.raw;
+            this._lastAgyAt = Number(cached.savedAt) || 0;
             this._lastSnapshot = applySnapshotStatus(
                 buildAiQuotaSnapshot(cached.raw, this._now()), { cached: true });
         } else {
@@ -1117,10 +1136,32 @@ export class AiQuotaCollector {
     }
 
     _acceptProbeResult(raw) {
-        this._lastSnapshot = buildAiQuotaSnapshot(raw, this._now());
+        let effectiveRaw = raw;
+        const isAgyEntry = e => {
+            const v = (e && typeof e === 'object' && e.value && typeof e.value === 'object') ? e.value : e;
+            return v?.provider === 'google-antigravity';
+        };
+        const hasLiveAgy = Array.isArray(raw?.ompCache) && raw.ompCache.some(isAgyEntry);
+        if (hasLiveAgy) {
+            this._lastAgyAt = this._now();
+        } else if (raw?.errors?.antigravity === 'network' && this._lastRaw?.ompCache
+            && (this._cacheTtlMs <= 0 || this._now() - this._lastAgyAt <= this._cacheTtlMs)) {
+            const prevAgy = this._lastRaw.ompCache.filter(isAgyEntry);
+            if (prevAgy.length > 0) {
+                const nextErrors = { ...(raw.errors || {}) };
+                delete nextErrors.antigravity;
+                effectiveRaw = {
+                    ...raw,
+                    ompCache: [...(Array.isArray(raw.ompCache) ? raw.ompCache : []), ...prevAgy],
+                    errors: nextErrors,
+                };
+            }
+        }
+        this._lastRaw = effectiveRaw;
+        this._lastSnapshot = buildAiQuotaSnapshot(effectiveRaw, this._now());
         this._hasLiveData = true;
         this._fromCache = false;
-        this._writeProbeCache(raw);
+        this._writeProbeCache(effectiveRaw);
         this._flushCallbacks(this._present());
     }
 

@@ -302,7 +302,7 @@
       ],
       "verificationCommands": [
         "python3 design-system/qa/verify_tokens.py",
-        "python3 design-system/qa/test_warm_palette.py"
+        "python3 design-system/qa/test_obsidian_emerald_palette.py"
       ]
     },
     {

@@ -6,9 +6,8 @@
 #include "media/sink_volume.h"
 
 namespace {
-// A stand-in for wpctl so the test never touches the real sink.
-bool writeStubWpctl(const QString &dir, const QString &body) {
-    QFile script(dir + QStringLiteral("/wpctl"));
+bool writeStubCommand(const QString &dir, const QString &name, const QString &body) {
+    QFile script(dir + QLatin1Char('/') + name);
     if (!script.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
     script.write("#!/bin/sh\n");
     script.write(body.toUtf8());
@@ -17,6 +16,10 @@ bool writeStubWpctl(const QString &dir, const QString &body) {
                           QFile::ReadGroup | QFile::ExeGroup |
                           QFile::ReadOther | QFile::ExeOther);
     return true;
+}
+
+bool writeStubWpctl(const QString &dir, const QString &body) {
+    return writeStubCommand(dir, QStringLiteral("wpctl"), body);
 }
 } // namespace
 
@@ -27,6 +30,7 @@ private slots:
     void readsMutedFlag();
     void rejectsGarbage();
     void muteHidesLevel();
+    void pactlFallbackReadsLevelAndMute();
     void liveSinkRoundTrip();
 };
 
@@ -88,6 +92,34 @@ void TestSinkVolume::muteHidesLevel() {
     sink.setMuted(true);
     QCOMPARE(sink.volume(), 0.0);
     QVERIFY(std::abs(sink.level() - 0.64) < 0.001);
+    sink.stop();
+}
+
+void TestSinkVolume::pactlFallbackReadsLevelAndMute() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QVERIFY(writeStubCommand(dir.path(), QStringLiteral("pactl"), QStringLiteral(
+        "if [ \"$1\" = \"get-sink-volume\" ]; then\n"
+        "  echo 'Volume: front-left: 42598 /  65% / -11.22 dB,   front-right: 42598 /  65% / -11.22 dB'\n"
+        "elif [ \"$1\" = \"get-sink-mute\" ]; then\n"
+        "  echo 'Mute: no'\n"
+        "fi\n")));
+    const QByteArray prevPath = qgetenv("PATH");
+    qputenv("PATH", dir.path().toUtf8());
+
+    SinkVolume sink;
+    QSignalSpy spy(&sink, &SinkVolume::changed);
+    sink.start();
+    const bool ok = QTest::qWaitFor([&sink] { return sink.known(); }, 4000);
+    qputenv("PATH", prevPath);
+    QVERIFY(ok);
+    QVERIFY(std::abs(sink.level() - 0.65) < 0.001);
+    QCOMPARE(sink.volume(), 0.65);
+    QCOMPARE(sink.muted(), false);
+    QVERIFY(spy.count() >= 1);
+    sink.setMuted(true);
+    QCOMPARE(sink.volume(), 0.0);
+    QVERIFY(std::abs(sink.level() - 0.65) < 0.001);
     sink.stop();
 }
 

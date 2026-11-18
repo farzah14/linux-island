@@ -11,9 +11,9 @@
 #include <algorithm>
 
 static const char *PROBE_SNIPPET = R"PY(
-import sqlite3, os, glob, json, urllib.request, urllib.parse, datetime
+import sqlite3, os, glob, json, urllib.request, urllib.parse, urllib.error, datetime
 
-raw = {'ompCache': [], 'deviceCodex': None, 'claudeLocal': {'installed': False}}
+raw = {'ompCache': [], 'deviceCodex': None, 'claudeLocal': {'installed': False}, 'errors': {}}
 
 # On dual-stack hosts getaddrinfo returns AAAA first and every Google/OpenAI
 # connect then stalls ~11s waiting for the broken IPv6 route before falling
@@ -85,6 +85,7 @@ if os.path.exists(db_path):
         pass
 
 ua = 'antigravity/hub/2.26.0 (aidev_client; os_type=linux; arch=amd64; cl=1005016104)'
+agy_err = None
 for cred in agy_creds:
     acc_tok = cred['access']
     for attempt in range(2):
@@ -99,7 +100,7 @@ for cred in agy_creds:
                 },
                 method='POST'
             )
-            with urllib.request.urlopen(req, timeout=1.8) as resp:
+            with urllib.request.urlopen(req, timeout=4.0) as resp:
                 if resp.status == 200:
                     qsum = json.loads(resp.read().decode())
                     limits = []
@@ -175,21 +176,27 @@ for cred in agy_creds:
                             'grant_type': 'refresh_token'
                         }).encode('utf-8')
                         rreq = urllib.request.Request('https://oauth2.googleapis.com/token', data=rbody, method='POST')
-                        with urllib.request.urlopen(rreq, timeout=1.8) as rresp:
+                        with urllib.request.urlopen(rreq, timeout=4.0) as rresp:
                             rdata = json.loads(rresp.read().decode())
                             if rdata.get('access_token'):
                                 acc_tok = rdata['access_token']
                                 continue
                 except Exception:
                     pass
+            if he.code == 401:
+                agy_err = 'token_expired'
             break
         except Exception:
+            if not agy_err:
+                agy_err = 'network'
             break
     if agy_live_entry:
         break
 
 if agy_live_entry:
     raw['ompCache'].append(agy_live_entry)
+elif agy_err:
+    raw['errors']['antigravity'] = agy_err
 
 if os.path.exists(db_path):
     try:
@@ -232,7 +239,7 @@ if os.path.exists(codex_auth_path):
                     }
                 )
                 try:
-                    with urllib.request.urlopen(req, timeout=1.8) as resp:
+                    with urllib.request.urlopen(req, timeout=4.0) as resp:
                         if resp.status == 200:
                             wham = json.loads(resp.read().decode())
                             rl = wham.get('rate_limit', {})
@@ -352,6 +359,8 @@ void AiQuotaProvider::loadCachedSnapshot() {
     QVariantMap snapshot = buildSnapshotFromRawJson(rawJson, QDateTime::currentMSecsSinceEpoch());
     if (!snapshot.contains(QStringLiteral("antigravity"))) return;
 
+    m_lastRawJson = rawJson;
+    m_lastAgySavedAt = savedAt;
     m_antigravity = snapshot.value(QStringLiteral("antigravity")).toMap();
     m_codex = snapshot.value(QStringLiteral("codex")).toMap();
     m_claude = snapshot.value(QStringLiteral("claude")).toMap();
@@ -683,6 +692,23 @@ QVariantMap AiQuotaProvider::buildSnapshotFromRawJson(const QByteArray &rawJson,
         }
     }
     result[QStringLiteral("antigravity")] = agy;
+    if (!agy.value(QStringLiteral("connected")).toBool()) {
+        const QString agyErr = root.value(QStringLiteral("errors")).toObject()
+                                   .value(QStringLiteral("antigravity")).toString();
+        if (agyErr == QLatin1String("token_expired")) {
+            agy[QStringLiteral("primaryText")] = QStringLiteral("Session expired");
+            agy[QStringLiteral("detailText")] = QStringLiteral("Token expired · open CLI or refresh");
+            agy[QStringLiteral("altDetailText")] = QStringLiteral("Token expired · open CLI or refresh");
+            agy[QStringLiteral("error")] = agyErr;
+            result[QStringLiteral("antigravity")] = agy;
+        } else if (agyErr == QLatin1String("network")) {
+            agy[QStringLiteral("primaryText")] = QStringLiteral("Unreachable");
+            agy[QStringLiteral("detailText")] = QStringLiteral("Network error · retrying");
+            agy[QStringLiteral("altDetailText")] = QStringLiteral("Network error · retrying");
+            agy[QStringLiteral("error")] = agyErr;
+            result[QStringLiteral("antigravity")] = agy;
+        }
+    }
     result[QStringLiteral("codex")] = codex;
     result[QStringLiteral("claude")] = claude;
     return result;
@@ -733,6 +759,46 @@ void AiQuotaProvider::onProcessFinished(int exitCode, QProcess::ExitStatus exitS
     if (exitStatus == QProcess::NormalExit && exitCode == 0 && m_process) {
         QByteArray stdoutData = m_process->readAllStandardOutput();
         qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+
+        auto isAgyEntry = [](const QJsonValue &val) {
+            QJsonObject o = val.toObject();
+            QJsonObject v = o.contains(QStringLiteral("value")) && o.value(QStringLiteral("value")).isObject()
+                                ? o.value(QStringLiteral("value")).toObject()
+                                : o;
+            const QString p = v.value(QStringLiteral("provider")).toString();
+            return p == QLatin1String("google-antigravity") || p == QLatin1String("antigravity");
+        };
+
+        QJsonDocument rawDoc = QJsonDocument::fromJson(stdoutData);
+        if (rawDoc.isObject()) {
+            QJsonObject rawObj = rawDoc.object();
+            QJsonArray omp = rawObj.value(QStringLiteral("ompCache")).toArray();
+            bool hasLiveAgy = std::any_of(omp.begin(), omp.end(), isAgyEntry);
+            if (hasLiveAgy) {
+                m_lastAgySavedAt = nowMs;
+            } else if (rawObj.value(QStringLiteral("errors")).toObject().value(QStringLiteral("antigravity")).toString() == QLatin1String("network")
+                       && !m_lastRawJson.isEmpty()
+                       && nowMs - m_lastAgySavedAt <= 30LL * 60 * 1000) {
+                QJsonObject prevObj = QJsonDocument::fromJson(m_lastRawJson).object();
+                QJsonArray prevOmp = prevObj.value(QStringLiteral("ompCache")).toArray();
+                bool added = false;
+                for (const QJsonValue &pv : prevOmp) {
+                    if (isAgyEntry(pv)) {
+                        omp.append(pv);
+                        added = true;
+                    }
+                }
+                if (added) {
+                    rawObj[QStringLiteral("ompCache")] = omp;
+                    QJsonObject errs = rawObj.value(QStringLiteral("errors")).toObject();
+                    errs.remove(QStringLiteral("antigravity"));
+                    rawObj[QStringLiteral("errors")] = errs;
+                    stdoutData = QJsonDocument(rawObj).toJson(QJsonDocument::Compact);
+                }
+            }
+            m_lastRawJson = stdoutData;
+        }
+
         QVariantMap snapshot = buildSnapshotFromRawJson(stdoutData, nowMs);
         if (snapshot.contains(QStringLiteral("antigravity"))) {
             m_antigravity = snapshot.value(QStringLiteral("antigravity")).toMap();

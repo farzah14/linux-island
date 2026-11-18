@@ -32,7 +32,7 @@ Implement full hybrid interaction and scope Warm Minimalist theme safely.
 4. On an API dependency you cannot verify locally (GNOME 46, Qt6 or MPRIS), return BLOCKED and the diagnostic command/output. Never invent API names, performance figures, or PASS results.
 5. Test using these exact relevant commands **only when prerequisites are available**:
    - `python3 design-system/qa/verify_tokens.py`
-   - `python3 design-system/qa/test_warm_palette.py`
+   - `python3 design-system/qa/test_obsidian_emerald_palette.py`
 6. Verify `git diff --check`, inspect diff and report changed paths. Commit only verified slices. No remote push, system package installation, sudo or release tag without explicit permission.
 7. Stop after the selected subcard and await the next user instruction. Do not move to the next legacy task automatically.
 

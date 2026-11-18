@@ -8,7 +8,10 @@
 
 SettingsProxy::SettingsProxy(const QDBusConnection &bus, QObject *parent)
     : QObject(parent),
-      m_bus(bus) {
+      m_bus(bus),
+      m_portalScheme(bus, this) {
+    connect(&m_portalScheme, &PortalColorSchemeObserver::darkModeChanged,
+            this, &SettingsProxy::systemDarkThemeChanged);
     if (m_bus.isConnected()) {
         m_bus.connect(
             QStringLiteral("org.freedesktop.DBus"),
@@ -179,6 +182,28 @@ void SettingsProxy::applySettingsMap(const QVariantMap &settings) {
         m_timerBreakMinutes = settings.value(QStringLiteral("timerBreakMinutes")).toInt();
         emit timerBreakMinutesChanged();
     }
+    if (settings.contains(QStringLiteral("carouselPages"))) {
+        const QString next = settings.value(QStringLiteral("carouselPages")).toString();
+        if (m_carouselPages != next) {
+            m_carouselPages = next;
+            emit carouselPagesChanged();
+        }
+    }
+    if (settings.contains(QStringLiteral("defaultPage"))) {
+        const QString next = settings.value(QStringLiteral("defaultPage")).toString();
+        if (m_defaultPage != next) {
+            m_defaultPage = next;
+            emit defaultPageChanged();
+            emit carouselPagesChanged();
+        }
+    }
+    if (settings.contains(QStringLiteral("toggleShortcut"))) {
+        const QString next = settings.value(QStringLiteral("toggleShortcut")).toString();
+        if (m_toggleShortcut != next) {
+            m_toggleShortcut = next;
+            emit toggleShortcutChanged();
+        }
+    }
 }
 
 void SettingsProxy::sendPatch(const QVariantMap &patch) {
@@ -339,6 +364,132 @@ void SettingsProxy::setDisplayMode(const QString &mode) {
     if (m_displayMode != mode) {
         sendPatch({{QStringLiteral("displayMode"), mode}});
     }
+}
+
+namespace {
+struct KnownPage {
+    const char *id;
+    const char *label;
+};
+constexpr KnownPage kKnownPages[] = {
+    {"media", "Music"},
+    {"system", "System & Controls"},
+    {"ai", "AI Quota"},
+    {"timer", "Timer"},
+    {"todo", "To-do"},
+};
+}  // namespace
+
+QVariantList SettingsProxy::carouselModel() const {
+    QStringList enabled;
+    for (const QString &part : m_carouselPages.split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+        const QString trimmed = part.trimmed();
+        if (!trimmed.isEmpty() && !enabled.contains(trimmed))
+            enabled.append(trimmed);
+    }
+    QStringList order = enabled;
+    for (const KnownPage &p : kKnownPages) {
+        const QString id = QString::fromLatin1(p.id);
+        if (!order.contains(id))
+            order.append(id);
+    }
+
+    QVariantList out;
+    for (const QString &id : order) {
+        QString label = id;
+        for (const KnownPage &p : kKnownPages) {
+            if (id == QLatin1String(p.id)) {
+                label = QString::fromLatin1(p.label);
+                break;
+            }
+        }
+        out.append(QVariantMap{
+            {QStringLiteral("id"), id},
+            {QStringLiteral("label"), label},
+            {QStringLiteral("enabled"), enabled.contains(id)},
+            {QStringLiteral("isDefault"), m_defaultPage == id},
+        });
+    }
+    return out;
+}
+
+void SettingsProxy::setCarouselPages(const QString &pages) {
+    if (m_carouselPages != pages && !pages.trimmed().isEmpty()) {
+        m_carouselPages = pages;
+        emit carouselPagesChanged();
+        sendPatch({{QStringLiteral("carouselPages"), pages}});
+    }
+}
+
+void SettingsProxy::setDefaultPage(const QString &page) {
+    QStringList enabled = m_carouselPages.split(QLatin1Char(','), Qt::SkipEmptyParts);
+    if (!enabled.contains(page)) {
+        enabled.append(page);
+        m_carouselPages = enabled.join(QLatin1Char(','));
+        emit carouselPagesChanged();
+        sendPatch({{QStringLiteral("carouselPages"), m_carouselPages},
+                   {QStringLiteral("defaultPage"), page}});
+    } else if (m_defaultPage != page) {
+        sendPatch({{QStringLiteral("defaultPage"), page}});
+    }
+    if (m_defaultPage != page) {
+        m_defaultPage = page;
+        emit defaultPageChanged();
+        emit carouselPagesChanged();
+    }
+}
+
+void SettingsProxy::setToggleShortcut(const QString &shortcut) {
+    if (m_toggleShortcut != shortcut) {
+        m_toggleShortcut = shortcut;
+        emit toggleShortcutChanged();
+        sendPatch({{QStringLiteral("toggleShortcut"), shortcut}});
+    }
+}
+
+void SettingsProxy::togglePageEnabled(const QString &id) {
+    QStringList enabled;
+    for (const QString &part : m_carouselPages.split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+        const QString t = part.trimmed();
+        if (!t.isEmpty() && !enabled.contains(t))
+            enabled.append(t);
+    }
+    if (enabled.contains(id)) {
+        if (enabled.size() <= 1)
+            return;
+        enabled.removeAll(id);
+        const QString nextCsv = enabled.join(QLatin1Char(','));
+        m_carouselPages = nextCsv;
+        if (m_defaultPage == id) {
+            m_defaultPage = enabled.first();
+            emit defaultPageChanged();
+            sendPatch({{QStringLiteral("carouselPages"), nextCsv},
+                       {QStringLiteral("defaultPage"), m_defaultPage}});
+        } else {
+            sendPatch({{QStringLiteral("carouselPages"), nextCsv}});
+        }
+        emit carouselPagesChanged();
+    } else {
+        enabled.append(id);
+        setCarouselPages(enabled.join(QLatin1Char(',')));
+    }
+}
+
+void SettingsProxy::movePage(const QString &id, int delta) {
+    QStringList enabled;
+    for (const QString &part : m_carouselPages.split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+        const QString t = part.trimmed();
+        if (!t.isEmpty() && !enabled.contains(t))
+            enabled.append(t);
+    }
+    const int idx = enabled.indexOf(id);
+    if (idx < 0)
+        return;
+    const int target = std::clamp(idx + delta, 0, static_cast<int>(enabled.size()) - 1);
+    if (target == idx)
+        return;
+    enabled.move(idx, target);
+    setCarouselPages(enabled.join(QLatin1Char(',')));
 }
 
 void SettingsProxy::queryAvailablePlayers() {

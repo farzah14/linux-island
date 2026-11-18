@@ -17,8 +17,17 @@ Window {
         onActivated: islandClient.dispatchEvent("DISMISS")
     }
 
+    property bool _expandFocusGrace: false
+
+    Timer {
+        id: expandFocusTimer
+        interval: 150
+        repeat: false
+        onTriggered: windowRoot._expandFocusGrace = false
+    }
+
     onActiveChanged: {
-        if (!active && islandContainer && islandContainer.isExpanded) {
+        if (!active && !windowRoot._expandFocusGrace && islandContainer && islandContainer.isExpanded) {
             islandClient.dispatchEvent("DISMISS");
         }
     }
@@ -42,13 +51,13 @@ Window {
         return str.length > limit ? (str.substring(0, limit - 1) + "…") : str;
     }
 
-    function getCompactDisplayIcon() {
-        if (!islandClient.connected) return "🏝️";
-        if (timeClient.timerActive && timeClient.compactIcon) return timeClient.compactIcon;
-        if (islandClient.title && islandClient.title.trim().length > 0) {
-            return islandClient.isPlaying ? "🎵" : "🏝️";
+    function getCompactIconSource() {
+        if (!islandClient.connected) return "qrc:/linuxisland/ui/icons/ui/island-symbolic.svg";
+        if (timeClient.timerActive) return "qrc:/linuxisland/ui/icons/ui/timer-symbolic.svg";
+        if (islandClient.title && islandClient.title.trim().length > 0 && islandClient.isPlaying) {
+            return "qrc:/linuxisland/ui/icons/ui/media-symbolic.svg";
         }
-        return "🏝️";
+        return "qrc:/linuxisland/ui/icons/ui/island-symbolic.svg";
     }
 
     function getCompactDisplayText() {
@@ -83,12 +92,23 @@ Window {
     function getExpandedHeight() {
         var waExtra = notificationWatcher.whatsappActivity ? 30 : 0;
         if (carouselView && carouselView.currentIndex === 1)
-            return 98 + 52 + waExtra;
+            return 132 + 52 + waExtra;
         if (carouselView && carouselView.currentIndex === 2)
-            return 116 + 52 + waExtra;
+            return 128 + 52 + waExtra;
         if (carouselView && carouselView.currentIndex === 3)
             return timePage.contentHeight + 52 + waExtra;
+        if (carouselView && carouselView.currentIndex === 4)
+            return todoPage.contentHeight + 52 + waExtra;
         return musicPage.implicitHeight + 52 + waExtra;
+    }
+
+    function shortNavLabel(id) {
+        if (id === "media") return "Music";
+        if (id === "system") return "Sys";
+        if (id === "ai") return "AI";
+        if (id === "timer") return "Time";
+        if (id === "todo") return "Todo";
+        return id || "";
     }
 
     // Dynamic Island Root Box
@@ -132,8 +152,13 @@ Window {
             }
             function onUiStateChanged() {
                 if (islandClient.uiState === "EXPANDED") {
+                    windowRoot._expandFocusGrace = true;
+                    expandFocusTimer.restart();
                     islandContainer.isIdleCircle = false;
                     islandContainer.isPillExpanded = false;
+                } else {
+                    expandFocusTimer.stop();
+                    windowRoot._expandFocusGrace = false;
                 }
             }
         }
@@ -143,11 +168,34 @@ Window {
         height: isExpanded ? windowRoot.getExpandedHeight() : (isCircle ? 36 : windowRoot.getPillHeight())
         anchors.horizontalCenter: parent.horizontalCenter
         y: 0
-        radius: isCircle ? IslandTheme.radiusPill : IslandTheme.radiusXl
+        radius: isExpanded ? IslandTheme.radiusPanel : IslandTheme.radiusPill
         color: (!isExpanded && compactMouse.containsMouse) ? IslandTheme.surfaceHover : IslandTheme.surfaceIsland
-        border.color: (islandClient.displayMode === "floating" && !isExpanded && !isCircle) ? IslandTheme.borderSubtle : "transparent"
+        border.color: (isExpanded || (islandClient.displayMode === "floating" && !isCircle)) ? IslandTheme.borderSubtle : "transparent"
         border.width: 1
         clip: true
+
+        Canvas {
+            id: expandedGlow
+            anchors.fill: parent
+            visible: islandContainer.isExpanded
+            onWidthChanged: requestPaint()
+            onHeightChanged: requestPaint()
+            onVisibleChanged: requestPaint()
+            Connections { target: IslandTheme; function onIsDarkChanged() { expandedGlow.requestPaint(); } }
+            onPaint: {
+                const ctx = getContext("2d");
+                ctx.clearRect(0, 0, width, height);
+                const c = IslandTheme.accentPrimary;
+                const gradient = ctx.createLinearGradient(0, 0, 0, height);
+                gradient.addColorStop(0, "transparent");
+                gradient.addColorStop(1, Qt.rgba(c.r, c.g, c.b, IslandTheme.isDark ? 0.10 : 0.06));
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.roundedRect(0, 0, width, height, islandContainer.radius, islandContainer.radius);
+                ctx.fill();
+            }
+        }
+
         Behavior on width {
             enabled: islandClient.animationEnabled
             NumberAnimation { duration: islandContainer.isExpanded ? 300 : 220; easing.type: Easing.OutCubic }
@@ -168,7 +216,9 @@ Window {
         onWidthChanged: queueMaskUpdate()
         onHeightChanged: queueMaskUpdate()
         onVisibleChanged: queueMaskUpdate()
-        Component.onCompleted: updateMask()
+        Component.onCompleted: {
+            updateMask();
+        }
 
         function queueMaskUpdate() {
             if (_maskUpdatePending) return;
@@ -201,9 +251,10 @@ Window {
                 spacing: 8
                 visible: !islandContainer.isCircle
 
-                Text {
-                    text: windowRoot.getCompactDisplayIcon()
-                    font.pixelSize: windowRoot.getCompactFontSize()
+                NavIcon {
+                    size: windowRoot.getCompactFontSize() + 1
+                    source: windowRoot.getCompactIconSource()
+                    color: timeClient.timerActive ? IslandTheme.accentPrimary : IslandTheme.textPrimary
                     Layout.alignment: Qt.AlignVCenter
                 }
 
@@ -270,10 +321,11 @@ Window {
                     }
                 }
 
-                Text {
+                NavIcon {
                     anchors.centerIn: parent
-                    text: "🏝️"
-                    font.pixelSize: 18
+                    size: 18
+                    source: "qrc:/linuxisland/ui/icons/ui/island-symbolic.svg"
+                    color: IslandTheme.accentPrimary
                     visible: !(islandClient.isPlaying && islandClient.connected)
                 }
 
@@ -367,7 +419,8 @@ Window {
             // Minimalist Carousel Section Navigation (matches GNOME FeatureCarousel)
             RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 24
+                Layout.preferredHeight: visible ? 24 : 0
+                visible: islandClient.orderedPages.length > 1
                 spacing: 6
 
                 Item { Layout.fillWidth: true }
@@ -375,91 +428,35 @@ Window {
                 RowLayout {
                     spacing: 6
 
-                    // Tab 0: Music
-                    Rectangle {
-                        implicitWidth: 28
-                        implicitHeight: 22
-                        radius: 8
-                        color: carouselView.currentIndex === 0 ? IslandTheme.accentPrimary : (tab0Mouse.containsMouse ? IslandTheme.surfaceHover : "transparent")
+                    Repeater {
+                        model: islandClient.orderedPages
+                        delegate: Rectangle {
+                            required property var modelData
+                            readonly property bool active: carouselView.currentIndex === modelData.swipeIndex
+                            implicitWidth: pillLbl.implicitWidth + 18
+                            implicitHeight: 22
+                            radius: 999
+                            color: active
+                                ? (tabMouse.containsMouse ? IslandTheme.accentHover : IslandTheme.accentPrimary)
+                                : (tabMouse.containsMouse ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised)
+                            border.width: 0
 
-                        NavIcon {
-                            anchors.centerIn: parent
-                            source: "qrc:/linuxisland/ui/icons/ui/media-symbolic.svg"
-                            color: carouselView.currentIndex === 0 ? IslandTheme.surfaceIsland : (tab0Mouse.containsMouse ? IslandTheme.textPrimary : IslandTheme.textSecondary)
-                        }
+                            Text {
+                                id: pillLbl
+                                anchors.centerIn: parent
+                                text: windowRoot.shortNavLabel(modelData.id)
+                                font.pixelSize: 10
+                                font.weight: active ? Font.Bold : Font.Medium
+                                color: active ? IslandTheme.textOnAccent : (tabMouse.containsMouse ? IslandTheme.textPrimary : IslandTheme.textSecondary)
+                            }
 
-                        MouseArea {
-                            id: tab0Mouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: carouselView.currentIndex = 0
-                        }
-                    }
-
-                    // Tab 1: System
-                    Rectangle {
-                        implicitWidth: 28
-                        implicitHeight: 22
-                        radius: 8
-                        color: carouselView.currentIndex === 1 ? IslandTheme.accentPrimary : (tab1Mouse.containsMouse ? IslandTheme.surfaceHover : "transparent")
-
-                        NavIcon {
-                            anchors.centerIn: parent
-                            source: "qrc:/linuxisland/ui/icons/ui/system-symbolic.svg"
-                            color: carouselView.currentIndex === 1 ? IslandTheme.surfaceIsland : (tab1Mouse.containsMouse ? IslandTheme.textPrimary : IslandTheme.textSecondary)
-                        }
-
-                        MouseArea {
-                            id: tab1Mouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: carouselView.currentIndex = 1
-                        }
-                    }
-
-                    // Tab 2: AI Quota
-                    Rectangle {
-                        implicitWidth: 28
-                        implicitHeight: 22
-                        radius: 8
-                        color: carouselView.currentIndex === 2 ? IslandTheme.accentPrimary : (tab2Mouse.containsMouse ? IslandTheme.surfaceHover : "transparent")
-
-                        NavIcon {
-                            anchors.centerIn: parent
-                            source: "qrc:/linuxisland/ui/icons/ui/ai-symbolic.svg"
-                            color: carouselView.currentIndex === 2 ? IslandTheme.surfaceIsland : (tab2Mouse.containsMouse ? IslandTheme.textPrimary : IslandTheme.textSecondary)
-                        }
-
-                        MouseArea {
-                            id: tab2Mouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: carouselView.currentIndex = 2
-                        }
-                    }
-
-                    // Tab 3: Timer
-                    Rectangle {
-                        implicitWidth: 28
-                        implicitHeight: 22
-                        radius: 8
-                        color: carouselView.currentIndex === 3 ? IslandTheme.accentPrimary : (tab3Mouse.containsMouse ? IslandTheme.surfaceHover : "transparent")
-
-                        NavIcon {
-                            anchors.centerIn: parent
-                            source: "qrc:/linuxisland/ui/icons/ui/timer-symbolic.svg"
-                            color: carouselView.currentIndex === 3 ? IslandTheme.surfaceIsland : (tab3Mouse.containsMouse ? IslandTheme.textPrimary : IslandTheme.textSecondary)
-                        }
-
-                        MouseArea {
-                            id: tab3Mouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: carouselView.currentIndex = 3
+                            MouseArea {
+                                id: tabMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: carouselView.currentIndex = modelData.swipeIndex
+                            }
                         }
                     }
 
@@ -467,18 +464,39 @@ Window {
                 Item { Layout.fillWidth: true }
             }
 
+            Connections {
+                target: islandClient
+                function onToggleRequested() {
+                    carouselView.currentIndex = islandClient.defaultSwipeIndex;
+                }
+                function onSettingsChanged() {
+                    var target = islandClient.nearestOrderedSwipeIndex(carouselView.currentIndex);
+                    if (carouselView.currentIndex !== target) {
+                        carouselView.currentIndex = target;
+                    }
+                }
+            }
+
             // Swipeable Pages
             SwipeView {
                 id: carouselView
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                currentIndex: 0
+                currentIndex: islandClient.defaultSwipeIndex
+                interactive: islandClient.orderedPages.length > 1
                 clip: true
+                onCurrentIndexChanged: {
+                    var nearest = islandClient.nearestOrderedSwipeIndex(currentIndex);
+                    if (nearest !== currentIndex) {
+                        currentIndex = nearest;
+                    }
+                }
 
                 MusicPage { id: musicPage; capsuleSize: islandClient.capsuleSize }
                 SystemPage { capsuleSize: islandClient.capsuleSize }
                 AiQuotaPage {}
                 TimePage { id: timePage }
+                TodoPage { id: todoPage }
 
             }
 

@@ -84,12 +84,12 @@ kill $PID
 Compare captures side-by-side against `docs/ui-parity/UI_CONTRACT.md`:
 1. **Geometric Invariants:**
    - Width: 328px (medium), 268px (small), 388px (large).
-   - Radius: 20px (`IslandTheme.radiusXl`) for expanded capsule, 18px for compact pill, 999px for circle.
+   - Radius: 24px (`IslandTheme.radiusPanel`) for expanded capsule, 999px (`IslandTheme.radiusPill`) for compact pill and circle.
    - Component spacing: 6px between top nav pills, 6px between page rows.
 2. **Visual Consistency:**
    - Vector symbolic icons: verify monochrome SVG assets match (`media-symbolic`, `system-symbolic`, `ai-symbolic`, `search-symbolic`, `prev-symbolic`, `play-symbolic`, etc.). Zero text emojis.
    - Header: verify tabs are horizontally centered and no `'✕'` close button is rendered on the capsule.
-   - Palette: colors must match Warm Minimalist tokens (`#191816` dark surface, `#D8B77F` amber accent, `#F4F0E9` primary text).
+   - Palette: colors must match Obsidian Emerald tokens (`#0B0B0B` dark surface, `#59D66C` emerald accent, `#F4F6F5` primary text).
 3. **Tolerances:**
    - Exact logical pixel metrics required; up to 1px antialiased raster edge variation is permitted.
    - Font rasterization differences between Pango/Cairo and Qt FreeType are expected and allowed under the `system-ui` font strategy.

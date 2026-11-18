@@ -1,4 +1,4 @@
-import {CarouselModel, FeatureCarousel, getPageIcon, getLocalNavGIcon} from '../../extension/ui/featureCarousel.js';
+import {CarouselModel, FeatureCarousel, getPageIcon, getLocalNavGIcon, resolveCarouselPages} from '../../extension/ui/featureCarousel.js';
 
 function assert(condition, message = 'Assertion failed') {
     if (!condition) throw new Error(message);
@@ -77,6 +77,7 @@ function assertEqual(actual, expected, message) {
     assertEqual(getPageIcon({id: 'search'}), 'view-more-symbolic');
     assertEqual(getPageIcon({id: 'time'}), 'alarm-symbolic');
     assertEqual(getPageIcon({id: 'timer'}), 'alarm-symbolic');
+    assertEqual(getPageIcon({id: 'todo'}), 'emblem-ok-symbolic');
     assertEqual(getPageIcon(null), 'view-more-symbolic');
     assertEqual(getLocalNavGIcon(null), null);
     assertEqual(getLocalNavGIcon({id: 'unknown'}), null);
@@ -137,6 +138,28 @@ function assertEqual(actual, expected, message) {
     };
     assertEqual(carousel._isInteractiveControl(gjsLikePlain), false);
     carousel.destroy();
+}
+
+// 4. resolveCarouselPages filters, reorders, and finds defaultIndex safely
+{
+    const all = [
+        {id: 'media'},
+        {id: 'system'},
+        {id: 'ai'},
+        {id: 'timer'},
+        {id: 'todo'},
+    ];
+    const custom = resolveCarouselPages(all, 'todo, media, unknown, timer', 'timer');
+    assertEqual(custom.pages.map(p => p.id).join(','), 'todo,media,timer');
+    assertEqual(custom.defaultIndex, 2);
+
+    const hiddenDefault = resolveCarouselPages(all, 'system,todo', 'media');
+    assertEqual(hiddenDefault.pages.map(p => p.id).join(','), 'system,todo');
+    assertEqual(hiddenDefault.defaultIndex, 0);
+
+    const emptyFallback = resolveCarouselPages(all, 'bogus', 'ai');
+    assertEqual(emptyFallback.pages.length, 5);
+    assertEqual(emptyFallback.defaultIndex, 2);
 }
 
 console.log('PASS: CarouselModel and FeatureCarousel presentation tests');

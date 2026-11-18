@@ -4,6 +4,7 @@
 #include <QString>
 #include <QVariantMap>
 #include <QDBusConnection>
+#include "events/portal_color_scheme.h"
 
 class SettingsProxy : public QObject {
     Q_OBJECT
@@ -24,9 +25,14 @@ class SettingsProxy : public QObject {
     Q_PROPERTY(bool timerCompactHintEnabled READ timerCompactHintEnabled WRITE setTimerCompactHintEnabled NOTIFY timerCompactHintEnabledChanged)
     Q_PROPERTY(int timerPresetMinutes READ timerPresetMinutes WRITE setTimerPresetMinutes NOTIFY timerPresetMinutesChanged)
     Q_PROPERTY(int timerBreakMinutes READ timerBreakMinutes WRITE setTimerBreakMinutes NOTIFY timerBreakMinutesChanged)
+    Q_PROPERTY(QString carouselPages READ carouselPages WRITE setCarouselPages NOTIFY carouselPagesChanged)
+    Q_PROPERTY(QString defaultPage READ defaultPage WRITE setDefaultPage NOTIFY defaultPageChanged)
+    Q_PROPERTY(QString toggleShortcut READ toggleShortcut WRITE setToggleShortcut NOTIFY toggleShortcutChanged)
+    Q_PROPERTY(QVariantList carouselModel READ carouselModel NOTIFY carouselPagesChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY errorMessageChanged)
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
+    Q_PROPERTY(bool systemDarkTheme READ systemDarkTheme NOTIFY systemDarkThemeChanged)
     Q_PROPERTY(QStringList availablePlayers READ availablePlayers NOTIFY availablePlayersChanged)
 
 public:
@@ -50,9 +56,14 @@ public:
     bool timerCompactHintEnabled() const { return m_timerCompactHintEnabled; }
     int timerPresetMinutes() const { return m_timerPresetMinutes; }
     int timerBreakMinutes() const { return m_timerBreakMinutes; }
+    QString carouselPages() const { return m_carouselPages; }
+    QString defaultPage() const { return m_defaultPage; }
+    QString toggleShortcut() const { return m_toggleShortcut; }
+    QVariantList carouselModel() const;
     bool busy() const { return m_busy; }
     QString errorMessage() const { return m_errorMessage; }
     bool connected() const { return m_connected; }
+    bool systemDarkTheme() const { return m_portalScheme.isDark(); }
     QStringList availablePlayers() const { return m_availablePlayers; }
     Q_INVOKABLE QString playerDisplayName(const QString &playerId) const;
 
@@ -73,6 +84,11 @@ public:
     Q_INVOKABLE void setTimerCompactHintEnabled(bool enabled);
     Q_INVOKABLE void setTimerPresetMinutes(int minutes);
     Q_INVOKABLE void setTimerBreakMinutes(int minutes);
+    Q_INVOKABLE void setCarouselPages(const QString &pages);
+    Q_INVOKABLE void setDefaultPage(const QString &page);
+    Q_INVOKABLE void setToggleShortcut(const QString &shortcut);
+    Q_INVOKABLE void togglePageEnabled(const QString &id);
+    Q_INVOKABLE void movePage(const QString &id, int delta);
     Q_INVOKABLE void refresh();
 
 signals:
@@ -93,9 +109,13 @@ signals:
     void timerCompactHintEnabledChanged();
     void timerPresetMinutesChanged();
     void timerBreakMinutesChanged();
+    void carouselPagesChanged();
+    void defaultPageChanged();
+    void toggleShortcutChanged();
     void busyChanged();
     void errorMessageChanged();
     void connectedChanged();
+    void systemDarkThemeChanged();
     void availablePlayersChanged();
 
 private slots:
@@ -109,6 +129,7 @@ private:
     void queryAvailablePlayers();
 
     QDBusConnection m_bus;
+    PortalColorSchemeObserver m_portalScheme;
     QString m_theme = QStringLiteral("system");
     QString m_capsuleSize = QStringLiteral("medium");
     bool m_animationEnabled = true;
@@ -126,6 +147,9 @@ private:
     bool m_timerCompactHintEnabled = true;
     int m_timerPresetMinutes = 25;
     int m_timerBreakMinutes = 5;
+    QString m_carouselPages = QStringLiteral("media,system,ai,timer,todo");
+    QString m_defaultPage = QStringLiteral("media");
+    QString m_toggleShortcut = QStringLiteral("<Super><Shift>i");
     bool m_busy = false;
     QString m_errorMessage;
     bool m_connected = false;

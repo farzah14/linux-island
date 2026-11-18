@@ -7,6 +7,9 @@ add_executable(linux-island-core
     dbus/variant_codec.h
     dbus/variant_codec.cpp
     dbus/time_adaptor.h
+    dbus/todo_adaptor.h
+    todo/todo_service.h
+    todo/todo_service.cpp
     media/media_state.h
     media/audio_meter.h
     media/audio_meter.cpp

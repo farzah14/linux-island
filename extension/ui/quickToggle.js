@@ -51,7 +51,7 @@ function mapToggleIconToSvg(iconName) {
 // CSS padding: St adds padding outside an explicit height, and 4 padded rows
 // would overflow the 98px system section and get clipped by the carousel.
 export const TOGGLE_WIDTH = 22;
-export const TOGGLE_HEIGHT = 20;
+export const TOGGLE_HEIGHT = 22;
 export const TOGGLE_COLUMN_SPACING = 4;
 
 export class QuickToggle {
@@ -76,29 +76,16 @@ export class QuickToggle {
 
     _build() {
         this.actor = new St.Button({
-            // Metric-tile geometry: 20px row, 14px glyph centred in 22px gives
-            // the same 4px side inset as the tile's 2px 4px padding.
-            style: `width: ${TOGGLE_WIDTH}px; height: ${this._size}px; padding: 0; border: 0; background-color: transparent;`,
-            style_class: 'linux-island__quick-toggle',
+            label: this._label,
+            style_class: 'linux-island__quick-pill',
             reactive: true,
             can_focus: true,
             accessible_name: this._label,
-            x_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+            x_align: Clutter.ActorAlign.FILL,
             y_align: Clutter.ActorAlign.CENTER,
         });
 
-        const svg = mapToggleIconToSvg(this._iconName);
-        const gicon = svg ? getLocalUiGIcon(svg) : null;
-        this._icon = new St.Icon({
-            icon_name: this._iconName,
-            fallback_icon_name: this._iconName,
-            ...(gicon ? {gicon} : {}),
-            icon_size: 14,
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-
-        this.actor.set_child(this._icon);
         this.actor.connect('clicked', () => this._onToggle());
         this._syncStyle();
     }
@@ -117,10 +104,8 @@ export class QuickToggle {
 
     setLabel(text) {
         this._label = text;
-        if (this._labelWidget) {
-            this._labelWidget.text = text;
-        }
         if (this.actor) {
+            this.actor.label = text;
             this.actor.accessible_name = text;
         }
     }
@@ -133,9 +118,9 @@ export class QuickToggle {
     _syncStyle() {
         if (!this.actor) return;
         if (this._active) {
-            this.actor.add_style_class_name('linux-island__quick-toggle--active');
+            this.actor.add_style_class_name?.('linux-island__quick-pill--active');
         } else {
-            this.actor.remove_style_class_name('linux-island__quick-toggle--active');
+            this.actor.remove_style_class_name?.('linux-island__quick-pill--active');
         }
     }
     destroy() {
@@ -180,10 +165,10 @@ export class QuickTogglesRow {
 
         this._themeToggle = new QuickToggle({
             iconName: 'weather-clear-night-symbolic',
-            label: 'Theme: Dark',
+            label: 'Theme',
             onToggle: () => this._onThemeToggle(),
             active: true,
-            size: TOGGLE_HEIGHT,
+            size: 22,
         });
         this._darkToggle = this._themeToggle;
 
@@ -191,24 +176,24 @@ export class QuickTogglesRow {
             iconName: 'notifications-disabled-symbolic',
             label: 'DND',
             onToggle: () => this._manager.toggleDnd(),
-            size: TOGGLE_HEIGHT,
+            size: 22,
         });
 
         this._nightToggle = new QuickToggle({
             iconName: 'night-light-symbolic',
-            label: 'Night Light',
+            label: 'Night',
             onToggle: () => this._manager.toggleNightLight(),
-            size: TOGGLE_HEIGHT,
+            size: 22,
         });
 
         this._settingsToggle = new QuickToggle({
             iconName: 'preferences-system-symbolic',
             label: 'Settings',
             onToggle: () => this._onOpenSettings(),
-            size: TOGGLE_HEIGHT,
+            size: 22,
         });
 
-        // Storage tracker sits directly below the icon row, right side.
+        // Storage tracker sits above the horizontal pill row.
         this._storageIndicator = new StorageIndicator({
             onActivate: () => this._onOpenStorage(),
         });
@@ -224,51 +209,35 @@ export class QuickTogglesRow {
         if (!['light', 'dark', 'system'].includes(theme)) return;
         this._currentTheme = theme;
         const meta = {
-            'dark': { icon: 'weather-clear-night-symbolic', label: 'Theme: Dark' },
-            'light': { icon: 'weather-clear-symbolic', label: 'Theme: Light' },
-            'system': { icon: 'preferences-desktop-display-symbolic', label: 'Theme: Auto' },
+            'dark': { icon: 'weather-clear-night-symbolic', label: 'Theme', a11y: 'Theme: Dark' },
+            'light': { icon: 'weather-clear-symbolic', label: 'Light', a11y: 'Theme: Light' },
+            'system': { icon: 'preferences-desktop-display-symbolic', label: 'Auto', a11y: 'Theme: Auto' },
         }[theme];
 
         this._themeToggle.setIcon(meta.icon);
         this._themeToggle.setLabel(meta.label);
+        if (this._themeToggle.actor) {
+            this._themeToggle.actor.accessible_name = meta.a11y;
+        }
         this._themeToggle.setActive(theme !== 'light');
     }
 
     _build() {
-        // Right slot, left to right: disk readout immediately right of NET,
-        // then the quick-setting icon column flush against the capsule edge.
-        //
-        // The disk block expands to absorb all leftover width and the icon
-        // column keeps a fixed width, so the two always sum to the slot width.
-        // That pins the icons to the right edge without relying on a spacer
-        // widget, whose expansion inside a fixed-width box is not reliable.
-        //
-        // Rows are 20px with 4px gaps and no border, matching the CPU/RAM/BAT
-        // tiles: 4*20 + 3*4 = 92px, which fits the 98px section.
         this.actor = new St.BoxLayout({
-            vertical: false,
-            style: `spacing: ${TOGGLE_COLUMN_SPACING}px;`,
+            vertical: true,
+            style: 'spacing: 6px;',
             x_expand: true,
-            x_align: Clutter.ActorAlign.END,
             y_align: Clutter.ActorAlign.CENTER,
         });
 
-        // Disk readout gets an explicit width in setWidth(). Expansion is not
-        // used because St.BoxLayout ignores x_align on its main axis, which
-        // would leave the block's real width ambiguous and make the centred
-        // glyph/percentage drift off the used/total line.
         if (this._storageIndicator.actor) {
-            this._storageIndicator.actor.x_expand = false;
-            this._storageIndicator.actor.x_align = Clutter.ActorAlign.START;
             this.actor.add_child(this._storageIndicator.actor);
         }
 
-        // Theme, DND, Night Light, Settings stacked as one column.
         this._iconsBox = new St.BoxLayout({
-            vertical: true,
-            style: `spacing: ${TOGGLE_COLUMN_SPACING}px;`,
-            x_expand: false,
-            x_align: Clutter.ActorAlign.END,
+            vertical: false,
+            style: 'spacing: 6px;',
+            x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
         for (const toggle of [this._themeToggle, this._dndToggle,
@@ -280,19 +249,13 @@ export class QuickTogglesRow {
 
     setWidth(w) {
         if (!this.actor || w <= 0) return;
-        // Two children => one gap. The disk takes exactly the remainder, so the
-        // icon column's right edge lands on the slot's right edge.
-        const iconsWidth = TOGGLE_WIDTH;
-        const storageWidth = Math.max(0,
-            w - iconsWidth - TOGGLE_COLUMN_SPACING);
-        this.actor.style = `spacing: ${TOGGLE_COLUMN_SPACING}px; width: ${w}px;`;
+        this.actor.style = `spacing: 6px; width: ${w}px;`;
         this.actor.width = w;
-        this._iconsBox.style = `spacing: ${TOGGLE_COLUMN_SPACING}px; width: ${iconsWidth}px;`;
-        this._iconsBox.width = iconsWidth;
-        // Give the disk block its exact width so disk + gap + icons fill the
-        // slot precisely. The block's children are centred inside that width,
-        // which keeps glyph, percentage and used/total on one vertical axis.
-        this._storageIndicator.setWidth(storageWidth);
+        if (this._iconsBox) {
+            this._iconsBox.style = `spacing: 6px; width: ${w}px;`;
+            this._iconsBox.width = w;
+        }
+        this._storageIndicator.setWidth(w);
     }
 
     setStorage(storage) {

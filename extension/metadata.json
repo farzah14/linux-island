@@ -1,5 +1,6 @@
 {
   "uuid": "linux-island@local",
+  "settings-schema": "org.gnome.shell.extensions.linux-island",
   "name": "Linux Island",
   "description": "A minimal GNOME Shell capsule feasibility prototype",
   "shell-version": [

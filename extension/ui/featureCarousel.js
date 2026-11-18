@@ -80,7 +80,28 @@ export function getPageIcon(page) {
     if (id === 'system' || id === 'controls' || id === 'metrics') return 'preferences-system-symbolic';
     if (id === 'ai' || id === 'quota' || id === 'ai-quota') return 'applications-science-symbolic';
     if (id === 'time' || id === 'timer') return 'alarm-symbolic';
+    if (id === 'todo') return 'emblem-ok-symbolic';
     return 'view-more-symbolic';
+}
+
+export function resolveCarouselPages(allPages, carouselPagesCsv, defaultPageId) {
+    const valid = Array.isArray(allPages) ? allPages.filter(Boolean) : [];
+    const byId = new Map(valid.map(p => [p.id, p]));
+    const ordered = [];
+    if (typeof carouselPagesCsv === 'string' && carouselPagesCsv.trim().length > 0) {
+        for (const raw of carouselPagesCsv.split(',')) {
+            const id = raw.trim();
+            const page = byId.get(id);
+            if (page && !ordered.includes(page))
+                ordered.push(page);
+        }
+    }
+    const pages = ordered.length > 0 ? ordered : valid;
+    const found = pages.findIndex(p => p.id === defaultPageId);
+    return {
+        pages,
+        defaultIndex: found >= 0 ? found : 0,
+    };
 }
 
 export function getLocalNavGIcon(page) {
@@ -92,6 +113,7 @@ export function getLocalNavGIcon(page) {
         else if (id === 'system' || id === 'controls' || id === 'metrics') name = 'system-symbolic.svg';
         else if (id === 'ai' || id === 'quota' || id === 'ai-quota') name = 'ai-symbolic.svg';
         else if (id === 'time' || id === 'timer') name = 'timer-symbolic.svg';
+        else if (id === 'todo') name = 'todo-symbolic.svg';
         if (!name) return null;
 
         const thisFile = Gio.File.new_for_uri(import.meta.url);
@@ -101,6 +123,25 @@ export function getLocalNavGIcon(page) {
         }
     } catch (_) {}
     return null;
+}
+
+const SHORT_NAV_LABELS = {
+    media: 'Music',
+    music: 'Music',
+    system: 'Sys',
+    controls: 'Sys',
+    metrics: 'Sys',
+    ai: 'AI',
+    quota: 'AI',
+    'ai-quota': 'AI',
+    time: 'Time',
+    timer: 'Time',
+    todo: 'Todo',
+};
+
+export function getShortNavLabel(page) {
+    const id = (page?.id || '').toLowerCase();
+    return SHORT_NAV_LABELS[id] || page?.label || page?.id || 'Tab';
 }
 
 export class FeatureCarousel {
@@ -127,8 +168,46 @@ export class FeatureCarousel {
         return this._model.currentPage;
     }
 
+    get activePageId() {
+        return this._pages[this._model.currentPage]?.id ?? null;
+    }
+
     get pageCount() {
         return this._model.pageCount;
+    }
+
+    _populateNav() {
+        if (!this._navBox)
+            return;
+        for (const btn of this._navButtons) {
+            try {
+                this._navBox.remove_child(btn);
+                btn.destroy?.();
+            } catch (_) {}
+        }
+        this._navButtons = [];
+        this._navBox.visible = Boolean(this._showTopNav && this._pages.length > 1);
+        if (!this._showTopNav || this._pages.length <= 1)
+            return;
+
+        for (let i = 0; i < this._pages.length; ++i) {
+            const page = this._pages[i];
+            const btn = new St.Button({
+                label: getShortNavLabel(page),
+                style_class: (i === this._model.currentPage)
+                    ? 'linux-island__section-btn linux-island__section-btn--active'
+                    : 'linux-island__section-btn',
+                reactive: true,
+                can_focus: true,
+                track_hover: true,
+                accessible_name: page.label || page.id,
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            btn.connect('clicked', () => this.setPage(i));
+            this._navButtons.push(btn);
+            this._navBox.add_child(btn);
+        }
     }
 
     _build() {
@@ -138,51 +217,17 @@ export class FeatureCarousel {
             x_expand: true,
             reactive: true,
         });
-        // Top section navigation bar
-        if (this._showTopNav && this._pages.length > 1) {
-            this._navBox = new St.BoxLayout({
-                style_class: 'linux-island__section-nav',
-                style: 'spacing: 6px; padding-bottom: 2px;',
-                x_align: Clutter.ActorAlign.CENTER,
-                y_align: Clutter.ActorAlign.CENTER,
-            });
-
-            this._navButtons = [];
-            for (let i = 0; i < this._pages.length; ++i) {
-                const page = this._pages[i];
-                const btn = new St.Button({
-                    style_class: (i === this._model.currentPage)
-                        ? 'linux-island__section-btn linux-island__section-btn--active'
-                        : 'linux-island__section-btn',
-                    reactive: true,
-                    can_focus: true,
-                    track_hover: true,
-                    accessible_name: page.label || page.id,
-                    x_align: Clutter.ActorAlign.CENTER,
-                    y_align: Clutter.ActorAlign.CENTER,
-                });
-                const gicon = getLocalNavGIcon(page);
-                const icon = gicon
-                    ? new St.Icon({
-                        gicon,
-                        icon_size: 14,
-                        x_align: Clutter.ActorAlign.CENTER,
-                        y_align: Clutter.ActorAlign.CENTER,
-                    })
-                    : new St.Icon({
-                        icon_name: getPageIcon(page),
-                        fallback_icon_name: 'view-more-symbolic',
-                        icon_size: 14,
-                        x_align: Clutter.ActorAlign.CENTER,
-                        y_align: Clutter.ActorAlign.CENTER,
-                    });
-                btn.set_child(icon);
-                btn.connect('clicked', () => this.setPage(i));
-                this._navButtons.push(btn);
-                this._navBox.add_child(btn);
-            }
+        // Top section navigation bar (reused in-place when pages are reconfigured)
+        this._navBox = new St.BoxLayout({
+            style_class: 'linux-island__section-nav',
+            style: 'spacing: 6px; padding-bottom: 2px;',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            visible: Boolean(this._showTopNav && this._pages.length > 1),
+        });
+        this._populateNav();
+        if (this._showTopNav && this._pages.length > 1)
             this.actor.add_child(this._navBox);
-        }
 
 
         // St.Bin gives full, proper allocation to the active page
@@ -372,6 +417,29 @@ export class FeatureCarousel {
             this._syncView(direction);
             this._onPageChanged(this._model.currentPage);
         }
+    }
+
+    setPages(pages, initialPage = 0) {
+        if (this._destroyed)
+            return;
+        this._pages = (pages ?? []).filter(Boolean);
+        this._model = new CarouselModel({
+            pageCount: Math.max(1, this._pages.length),
+            initialPage,
+            loop: true,
+        });
+        this._populateNav();
+        this._syncView(1);
+        this._onPageChanged(this._model.currentPage);
+    }
+
+    goToPageId(id) {
+        const idx = this._pages.findIndex(p => p.id === id);
+        if (idx >= 0) {
+            this.setPage(idx);
+            return true;
+        }
+        return false;
     }
 
     nextPage() {

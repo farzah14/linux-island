@@ -1,4 +1,4 @@
-# Motion & Interaction — Linux Island DS v1.0
+# Motion & Interaction — Linux Island DS v2.0
 
 ## Event arbitration
 

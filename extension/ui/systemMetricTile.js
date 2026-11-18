@@ -48,6 +48,7 @@ export class SystemMetricTile {
     constructor({label = 'METRIC', iconName = ''} = {}) {
         this._label = label;
         this._iconName = iconName;
+        this._compact = false;
         this.actor = null;
         this._icon = null;
         this._nameLabel = null;
@@ -62,61 +63,39 @@ export class SystemMetricTile {
 
     _build() {
         this.actor = new St.BoxLayout({
-            vertical: false,
-            style: 'spacing: 8px; height: 20px;',
-            style_class: 'linux-island__metric-tile',
+            vertical: true,
+            style: 'spacing: 2px; height: 36px;',
+            style_class: 'linux-island__metric-card',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
 
-        if (this._iconName) {
-            const svgName = this._label === 'CPU' ? 'cpu-symbolic.svg'
-                          : this._label === 'RAM' ? 'ram-symbolic.svg'
-                          : this._label === 'BAT' ? 'battery-symbolic.svg' : null;
-            const gicon = svgName ? getLocalUiGIcon(svgName) : null;
-            this._icon = new St.Icon({
-                icon_name: this._iconName,
-                fallback_icon_name: this._iconName,
-                ...(gicon ? {gicon} : {}),
-                icon_size: 14,
-                style_class: 'linux-island__metric-icon',
-                y_align: Clutter.ActorAlign.CENTER,
-            });
-            this.actor.add_child(this._icon);
-        }
-
         this._nameLabel = new St.Label({
             text: this._label,
-            style_class: 'linux-island__metric-label',
+            style_class: 'linux-island__metric-card-title',
+            x_align: Clutter.ActorAlign.START,
             y_align: Clutter.ActorAlign.CENTER,
         });
         this.actor.add_child(this._nameLabel);
 
         this._valueLabel = new St.Label({
             text: '--%',
-            style_class: 'linux-island__metric-value',
-            // The value is the flexible part of the row: when "100% ⚡" cannot
-            // fit beside the glyph and label, it absorbs the remainder instead
-            // of overflowing into the NET column.
+            style_class: 'linux-island__metric-card-value',
             x_expand: true,
-            x_align: Clutter.ActorAlign.END,
+            x_align: Clutter.ActorAlign.START,
             y_align: Clutter.ActorAlign.CENTER,
         });
+        if (this._valueLabel.clutter_text?.set_ellipsize) {
+            this._valueLabel.clutter_text.set_ellipsize(3);
+        }
         this.actor.add_child(this._valueLabel);
     }
 
     setWidth(w) {
         if (!this.actor || w <= 0) return;
-        const compact = w < METRIC_COMPACT_WIDTH;
-        // St's CSS width is the content box: the stylesheet's 2px 4px padding
-        // is added outside it. Compact mode therefore drops padding entirely
-        // (and the glyph) so the tile occupies exactly the slot width instead
-        // of overflowing it — 22px label + 4px gap + 38px "100% ⚡" = 64px.
-        const gap = compact ? 4 : 8;
-        const padding = compact ? '0' : '2px 4px';
-        this.actor.style = `width: ${w}px; spacing: ${gap}px; height: 20px; padding: ${padding};`;
+        this._compact = w < METRIC_COMPACT_WIDTH;
+        this.actor.style = `width: ${w}px; spacing: 2px; height: 36px;`;
         this.actor.width = w;
-        if (this._icon) this._icon.visible = Boolean(this._iconName) && !compact;
     }
 
     setIcon(iconName) {
@@ -124,7 +103,7 @@ export class SystemMetricTile {
         if (this._icon) {
             this._icon.icon_name = iconName;
             this._icon.fallback_icon_name = iconName;
-            this._icon.visible = Boolean(iconName);
+            this._icon.visible = Boolean(iconName) && !this._compact;
         }
     }
 
@@ -305,18 +284,10 @@ export class StorageIndicator {
     }
 
     _build() {
-        // Plain block: no background, border or border-radius. The parent row
-        // lets it expand to absorb leftover width while the icon column takes
-        // the right edge.
-        //
-        // Everything inside is centred, so the disk glyph and the percentage
-        // sit centred above the "used/total" line rather than flush left.
-        // padding + margin-bottom keeps the block off the capsule edge while
-        // the 1px line spacing keeps the three lines reading as one unit.
         this.actor = new St.BoxLayout({
             vertical: true,
-            style: `spacing: ${STORAGE_LINE_SPACING}px; padding: ${STORAGE_PADDING_Y}px 0;`,
-            x_align: Clutter.ActorAlign.CENTER,
+            style: 'spacing: 3px; height: 22px;',
+            x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
             reactive: true,
             track_hover: true,
@@ -327,59 +298,70 @@ export class StorageIndicator {
             return Clutter.EVENT_STOP;
         });
 
-        const diskGicon = getLocalUiGIcon('disk-symbolic.svg');
-        this._icon = new St.Icon({
-            icon_name: 'drive-harddisk-symbolic',
-            fallback_icon_name: 'drive-harddisk-symbolic',
-            ...(diskGicon ? {gicon: diskGicon} : {}),
-            icon_size: STORAGE_GLYPH_SIZE,
-            style_class: 'linux-island__metric-icon',
-            x_align: Clutter.ActorAlign.CENTER,
+        const topRow = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 6px;',
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
         });
 
         this._valueLabel = new St.Label({
-            text: '--%',
-            style_class: 'linux-island__metric-value',
-            x_align: Clutter.ActorAlign.CENTER,
+            text: 'Storage',
+            style: 'font-size: 10px; font-weight: 600;',
+            style_class: 'linux-island__metric-label',
+            x_expand: true,
+            x_align: Clutter.ActorAlign.START,
+            y_align: Clutter.ActorAlign.CENTER,
         });
-        this.actor.add_child(this._valueLabel);
+        topRow.add_child(this._valueLabel);
 
         this._detailLabel = new St.Label({
-            text: '',
-            style: 'font-size: 9px;',
-            style_class: 'linux-island__metric-label',
-            x_align: Clutter.ActorAlign.CENTER,
+            text: '--%',
+            style: 'font-size: 10px; font-weight: 600;',
+            style_class: 'linux-island__metric-value',
+            x_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.CENTER,
         });
-        this.actor.add_child(this._detailLabel);
+        topRow.add_child(this._detailLabel);
+        this.actor.add_child(topRow);
+
+        this._track = new St.BoxLayout({
+            vertical: false,
+            style: 'height: 4px;',
+            style_class: 'linux-island__metric-track',
+            x_expand: true,
+        });
+        this._fill = new St.Widget({
+            style: 'height: 4px; width: 0px;',
+            style_class: 'linux-island__metric-fill',
+            x_align: Clutter.ActorAlign.START,
+        });
+        this._track.add_child(this._fill);
+        this.actor.add_child(this._track);
     }
 
     setStorage(storage) {
         if (!storage) return;
         this._percent = Math.max(0, Math.min(100, Number(storage.percent) || 0));
-        if (this._icon && storage.iconName) {
-            this._icon.icon_name = storage.iconName;
-            this._icon.fallback_icon_name = storage.iconName;
+        if (this._valueLabel) {
+            const detail = storage.compactDetailText || storage.detailText || '';
+            this._valueLabel.text = detail ? `Disk · ${detail}` : 'Disk';
         }
-        if (this._valueLabel) this._valueLabel.text = storage.text || `${Math.round(this._percent)}%`;
         if (this._detailLabel) {
-            // The system page's disk column is narrow; prefer the compact
-            // "36/143 GB" form so the line is not clipped.
-            this._detailLabel.text =
-                storage.compactDetailText || storage.detailText || '';
+            this._detailLabel.text = storage.text || `${Math.round(this._percent)}%`;
+        }
+        if (this._fill && this._trackWidth > 0) {
+            const fillW = Math.round(this._trackWidth * (this._percent / 100));
+            this._fill.style = `height: 4px; width: ${fillW}px;`;
         }
         if (this.actor) {
             this.actor.accessible_name =
                 `Storage ${Math.round(this._percent)}% used` +
                 (storage.detailText ? `, ${storage.detailText}` : '');
-            // Warn visually when the disk is nearly full, using the token accent.
-            // add_style_class_name/remove_style_class_name keep any other
-            // classes intact; the direct assignment stays for the test mock.
             if (this._percent >= 90) {
                 this.actor.add_style_class_name?.('linux-island__storage--critical');
-                this.actor.style_class = 'linux-island__storage--critical';
             } else {
                 this.actor.remove_style_class_name?.('linux-island__storage--critical');
-                this.actor.style_class = '';
             }
         }
     }
@@ -388,15 +370,6 @@ export class StorageIndicator {
         return this._percent;
     }
 
-    /**
-     * Record the column width for layout bookkeeping only.
-     *
-     * The labels deliberately keep their natural width. Giving them an explicit
-     * width made each label fill the whole block, so `x_align: CENTER` had
-     * nothing left to centre and the text rendered flush left — which is what
-     * made the percentage look misaligned against the disk glyph above it.
-     * Natural width lets the block centre each line as an actor instead.
-     */
     setLabelWidth(w) {
         if (!this.actor || w <= 0) return;
         this._labelWidth = w;
@@ -404,16 +377,14 @@ export class StorageIndicator {
 
     setWidth(w) {
         if (!this.actor || w <= 0) return;
-        // Keep the vertical padding: this assignment replaces the whole style
-        // string, so dropping it here silently flattened the block again.
-        this.actor.style =
-            `spacing: ${STORAGE_LINE_SPACING}px; padding: ${STORAGE_PADDING_Y}px 0; width: ${w}px;`;
+        this._trackWidth = w;
+        this.actor.style = `spacing: 3px; height: 22px; width: ${w}px;`;
         this.actor.width = w;
         this.setLabelWidth(w);
-        // Narrow slots cannot fit "147/249 GB" (~49px at 9px); hide the line
-        // instead of letting it clip against the capsule edge.
-        if (this._detailLabel)
-            this._detailLabel.visible = w >= STORAGE_COMPACT_WIDTH;
+        if (this._fill) {
+            const fillW = Math.round(w * (this._percent / 100));
+            this._fill.style = `height: 4px; width: ${fillW}px;`;
+        }
     }
 
     destroy() {
@@ -464,56 +435,69 @@ export class SystemMetricsRow {
 
     _build() {
         this.actor = new St.BoxLayout({
-            vertical: false,
-            style: 'spacing: 10px;',
-            x_expand: true,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-
-        // Left Column: CPU, RAM, Battery (with percentages)
-        this._metricsCol = new St.BoxLayout({
             vertical: true,
             style: 'spacing: 4px;',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
 
+        this._row1 = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 6px;',
+            x_expand: true,
+        });
         this._cpuTile = new SystemMetricTile({
-            label: 'CPU',
+            label: 'CPU LOAD',
             iconName: 'preferences-system-performance-symbolic',
         });
-        if (this._cpuTile.actor) this._metricsCol.add_child(this._cpuTile.actor);
+        if (this._cpuTile.actor) this._row1.add_child(this._cpuTile.actor);
 
         this._ramTile = new SystemMetricTile({
-            label: 'RAM',
+            label: 'MEMORY',
             iconName: 'drive-harddisk-symbolic',
         });
-        if (this._ramTile.actor) this._metricsCol.add_child(this._ramTile.actor);
+        if (this._ramTile.actor) this._row1.add_child(this._ramTile.actor);
+        this.actor.add_child(this._row1);
 
-        // Check if system has a battery device
+        this._row2 = new St.BoxLayout({
+            vertical: false,
+            style: 'spacing: 6px;',
+            x_expand: true,
+        });
         const initial = this._collector.collect();
-        if (initial.battery) {
-            this._batTile = new SystemMetricTile({
-                label: 'BAT',
-                iconName: initial.battery.iconName || 'battery-good-symbolic',
-            });
-            if (this._batTile.actor) this._metricsCol.add_child(this._batTile.actor);
+        this._batTile = new SystemMetricTile({
+            label: 'BATTERY',
+            iconName: initial.battery?.iconName || 'battery-good-symbolic',
+        });
+        if (!initial.battery) {
+            this._batTile.setValue('AC', 100);
         }
+        if (this._batTile.actor) this._row2.add_child(this._batTile.actor);
 
-        this.actor.add_child(this._metricsCol);
+        this._netTile = new SystemMetricTile({
+            label: 'NETWORK',
+            iconName: 'network-transmit-receive-symbolic',
+        });
+        this._netTile.setValue('↓ 0 B/s', 0);
+        if (this._netTile.actor) this._row2.add_child(this._netTile.actor);
+        this.actor.add_child(this._row2);
     }
 
     setWidth(w) {
         if (!this.actor || w <= 0) return;
-        this.actor.style = `width: ${w}px; spacing: 10px;`;
+        const cardW = Math.max(60, Math.floor((w - 6) / 2));
+        this.actor.style = `width: ${w}px; spacing: 4px;`;
         this.actor.width = w;
-        if (this._metricsCol) {
-            this._metricsCol.style = `width: ${w}px; spacing: 4px;`;
-            this._metricsCol.width = w;
+        for (const row of [this._row1, this._row2]) {
+            if (row) {
+                row.style = `width: ${w}px; spacing: 6px;`;
+                row.width = w;
+            }
         }
-        if (this._cpuTile) this._cpuTile.setWidth(w);
-        if (this._ramTile) this._ramTile.setWidth(w);
-        if (this._batTile) this._batTile.setWidth(w);
+        if (this._cpuTile) this._cpuTile.setWidth(cardW);
+        if (this._ramTile) this._ramTile.setWidth(cardW);
+        if (this._batTile) this._batTile.setWidth(cardW);
+        if (this._netTile) this._netTile.setWidth(cardW);
     }
 
     update() {
@@ -527,11 +511,18 @@ export class SystemMetricsRow {
             this._ramTile.setValue(metrics.ram.text, metrics.ram.percent);
         }
         if (metrics.battery && this._batTile) {
-            this._batTile.setIcon(metrics.battery.iconName || 'battery-good-symbolic');
-            this._batTile.setLabel(metrics.battery.device || 'BAT');
-            this._batTile.setValue(metrics.battery.text, metrics.battery.percent);
+            const suffix = metrics.battery.isCharging ? ' · AC' : '';
+            this._batTile.setValue(`${Math.round(metrics.battery.percent)}%${suffix}`, metrics.battery.percent);
+            this._batTile.actor.accessible_name = metrics.battery.isCharging
+                ? `Battery ${Math.round(metrics.battery.percent)} percent, charging`
+                : `Battery ${Math.round(metrics.battery.percent)} percent`;
         }
         if (metrics.network) {
+            if (this._netTile) {
+                const rx = metrics.network.rxText || '↓ 0 B/s';
+                const tx = metrics.network.txText || '↑ 0 B/s';
+                this._netTile.setValue(`${rx} · ${tx}`.replace(/\/s/g, ''), 0);
+            }
             this._onNetwork(metrics.network);
         }
         if (metrics.storage) {
@@ -540,11 +531,9 @@ export class SystemMetricsRow {
     }
 
     start() {
-        if (this._destroyed) return;
+        if (this._destroyed || this._timerId) return;
         this.update();
-        if (!this._timerId) {
-            this._timerId = this._scheduler.add(1500, () => this.update());
-        }
+        this._timerId = this._scheduler.add(1500, () => this.update());
     }
 
     stop() {
@@ -553,12 +542,8 @@ export class SystemMetricsRow {
 
     _onMappedChanged() {
         if (this._destroyed || !this.actor) return;
-        const isMapped = this.actor.mapped;
-        if (isMapped) {
-            this.update();
-            if (!this._timerId) {
-                this._timerId = this._scheduler.add(1500, () => this.update());
-            }
+        if (this.actor.mapped) {
+            this.start();
         } else {
             this._stopTimer();
         }
@@ -577,9 +562,14 @@ export class SystemMetricsRow {
         if (this._cpuTile) this._cpuTile.destroy();
         if (this._ramTile) this._ramTile.destroy();
         if (this._batTile) this._batTile.destroy();
-        if (this._metricsCol) {
-            this._metricsCol.destroy();
-            this._metricsCol = null;
+        if (this._netTile) this._netTile.destroy();
+        if (this._row1) {
+            this._row1.destroy();
+            this._row1 = null;
+        }
+        if (this._row2) {
+            this._row2.destroy();
+            this._row2 = null;
         }
         if (this.actor) {
             this.actor.destroy();
