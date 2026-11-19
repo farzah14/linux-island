@@ -92,6 +92,16 @@ else()
     add_test(NAME time-dbus COMMAND tst_time_dbus)
 endif()
 
+add_executable(tst_time_client tst_time_client.cpp
+    ${CMAKE_SOURCE_DIR}/island-ui/time_client.cpp
+    ${CMAKE_SOURCE_DIR}/island-ui/time_client.h
+    ${CMAKE_SOURCE_DIR}/island-ui/time_format.cpp)
+target_include_directories(tst_time_client PRIVATE ${CMAKE_SOURCE_DIR}/island-ui)
+target_link_libraries(tst_time_client PRIVATE Qt6::Core Qt6::DBus Qt6::Test)
+if(DBUS_RUN_SESSION)
+    add_test(NAME time-client COMMAND ${DBUS_RUN_SESSION} $<TARGET_FILE:tst_time_client>)
+endif()
+
 add_executable(tst_mpris_flow
     tst_mpris_flow.cpp
     fake_mpris_player.h
