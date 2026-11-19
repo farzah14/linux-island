@@ -1,11 +1,10 @@
 #include "time_client.h"
 
 #include <QDBusArgument>
-#include <QDBusInterface>
 #include <QDBusMessage>
 #include <QDBusPendingCall>
 #include <QDBusPendingCallWatcher>
-#include <QDBusReply>
+#include <QDBusPendingReply>
 #include <QDateTime>
 #include "time_format.h"
 
@@ -29,6 +28,9 @@ QVariantMap variantToMap(const QVariant &value) {
 TimeClient::TimeClient(const QDBusConnection &bus, QObject *parent)
     : QObject(parent),
       m_bus(bus) {
+    m_retryTimer.setSingleShot(true);
+    m_retryTimer.setInterval(2000);
+    connect(&m_retryTimer, &QTimer::timeout, this, &TimeClient::fetchTimer);
     if (m_bus.isConnected()) {
         m_bus.connect(QStringLiteral("org.freedesktop.DBus"),
                       QStringLiteral("/org/freedesktop/DBus"),
@@ -64,46 +66,54 @@ QString TimeClient::compactIcon() const {
 
 void TimeClient::call(const QString &method, const QVariantList &args) {
     if (!m_bus.isConnected()) return;
-    QDBusInterface iface(kService, kPath, kInterface, m_bus);
-    if (!iface.isValid()) return;
-    iface.asyncCallWithArgumentList(method, args);
+    auto message = QDBusMessage::createMethodCall(kService, kPath, kInterface, method);
+    message.setArguments(args);
+    m_bus.asyncCall(message, 2000);
 }
 
 void TimeClient::setTimerServiceAvailable(bool available) {
+    if (available) m_retryTimer.stop();
     if (m_timerServiceAvailable == available) return;
     m_timerServiceAvailable = available;
     emit availabilityChanged();
 }
 
 void TimeClient::fetchTimer() {
-    if (!m_bus.isConnected()) return;
-
-    QDBusInterface iface(kService, kPath, kInterface, m_bus);
-    if (!iface.isValid()) return;
-
-    QDBusPendingCall call = iface.asyncCall(QStringLiteral("GetTimer"));
+    if (!m_bus.isConnected() || m_fetchInFlight) return;
+    m_fetchInFlight = true;
+    const quint64 generation = m_ownerGeneration;
+    const auto message = QDBusMessage::createMethodCall(kService, kPath, kInterface, QStringLiteral("GetTimer"));
+    QDBusPendingCall call = m_bus.asyncCall(message, 2000);
     QDBusPendingCallWatcher *watcher = new QDBusPendingCallWatcher(call, this);
-    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *w) {
+    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, generation](QDBusPendingCallWatcher *w) {
         w->deleteLater();
-        QDBusReply<QVariantMap> reply = *w;
-        if (!reply.isValid()) return;
+        if (generation != m_ownerGeneration) return;
+        m_fetchInFlight = false;
+        QDBusPendingReply<QVariantMap> reply = *w;
+        if (reply.isError()) {
+            if (!m_timerServiceAvailable && m_bus.isConnected()) m_retryTimer.start();
+            return;
+        }
+        const bool wasAvailable = m_timerServiceAvailable;
         setTimerServiceAvailable(true);
         applyTimerMap(variantToMap(reply.value()));
+        if (!wasAvailable) fetchTimerStats();
     });
 }
 
 void TimeClient::fetchTimerStats() {
     if (!m_bus.isConnected()) return;
 
-    QDBusInterface iface(kService, kPath, kInterface, m_bus);
-    if (!iface.isValid()) return;
-
-    QDBusPendingCall call = iface.asyncCall(QStringLiteral("GetTimerStats"));
+    const quint64 generation = m_ownerGeneration;
+    const quint64 requestId = ++m_statsRequestId;
+    const auto message = QDBusMessage::createMethodCall(kService, kPath, kInterface, QStringLiteral("GetTimerStats"));
+    QDBusPendingCall call = m_bus.asyncCall(message, 2000);
     QDBusPendingCallWatcher *watcher = new QDBusPendingCallWatcher(call, this);
-    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *w) {
+    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, generation, requestId](QDBusPendingCallWatcher *w) {
         w->deleteLater();
-        QDBusReply<QVariantMap> reply = *w;
-        if (!reply.isValid()) return;
+        if (generation != m_ownerGeneration || requestId != m_statsRequestId) return;
+        QDBusPendingReply<QVariantMap> reply = *w;
+        if (reply.isError()) return;
         m_timerStats = variantToMap(reply.value());
         emit statsChanged();
     });
@@ -111,6 +121,7 @@ void TimeClient::fetchTimerStats() {
 
 void TimeClient::applyTimerMap(const QVariantMap &timer) {
     const quint64 revision = timer.value(QStringLiteral("revision")).toULongLong();
+    if (revision == 0 && m_timerRevision != 0) return;
     if (revision != 0 && revision <= m_timerRevision) return;
     if (revision != 0) m_timerRevision = revision;
 
@@ -136,22 +147,33 @@ void TimeClient::applyTimerMap(const QVariantMap &timer) {
 }
 
 void TimeClient::onTimerChanged(quint64 revision, const QVariantMap &timer) {
+    const bool wasAvailable = m_timerServiceAvailable;
+    const QString oldState = m_timerState;
+    const QString oldMode = m_timerMode;
+    const QString oldPhase = m_timerPhase;
+    const int oldCompletedFocus = m_timerCompletedFocus;
+    setTimerServiceAvailable(true);
     QVariantMap payload = timer;
     if (!payload.contains(QStringLiteral("revision"))) {
         payload[QStringLiteral("revision")] = QVariant::fromValue<quint64>(revision);
     }
     applyTimerMap(payload);
+    if (!wasAvailable || oldState != m_timerState || oldMode != m_timerMode ||
+        oldPhase != m_timerPhase || oldCompletedFocus != m_timerCompletedFocus) fetchTimerStats();
 }
 
 void TimeClient::onNameOwnerChanged(const QString &service, const QString &oldOwner,
                                     const QString &newOwner) {
     Q_UNUSED(oldOwner);
     if (service != kService) return;
+    ++m_ownerGeneration;
+    m_fetchInFlight = false;
+    m_retryTimer.stop();
+    m_timerRevision = 0;
+    m_timerStats.clear();
+    setTimerServiceAvailable(false);
 
     if (newOwner.isEmpty()) {
-        m_timerRevision = 0;
-        m_timerStats.clear();
-        setTimerServiceAvailable(false);
         applyTimerMap({{QStringLiteral("state"), QStringLiteral("idle")},
                        {QStringLiteral("mode"), QStringLiteral("countdown")},
                        {QStringLiteral("phase"), QString()},

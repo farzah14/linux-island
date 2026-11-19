@@ -3,12 +3,13 @@
 #include <QDBusConnection>
 #include <QObject>
 #include <QString>
+#include <QTimer>
 #include <QVariantList>
 #include <QVariantMap>
 
 // Qt mirror of the Time1 client. The timer is owned by the Core daemon, so
 // this object never counts down on its own: it only applies snapshots and
-// signals. `timerServiceAvailable` becomes true on the first GetTimer reply.
+// signals. Availability follows a valid snapshot or timer signal.
 class TimeClient : public QObject {
     Q_OBJECT
 
@@ -89,6 +90,10 @@ private:
 
     QDBusConnection m_bus;
     quint64 m_timerRevision = 0;
+    quint64 m_ownerGeneration = 0;
+    quint64 m_statsRequestId = 0;
+    bool m_fetchInFlight = false;
+    QTimer m_retryTimer;
 
     QString m_timerState = QStringLiteral("idle");
     QString m_timerMode = QStringLiteral("countdown");
