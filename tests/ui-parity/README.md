@@ -16,7 +16,11 @@ This directory contains the reproducible test harnesses, fixtures, and execution
 
 ## 2. Deterministic Fixture Catalog
 
-The fixture runner (`tests/ui-parity/fixture_runner.py`) provides 10 deterministic states covering all 4 carousel pages:
+The fixture runner (`tests/ui-parity/fixture_runner.py`) provides fixture
+definitions for all five carousel pages. `--verify` validates the catalog; it
+does not inject these definitions into either renderer or prove visual parity.
+The table below lists the original Media, System, and AI fixtures; use `--list`
+to see the Timer and Todo cases as well.
 
 | Fixture ID | Carousel Page | Scenario Tested | Key Invariants to Verify |
 |---|---|---|---|

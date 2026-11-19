@@ -4,9 +4,11 @@ import QtQuick.Layouts
 
 Item {
     id: root
+    objectName: "systemPage"
 
     implicitWidth: parent ? parent.width : 320
-    implicitHeight: 132
+    implicitHeight: systemColumn.implicitHeight
+    readonly property real contentHeight: implicitHeight
 
     property string capsuleSize: "medium"
     readonly property bool shouldPoll: visible && SwipeView.isCurrentItem && islandClient.uiState === "EXPANDED"
@@ -17,12 +19,13 @@ Item {
 
     // Matches GNOME systemMetricTile.js: clean percentage-only 2x2 cards (no mini progress bars)
     component MetricCard: Rectangle {
+        objectName: "systemMetricCard"
         property string title: ""
         property string value: ""
         property color valueColor: IslandTheme.textPrimary
 
         Layout.fillWidth: true
-        Layout.preferredHeight: 36
+        Layout.preferredHeight: 48
         radius: 10
         color: IslandTheme.surfaceRaised
         border.width: 1
@@ -62,7 +65,7 @@ Item {
         signal triggered()
 
         Layout.fillWidth: true
-        implicitHeight: 22
+        implicitHeight: 24
         radius: 999
         color: (pillMouse.containsMouse || active) ? IslandTheme.surfaceHover : IslandTheme.surfaceRaised
         border.width: 1
@@ -89,6 +92,7 @@ Item {
     }
 
     ColumnLayout {
+        id: systemColumn
         anchors.fill: parent
         spacing: 6
 
@@ -176,6 +180,7 @@ Item {
 
         // Bottom 4 horizontal quick pills (matches GNOME QuickTogglesRow)
         RowLayout {
+            objectName: "systemQuickActions"
             Layout.fillWidth: true
             spacing: 6
 

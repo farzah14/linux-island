@@ -134,6 +134,8 @@ add_test(NAME launcher-routing
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_launcher.py)
 add_test(NAME local-install
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_local_install.py)
+add_test(NAME verify-installed
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/integration/test_verify_installed.py)
 
 find_program(NODE_EXECUTABLE node)
 if(NODE_EXECUTABLE)

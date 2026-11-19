@@ -279,6 +279,27 @@ int main(int argc, char *argv[]) {
             return 8;
         }
 
+        auto *carousel = rootWindow->findChild<QObject *>(QStringLiteral("featureCarousel"));
+        auto *systemPage = rootWindow->findChild<QQuickItem *>(QStringLiteral("systemPage"));
+        auto *actions = rootWindow->findChild<QQuickItem *>(QStringLiteral("systemQuickActions"));
+        auto *metric = rootWindow->findChild<QQuickItem *>(QStringLiteral("systemMetricCard"));
+        if (!carousel || !systemPage || !actions || !metric) {
+            std::cerr << "Smoke test error: System layout items missing" << std::endl;
+            return 15;
+        }
+        carousel->setProperty("currentIndex", 1);
+        QEventLoop systemLayoutLoop;
+        QTimer::singleShot(400, &systemLayoutLoop, &QEventLoop::quit);
+        systemLayoutLoop.exec();
+        const QPointF actionBottom = actions->mapToItem(systemPage, QPointF(0, actions->height()));
+        if (metric->height() < 47.5 || actionBottom.y() > systemPage->height() + 0.5) {
+            std::cerr << "Smoke test error: System layout clips controls or has undersized cards: card="
+                      << metric->height() << " actionsBottom=" << actionBottom.y()
+                      << " pageHeight=" << systemPage->height() << std::endl;
+            return 15;
+        }
+        carousel->setProperty("currentIndex", 0);
+
         client.dispatchEvent(QStringLiteral("DISMISS"));
         if (client.uiState() != QLatin1String("COMPACT")) {
             std::cerr << "Smoke test error: expected COMPACT state, got " << client.uiState().toStdString() << std::endl;
