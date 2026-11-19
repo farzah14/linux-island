@@ -591,7 +591,7 @@ export class MediaView {
         // Section 2: System 2×2 metric cards + Storage bar + 4 horizontal quick pills
         this._systemSection = new St.BoxLayout({
             vertical: true,
-            style: 'width: 320px; height: 132px; spacing: 6px;',
+            style: 'width: 320px; spacing: 6px;',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
@@ -770,7 +770,7 @@ export class MediaView {
             this._mediaSection.width = contentWidth;
         }
         if (this._systemSection) {
-            this._systemSection.style = `width: ${contentWidth}px; height: 132px; spacing: 6px;`;
+            this._systemSection.style = `width: ${contentWidth}px; spacing: 6px;`;
             this._systemSection.width = contentWidth;
         }
         if (this._metricsRow) this._metricsRow.setWidth(contentWidth);

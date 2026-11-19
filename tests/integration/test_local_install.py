@@ -6,6 +6,7 @@ manifest, the rewritten desktop entries and the preserved configuration are
 verified end to end.
 """
 import os
+import importlib.util
 import shutil
 import subprocess
 import sys
@@ -14,6 +15,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BUILD_CACHE = ROOT / 'build/dev/CMakeCache.txt'
+spec = importlib.util.spec_from_file_location('verify_installed', ROOT / 'scripts/dev/verify-installed.py')
+verifier = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(verifier)
 
 
 def run(script, env, *args):
@@ -59,6 +63,13 @@ def main():
             assert Path(entry).exists(), f'manifest lists a missing file: {entry}'
 
         assert (home / '.local/bin/linux-island-launch').exists()
+        assert verifier.verify(ROOT, ROOT / 'build/dev', home / '.local') == 0
+        capsule = data / 'gnome-shell/extensions/linux-island@local/ui/capsule.js'
+        capsule.write_text('stale installed file')
+        assert verifier.verify(ROOT, ROOT / 'build/dev', home / '.local') == 1
+        result = run('packaging/dev/install-local.sh', env, '--no-systemd', '--no-autostart')
+        assert result.returncode == 0, f'reinstall failed:\n{result.stdout}\n{result.stderr}'
+        assert verifier.verify(ROOT, ROOT / 'build/dev', home / '.local') == 0
         assert not (config / 'systemd/user/linux-island-core.service').exists(), \
             '--no-systemd must not install the unit'
         assert not (config / 'autostart/linux-island.desktop').exists(), \

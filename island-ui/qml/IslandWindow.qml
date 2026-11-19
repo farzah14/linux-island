@@ -92,7 +92,7 @@ Window {
     function getExpandedHeight() {
         var waExtra = notificationWatcher.whatsappActivity ? 30 : 0;
         if (carouselView && carouselView.currentIndex === 1)
-            return 132 + 52 + waExtra;
+            return systemPage.contentHeight + 52 + waExtra;
         if (carouselView && carouselView.currentIndex === 2)
             return 128 + 52 + waExtra;
         if (carouselView && carouselView.currentIndex === 3)
@@ -480,6 +480,7 @@ Window {
             // Swipeable Pages
             SwipeView {
                 id: carouselView
+                objectName: "featureCarousel"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 currentIndex: islandClient.defaultSwipeIndex
@@ -493,7 +494,7 @@ Window {
                 }
 
                 MusicPage { id: musicPage; capsuleSize: islandClient.capsuleSize }
-                SystemPage { capsuleSize: islandClient.capsuleSize }
+                SystemPage { id: systemPage; capsuleSize: islandClient.capsuleSize }
                 AiQuotaPage {}
                 TimePage { id: timePage }
                 TodoPage { id: todoPage }

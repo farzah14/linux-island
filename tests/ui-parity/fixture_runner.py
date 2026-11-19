@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deterministic fixture runner for Linux Island cross-desktop UI parity tests.
 
-Provides isolated test states for Media, System, and AI Quota pages
+Provides isolated test states for the five carousel pages
 without touching real user accounts, private cookies, or personal media.
 """
 import argparse
@@ -15,6 +15,16 @@ import time
 ROOT = Path(__file__).resolve().parents[2]
 
 FIXTURES = {
+    'FIX-TIMER-IDLE': {'page': 'timer', 'description': 'Idle timer with presets and controls.', 'state': 'idle'},
+    'FIX-TIMER-RUNNING': {'page': 'timer', 'description': 'Running countdown.', 'state': 'running'},
+    'FIX-TIMER-PAUSED': {'page': 'timer', 'description': 'Paused countdown.', 'state': 'paused'},
+    'FIX-TIMER-FINISHED': {'page': 'timer', 'description': 'Finished countdown.', 'state': 'finished'},
+    'FIX-POMODORO-FOCUS': {'page': 'timer', 'description': 'Pomodoro focus with session statistics.', 'state': 'running', 'mode': 'pomodoro', 'phase': 'focus'},
+    'FIX-POMODORO-BREAK': {'page': 'timer', 'description': 'Pomodoro break.', 'state': 'running', 'mode': 'pomodoro', 'phase': 'break'},
+    'FIX-TODO-EMPTY': {'page': 'todo', 'description': 'Empty task list.', 'tasks': []},
+    'FIX-TODO-POPULATED': {'page': 'todo', 'description': 'List with active and completed tasks.', 'tasks': [{'title': 'First task', 'done': False}, {'title': 'Completed task', 'done': True}]},
+    'FIX-TODO-LONG': {'page': 'todo', 'description': 'Long task title requiring elision.', 'tasks': [{'title': 'A long task title that must remain inside the available task row without overlapping its controls', 'done': False}]},
+    'FIX-TODO-OFFLINE': {'page': 'todo', 'description': 'Task service unavailable.', 'connected': False},
     'FIX-MEDIA-EMPTY': {
         'page': 'media',
         'description': 'Core service online, zero active media players.',
@@ -169,7 +179,7 @@ def verify_fixtures():
     for fix_id, fix_data in FIXTURES.items():
         if not required_keys.issubset(fix_data.keys()):
             errors.append(f"{fix_id} missing required keys")
-        if fix_data['page'] not in ('media', 'system', 'ai'):
+        if fix_data['page'] not in ('media', 'system', 'ai', 'timer', 'todo'):
             errors.append(f"{fix_id} invalid page {fix_data['page']}")
 
     if errors:
